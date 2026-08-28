@@ -1,6 +1,7 @@
 # HolidayTracer — Plan
 
-> Status: **plan / not yet implemented**. Reflects decisions confirmed with Tamir on 2026-08-28.
+> Status: **phase 1 is built** — see the repository root and [README](../README.md) for how to run
+> it. Phases 2 and 3 are still plan. Reflects decisions confirmed with Tamir on 2026-08-28.
 > Remaining items are in [OPEN-QUESTIONS.md](./OPEN-QUESTIONS.md). Unavoidable assumptions are
 > marked **[ASSUMPTION]**.
 >
@@ -207,7 +208,7 @@ app one shared identity, with no clean way to hold a per-person session.
 
 | Phase | Scope |
 |---|---|
-| **1** | Sheet template + seed script + service account; phone sign-in and registration; reading the next holiday; the question with its dropdown; appending an answer |
+| **1** ✅ | Sheet template + seed script + service account; phone sign-in and registration; reading the next holiday; the question with its dropdown; appending an answer |
 | **2** | "Who's coming to you", the conflict line and the `Conflicts` tab, the history screen |
 | **3** | Hebrew polish, home-screen install, a share-to-WhatsApp line |
 

@@ -1,0 +1,44 @@
+@import 'tailwindcss';
+
+/*
+ * Tokens live in @theme so Tailwind generates utilities for them. @theme is not
+ * conditional, so the dark palette redefines the same custom properties on :root
+ * inside the media query instead of opening a second @theme block.
+ */
+@theme {
+  --font-display: 'Frank Ruhl Libre', Georgia, serif;
+  --font-sans: 'Assistant', system-ui, sans-serif;
+
+  --color-ground: #faf6f5;
+  --color-surface: #ffffff;
+  --color-ink: #241b1f;
+  --color-muted: #6f626a;
+  --color-line: #e7dddf;
+  --color-brand: #7c2740;
+  --color-brand-wash: #f6eaed;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-ground: #151113;
+    --color-surface: #1d181a;
+    --color-ink: #f0e7ea;
+    --color-muted: #a3939a;
+    --color-line: #332b2e;
+    --color-brand: #e39bb0;
+    --color-brand-wash: #2c1d22;
+  }
+}
+
+html,
+body {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
