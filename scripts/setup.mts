@@ -14,13 +14,11 @@ loadEnv();
 
 const { HEADERS, TABS } = await import('../src/lib/types.ts');
 
-const TAB_HEADERS: Record<string, readonly string[]> = {
-  [TABS.holidays]: HEADERS.holidays,
-  [TABS.households]: HEADERS.households,
-  [TABS.people]: HEADERS.people,
-  [TABS.answers]: HEADERS.answers,
-  [TABS.conflicts]: HEADERS.conflicts,
-};
+// Derived from the schema rather than listed here, so a new tab can never be
+// forgotten: adding one to HEADERS is enough.
+const TAB_HEADERS = Object.fromEntries(
+  Object.entries(TABS).map(([key, title]) => [title, HEADERS[key as keyof typeof HEADERS]]),
+) as Record<string, readonly string[]>;
 
 function loadEnv(): void {
   for (const file of ['.env.local', '.env']) {
@@ -136,26 +134,50 @@ for (const [tab, headers] of Object.entries(TAB_HEADERS)) {
 }
 
 // ── what still needs a human ──────────────────────────────────────────────────
-const read = async (tab: string) =>
-  ((await sheets.spreadsheets.values.get({ spreadsheetId, range: `${tab}!A:Z` })).data.values ?? []).slice(1);
+// Columns are read by header name: this file is edited by hand, and the schema
+// has changed more than once.
+async function readTab(tab: string): Promise<{ get: (row: string[], name: string) => string; body: string[][] }> {
+  const rows = (await sheets.spreadsheets.values.get({ spreadsheetId, range: `${tab}!A:Z` })).data.values ?? [];
+  const header = (rows[0] ?? []).map((h) => String(h ?? '').trim().toLowerCase());
+  return {
+    body: rows.slice(1).map((r) => r.map((c) => String(c ?? ''))),
+    get: (row, name) => {
+      const i = header.indexOf(name);
+      return i === -1 ? '' : (row[i] ?? '').trim();
+    },
+  };
+}
 
-const households = await read('Households');
-const holidays = await read('Holidays');
-const activeHouseholds = households.filter((r) => String(r[3]).toUpperCase() === 'TRUE');
-const includedHolidays = holidays.filter((r) => String(r[6]).toUpperCase() === 'TRUE');
+const isTrue = (v: string) => ['true', '1', 'yes', 'כן'].includes(v.toLowerCase());
+
+const households = await readTab('Households');
+const holidays = await readTab('Holidays');
+const connections = await readTab('Connections');
+
+const activeHouseholds = households.body.filter((r) => isTrue(households.get(r, 'active')));
+const includedHolidays = holidays.body.filter((r) => isTrue(holidays.get(r, 'include')));
 const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
-const upcoming = includedHolidays.filter((r) => String(r[3]) >= today);
+const upcoming = includedHolidays.filter((r) => holidays.get(r, 'date') >= today);
+const links = new Set(
+  connections.body
+    .filter((r) => (connections.get(r, 'action') || 'add') === 'add')
+    .map((r) => `${connections.get(r, 'household_id')}→${connections.get(r, 'connected_to')}`),
+);
 
 console.log('\n— state —');
-console.log(`  families:           ${activeHouseholds.length} active of ${households.length}`);
-console.log(`  holiday candidates: ${holidays.length}`);
+console.log(`  families:           ${activeHouseholds.length} active of ${households.body.length}`);
+console.log(`  connections:        ${links.size} one-way links`);
+console.log(`  holiday candidates: ${holidays.body.length}`);
 console.log(`  marked include:     ${includedHolidays.length} (${upcoming.length} still upcoming)`);
 
 const todo: string[] = [];
-if (households.length === 0) todo.push('Add your families to the Households tab (household_id, name, phone, active=TRUE).');
-if (holidays.length === 0) todo.push('Run: npm run seed:holidays -- --years 10');
-if (holidays.length > 0 && upcoming.length === 0) {
-  todo.push('Set include=TRUE on the holidays your family gathers for — none upcoming are marked, so the app has nothing to ask about.');
+if (households.body.length === 0) todo.push('Add your families to the Households tab.');
+if (holidays.body.length === 0) todo.push('Run: npm run seed:holidays');
+if (holidays.body.length > 0 && upcoming.length === 0) {
+  todo.push('Set include=TRUE on the holidays your family gathers for — none upcoming are marked.');
+}
+if (activeHouseholds.length > 1 && links.size === 0) {
+  todo.push('No connections yet — run: npm run connect-all');
 }
 
 if (todo.length === 0) {

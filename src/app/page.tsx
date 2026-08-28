@@ -1,8 +1,9 @@
 import { AnswerForm } from '@/components/AnswerForm';
-import { RegisterForm } from '@/components/RegisterForm';
 import { SignInForm } from '@/components/SignInForm';
 import { Title, card } from '@/components/ui';
 import {
+  circleAnswers,
+  circleOf,
   findConflict,
   findPerson,
   getHouseholds,
@@ -32,7 +33,16 @@ export default async function Page({
 
   const person = await findPerson(phone);
   if (!person) {
-    return <RegisterForm phone={phone} households={await getHouseholds()} />;
+    // Joining is by invitation only, so there is nothing to fill in here.
+    return (
+      <div className={`${card} flex flex-col gap-2 text-center`}>
+        <span className="text-4xl" aria-hidden="true">✉️</span>
+        <Title>צריך הזמנה</Title>
+        <p className="text-muted">
+          בקשו ממשפחה שכבר משתמשת באפליקציה לשלוח לכם קישור הזמנה.
+        </p>
+      </div>
+    );
   }
 
   const upcoming = await getUpcomingHolidays();
@@ -51,12 +61,16 @@ export default async function Page({
   const at = Math.max(0, upcoming.findIndex((h) => h.key === requested));
   const holiday = upcoming[at];
 
-  const [households, current, guests, conflict] = await Promise.all([
+  const [households, circle, current, guests, conflict] = await Promise.all([
     getHouseholds(),
+    circleOf(person.householdId),
     getLatestAnswer(holiday.key, person.householdId),
     guestsComingTo(holiday.key, person.householdId),
     findConflict(holiday.key, person.householdId),
   ]);
+
+  // Knowing where everyone else is, is the reward for saying where you are.
+  const circleStatus = current ? await circleAnswers(holiday.key, person.householdId) : [];
 
   // Names and numbers are resolved here so the log itself can stay keys-only.
   const host = current?.hostHouseholdId
@@ -70,12 +84,18 @@ export default async function Page({
     <AnswerForm
       key={holiday.key}
       holiday={holiday}
-      households={households}
+      households={circle}
       householdName={households.find((h) => h.id === person.householdId)?.name ?? ''}
       current={current}
       host={host}
       daysAway={daysUntil(holiday.date)}
       guests={guests.map((g) => ({ id: g.id, name: g.name }))}
+      circleStatus={circleStatus.map((c) => ({
+        id: c.household.id,
+        name: c.household.name,
+        kind: c.kind,
+        hostName: c.hostName,
+      }))}
       hostDisagrees={Boolean(conflict)}
       earlierKey={at > 0 ? upcoming[at - 1].key : undefined}
       laterKey={at < upcoming.length - 1 ? upcoming[at + 1].key : undefined}

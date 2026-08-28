@@ -39,6 +39,17 @@ sheet.Answers = [
   ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone'],
   ['2026-04-01T15:00:00.000Z', 'erev_pesach_2026', 'guest', 'hh_tamir', '+972501234567'],
 ];
+// Everyone who was here before circles saw everyone, so link them all.
+const active = sheet.Households.slice(1).filter((r) => r[2] === 'TRUE').map((r) => r[0]);
+const now = new Date().toISOString();
+sheet.Connections = [['household_id', 'connected_to', 'action', 'at']];
+for (const a of active) {
+  for (const b of active) {
+    if (a !== b) sheet.Connections.push([a, b, 'add', now]);
+  }
+}
+sheet.Invites = [['token', 'created_by', 'created_at']];
+
 delete sheet.Conflicts;
 
 writeFileSync(FILE, `${JSON.stringify(sheet, null, 2)}\n`, 'utf8');

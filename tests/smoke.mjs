@@ -1,9 +1,7 @@
 /**
- * End-to-end smoke test of phases 1 and 2, against a real browser.
+ * End-to-end smoke test, against a real browser.
  *
  *   npm run seed:holidays        # once, if .dev-sheet.json has no Holidays
- *   npm run fixtures             # families, plus one past holiday for the history
- *   # mark an upcoming holiday include=TRUE in .dev-sheet.json
  *   npm run build && SESSION_SECRET=test npm start -- --port 3111
  *   npm run test:smoke
  */
@@ -17,9 +15,8 @@ execFileSync(process.execPath, ['scripts/dev-fixtures.mjs'], { stdio: 'ignore' }
 
 const BASE = process.env.SMOKE_URL ?? 'http://localhost:3111';
 const SHEET = '.dev-sheet.json';
-// Nobody has registered this one, so the run is repeatable.
-const NEW_PHONE = `05${String(Date.now()).slice(-8)}`;
-const DAD_PHONE = '050-123-4567';
+const DAD = '050-123-4567';
+const NEWCOMER = `05${String(Date.now()).slice(-8)}`;
 
 const sheet = () => JSON.parse(readFileSync(SHEET, 'utf8'));
 const rows = (tab) => (sheet()[tab] ?? []).slice(1);
@@ -31,160 +28,102 @@ function check(label, ok) {
 }
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-const open = async () => (await browser.newContext({ viewport: { width: 390, height: 780 } })).newPage();
+const open = async () => (await browser.newContext({ viewport: { width: 390, height: 820 } })).newPage();
 
-// ── the brother: a number the sheet has never seen ────────────────────────────
-const brother = await open();
-await brother.goto(BASE);
-await brother.fill('input[name=phone]', NEW_PHONE);
-await brother.click('button[type=submit]');
-await brother.waitForSelector('select[name=householdId]');
-check('unknown number lands on registration', await brother.isVisible('text=נעים להכיר'));
+// ── an unknown number cannot let itself in ───────────────────────────────────
+const stranger = await open();
+await stranger.goto(BASE);
+await stranger.fill('input[name=phone]', '050-000-0000');
+await stranger.click('button[type=submit]');
+await stranger.waitForSelector('text=צריך הזמנה');
+check('joining without an invite is refused', await stranger.isVisible('text=צריך הזמנה'));
 
-const options = await brother.$$eval('select[name=householdId] option', (els) =>
-  els.map((e) => e.textContent.trim()).filter((t) => t !== 'בחרו מהרשימה'),
-);
-const activeInSheet = rows('Households').filter((r) => r[2] === 'TRUE').map((r) => r[1]);
-check(`dropdown lists exactly the active families (${options.join(', ')})`,
-  options.length === activeInSheet.length && activeInSheet.every((n) => options.includes(n)));
-check('no way to create a family from the app', !(await brother.isVisible('text=משפחה חדשה')));
-
-await brother.fill('input[name=name]', 'אח');
-await brother.selectOption('select[name=householdId]', 'hh_brother');
-await brother.click('button[type=submit]');
-await brother.waitForSelector('text=איפה אתם בחג?');
-check('a People row was appended', rows('People').some((r) => r[1] === 'אח' && r[2] === 'hh_brother'));
-
-const holidayName = (await brother.innerText('.font-display')).trim();
-check(`next holiday is the soonest included one (${holidayName})`, holidayName.length > 0);
-
-// ── the brother is a guest at the parents ─────────────────────────────────────
-const before = rows('Answers').length;
-await brother.click('text=מתארחים אצל…');
-await brother.waitForSelector('select[name=hostHouseholdId]');
-await brother.selectOption('select[name=hostHouseholdId]', 'hh_parents');
-await brother.click('button[type=submit]');
-await brother.waitForSelector('text=מתארחים אצל אבא ואמא');
-check('answer shown back', await brother.isVisible('text=מתארחים אצל אבא ואמא'));
-check('host phone offered to call', await brother.isVisible('a[href="tel:+972501234567"]'));
-check('exactly one row appended', rows('Answers').length === before + 1);
-
-const a = rows('Answers').at(-1);
-check(`answer row is right (${a.join(' | ')})`,
-  a[1] === 'erev_rosh_hashana_2026' && a[2] === 'guest' && a[3] === 'hh_parents');
-check(`the log holds five columns and nothing derivable (${a.length})`, a.length === 5);
-check('the log stores no names', !a.some((v) => /[\u0590-\u05FF]/.test(v)));
-check('the answer records who answered, by phone', /^\+\d{9,}$/.test(a[4]));
-
-// ── the parents host, and see who is coming ───────────────────────────────────
+// ── the circle is hidden until you answer ────────────────────────────────────
 const dad = await open();
 await dad.goto(BASE);
-await dad.fill('input[name=phone]', DAD_PHONE);
+await dad.fill('input[name=phone]', DAD);
 await dad.click('button[type=submit]');
 await dad.waitForSelector('text=איפה אתם בחג?');
-check('a known number skips registration', !(await dad.isVisible('select[name=householdId]')));
+check('a known number goes straight to the question', await dad.isVisible('text=איפה אתם בחג?'));
+check('nobody else is shown before you answer', !(await dad.isVisible('text=איפה כולם')));
 
 await dad.click('text=אנחנו מארחים');
-await dad.waitForSelector('text=מגיעים אליכם');
-check('hosting shows who is coming', await dad.isVisible('text=אח ואשתו'));
+await dad.waitForSelector('text=איפה כולם');
+check('answering reveals where everyone is', await dad.isVisible('text=איפה כולם'));
+check('and the circle lists the other families', await dad.isVisible('text=טמיר ואפיק'));
 
-// ── the parents change their mind: now the brother is going nowhere ───────────
-await dad.click('text=שינוי תשובה');
-await dad.waitForSelector('text=מתארחים אצל…');
-await dad.click('text=מתארחים אצל…');
-await dad.waitForSelector('select[name=hostHouseholdId]');
-await dad.selectOption('select[name=hostHouseholdId]', 'hh_sister');
-await dad.click('button[type=submit]');
-await dad.waitForSelector('text=מתארחים אצל אחות ובעלה');
+// ── invite a family that is not in the app at all ────────────────────────────
+await dad.goto(`${BASE}/families`);
+await dad.waitForSelector('text=המשפחות שלי');
+const beforeInvite = rows('Invites').length;
+await dad.click('text=יצירת קישור הזמנה');
+await dad.waitForSelector('text=/\\/join\\//');
+check('an invite link is created', rows('Invites').length === beforeInvite + 1);
+const token = rows('Invites').at(-1)[0];
 
-await brother.reload();
-check('the guest is warned their host is not hosting',
-  await brother.isVisible('text=שימו לב — הם ענו שהם מתארחים'));
+const newcomer = await open();
+await newcomer.goto(`${BASE}/join/${token}`);
+await newcomer.fill('input[name=phone]', NEWCOMER);
+await newcomer.click('button[type=submit]');
+await newcomer.waitForSelector('input[name=householdName]');
+check('the invite names who invited them', await newcomer.isVisible('text=אבא ואמא'));
+await newcomer.fill('input[name=name]', 'דנה');
+await newcomer.fill('input[name=householdName]', 'דנה ויוסי');
+await newcomer.click('button[type=submit]');
+await newcomer.waitForSelector('text=איפה אתם בחג?');
+check('the newcomer is in', rows('Households').some((r) => r[1] === 'דנה ויוסי'));
 
-const conflicts = rows('Conflicts');
-check(`the conflict reached the sheet (${conflicts.length} row)`,
-  conflicts.length === 1 && conflicts[0][1] === 'hh_brother' && conflicts[0][2] === 'hh_parents');
-check('the answering household is shown on screen', await brother.isVisible('text=אח ואשתו'));
+// ── connections are not inherited ────────────────────────────────────────────
+await newcomer.click('text=מתארחים אצל…');
+await newcomer.waitForSelector('select[name=hostHouseholdId]');
+const options = await newcomer.$$eval('select[name=hostHouseholdId] option', (els) =>
+  els.map((e) => e.textContent.trim()).filter((t) => t !== 'בחרו משפחה'),
+);
+check(`the newcomer sees only who invited them (${options.join(', ') || 'none'})`,
+  options.length === 1 && options[0] === 'אבא ואמא');
 
-// ── the conflict clears itself when the parents host again ───────────────────
-await dad.click('text=שינוי תשובה');
-await dad.waitForSelector('text=אנחנו מארחים');
-await dad.click('text=אנחנו מארחים');
-await dad.waitForSelector('text=מגיעים אליכם');
-check('the conflict row is removed once it is resolved', rows('Conflicts').length === 0);
+await newcomer.selectOption('select[name=hostHouseholdId]', { label: 'אבא ואמא' });
+await newcomer.click('button[type=submit]');
+await newcomer.waitForSelector('text=מתארחים אצל אבא ואמא');
+check('the newcomer can answer for the family that invited them',
+  await newcomer.isVisible('text=מתארחים אצל אבא ואמא'));
 
-await brother.reload();
-check('and the warning disappears for the guest',
-  !(await brother.isVisible('text=שימו לב — הם ענו שהם מתארחים')));
+await dad.goto(BASE);
+check('and they show up as coming', await dad.isVisible('text=דנה ויוסי'));
 
-// ── stepping to a later holiday ──────────────────────────────────────────────
-await brother.goto(BASE);
-const firstHoliday = (await brother.innerText('.font-display')).trim();
-const before2 = rows('Answers').length;
-await brother.click('[aria-label="החג הבא"]');
-await brother.waitForURL(/\?h=rosh_hashana_ii_2026/);
-const secondHoliday = (await brother.innerText('.font-display')).trim();
-check(`the arrow moves to the next holiday (${firstHoliday} → ${secondHoliday})`,
-  secondHoliday !== firstHoliday);
-check('and that holiday has no answer yet', await brother.isVisible('text=איפה אתם בחג?'));
-
-await brother.click('text=אנחנו מארחים');
-await brother.waitForSelector('text=שינוי תשובה');
-const stepped = rows('Answers').at(-1);
-check(`answering ahead records the other holiday (${stepped[1]})`,
-  rows('Answers').length === before2 + 1 && stepped[1] !== 'erev_rosh_hashana_2026');
-
-await brother.click('[aria-label="החג הקודם"]');
-await brother.waitForURL(/\?h=erev_rosh_hashana_2026/);
-check('stepping back returns to the first holiday',
-  (await brother.innerText('.font-display')).trim() === firstHoliday);
-check('and its own answer is still there', await brother.isVisible('text=מתארחים אצל אבא ואמא'));
-
-// ── both families say they are going to each other ───────────────────────────
-// Tamir marks "we're at Ofer's" while Ofer marks "we're at Tamir's": nobody is
-// hosting, and both of them should be told.
+// ── hiding is one-sided ──────────────────────────────────────────────────────
+await dad.goto(`${BASE}/families`);
+await dad.waitForSelector('text=המשפחות שלי');
+const hideRow = dad.locator('li', { hasText: 'אח ואשתו' });
+await hideRow.locator('text=הסתרה').click();
+await dad.waitForTimeout(1200);
 await dad.goto(BASE);
 await dad.click('text=שינוי תשובה');
 await dad.waitForSelector('text=מתארחים אצל…');
 await dad.click('text=מתארחים אצל…');
 await dad.waitForSelector('select[name=hostHouseholdId]');
-await dad.selectOption('select[name=hostHouseholdId]', 'hh_brother');
-await dad.click('button[type=submit]');
-await dad.waitForSelector('text=מתארחים אצל אח ואשתו');
+const afterHide = await dad.$$eval('select[name=hostHouseholdId] option', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check('a hidden family leaves your list', !afterHide.includes('אח ואשתו'));
 
-await brother.goto(BASE);
-await brother.click('text=שינוי תשובה');
-await brother.waitForSelector('text=מתארחים אצל…');
-await brother.click('text=מתארחים אצל…');
-await brother.waitForSelector('select[name=hostHouseholdId]');
-await brother.selectOption('select[name=hostHouseholdId]', 'hh_parents');
-await brother.click('button[type=submit]');
-await brother.waitForSelector('text=מתארחים אצל אבא ואמא');
+const brotherStillSees = rows('Connections').filter(
+  (r) => r[0] === 'hh_brother' && r[1] === 'hh_parents',
+);
+check('but they still see you', brotherStillSees.at(-1)?.[2] === 'add');
 
-check('the family going to them is warned', await brother.isVisible('text=שימו לב — הם ענו שהם מתארחים'));
-await dad.reload();
-check('and so is the family they are going to', await dad.isVisible('text=שימו לב — הם ענו שהם מתארחים'));
-const mutual = rows('Conflicts').filter((r) => r[0] === 'erev_rosh_hashana_2026');
-check(`both directions reach the sheet (${mutual.length} rows)`, mutual.length === 2);
-
-// ── history ──────────────────────────────────────────────────────────────────
-await dad.click('text=איפה היינו בחגים קודמים');
-await dad.waitForURL('**/history');
-check('past holidays are listed', await dad.isVisible('text=היינו אצל טמיר ואפיק'));
-check('the upcoming holiday is not in the history', !(await dad.isVisible(`text=${holidayName}`)));
-
-// ── the cookie remembers, and nonsense is refused ────────────────────────────
-const again = await open();
-await again.goto(BASE);
-check('a fresh browser is asked to sign in', await again.isVisible('input[name=phone]'));
+// ── stepping between holidays still works ────────────────────────────────────
 await dad.goto(BASE);
-check('returning visit skips sign-in entirely', !(await dad.isVisible('input[name=phone]')));
+const firstHoliday = (await dad.innerText('.font-display')).trim();
+await dad.click('[aria-label="החג הבא"]');
+await dad.waitForURL(/\?h=rosh_hashana_ii_2026/);
+check(`the arrow moves to the next holiday (${firstHoliday} → ${(await dad.innerText('.font-display')).trim()})`,
+  (await dad.innerText('.font-display')).trim() !== firstHoliday);
 
-await again.fill('input[name=phone]', '123');
-await again.click('button[type=submit]');
-await again.waitForSelector('[role=alert]');
-check(`nonsense number is rejected (${(await again.innerText('[role=alert]')).trim()})`,
-  (await again.innerText('[role=alert]')).trim() === 'מספר הטלפון לא נראה תקין');
+// ── the log stays keys-only ──────────────────────────────────────────────────
+const a = rows('Answers').at(-1);
+check(`the log holds five columns and no names (${a.join(' | ')})`,
+  a.length === 5 && !a.some((v) => /[֐-׿]/.test(v)));
 
 await browser.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');

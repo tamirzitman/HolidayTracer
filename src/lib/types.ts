@@ -38,12 +38,36 @@ export type StoredAnswer = {
  */
 export type Answer = StoredAnswer & { householdId: string };
 
+/**
+ * A directed row: "I can see them". Adding a family writes both directions;
+ * hiding one writes a remove event for your side only, so the other family is
+ * never silently cut off.
+ *
+ * Append-only like the answers, because a tab that gets rewritten can lose rows
+ * when two people act at the same moment.
+ */
+export type Connection = {
+  householdId: string;
+  connectedTo: string;
+  action: 'add' | 'remove';
+  at: string;
+};
+
+/** A link that brings a whole new household in. Reusable until it expires. */
+export type Invite = {
+  token: string;
+  createdBy: string;
+  createdAt: string;
+};
+
 export const TABS = {
   holidays: 'Holidays',
   households: 'Households',
   people: 'People',
   answers: 'Answers',
   conflicts: 'Conflicts',
+  connections: 'Connections',
+  invites: 'Invites',
 } as const;
 
 export const HEADERS = {
@@ -52,4 +76,6 @@ export const HEADERS = {
   people: ['phone', 'name', 'household_id'],
   answers: ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone'],
   conflicts: ['holiday_key', 'household_id', 'host_household_id', 'host_kind', 'host_host_household_id', 'detected_at'],
+  connections: ['household_id', 'connected_to', 'action', 'at'],
+  invites: ['token', 'created_by', 'created_at'],
 } as const;

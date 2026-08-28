@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { cache } from 'react';
 import { sheetStore } from './sheet';
 import {
@@ -9,6 +10,8 @@ import {
   type Household,
   type Person,
   type StoredAnswer,
+  type Connection,
+  type Invite,
 } from './types';
 
 /**
@@ -42,9 +45,19 @@ export type Sheet = {
   people: Person[];
   answers: Answer[];
   conflicts: string[][];
+  connections: Connection[];
+  invites: Invite[];
 };
 
-const TAB_LIST = [TABS.holidays, TABS.households, TABS.people, TABS.answers, TABS.conflicts];
+const TAB_LIST = [
+  TABS.holidays,
+  TABS.households,
+  TABS.people,
+  TABS.answers,
+  TABS.conflicts,
+  TABS.connections,
+  TABS.invites,
+];
 
 /**
  * One batched request for the whole spreadsheet, held briefly in memory. Five
@@ -65,6 +78,8 @@ async function fetchSheet(): Promise<Sheet> {
   const householdsTab = indexRows(raw[TABS.households] ?? []);
   const peopleTab = indexRows(raw[TABS.people] ?? []);
   const answersTab = indexRows(raw[TABS.answers] ?? []);
+  const connectionsTab = indexRows(raw[TABS.connections] ?? []);
+  const invitesTab = indexRows(raw[TABS.invites] ?? []);
 
   const householdOf = new Map(
     peopleTab.body.map((row) => [
@@ -117,6 +132,23 @@ async function fetchSheet(): Promise<Sheet> {
       .filter((a) => a.holidayKey && a.householdId),
 
     conflicts: (raw[TABS.conflicts] ?? []).slice(1),
+
+    connections: connectionsTab.body
+      .map((row) => ({
+        householdId: cell(row, connectionsTab.headers, 'household_id'),
+        connectedTo: cell(row, connectionsTab.headers, 'connected_to'),
+        action: (cell(row, connectionsTab.headers, 'action') || 'add') as 'add' | 'remove',
+        at: cell(row, connectionsTab.headers, 'at'),
+      }))
+      .filter((c) => c.householdId && c.connectedTo),
+
+    invites: invitesTab.body
+      .map((row) => ({
+        token: cell(row, invitesTab.headers, 'token'),
+        createdBy: cell(row, invitesTab.headers, 'created_by'),
+        createdAt: cell(row, invitesTab.headers, 'created_at'),
+      }))
+      .filter((i) => i.token && i.createdBy),
   };
 }
 
@@ -195,6 +227,34 @@ export async function guestsComingTo(holidayKey: string, householdId: string): P
     .filter((h): h is Household => h !== undefined);
 }
 
+/**
+ * What everyone in my circle has said about this holiday. Shown only once I have
+ * answered myself — knowing is the reward for answering.
+ */
+export type CircleAnswer = {
+  household: Household;
+  kind: AnswerKind | 'none';
+  hostName: string;
+};
+
+export async function circleAnswers(
+  holidayKey: string,
+  householdId: string,
+): Promise<CircleAnswer[]> {
+  const sheet = await loadSheet();
+  const latest = latestByHousehold(sheet.answers, holidayKey);
+  const nameOf = (id: string) => sheet.households.find((h) => h.id === id)?.name ?? id;
+
+  return (await circleOf(householdId)).map((household) => {
+    const answer = latest.get(household.id);
+    return {
+      household,
+      kind: answer?.kind ?? 'none',
+      hostName: answer?.hostHouseholdId ? nameOf(answer.hostHouseholdId) : '',
+    };
+  });
+}
+
 /** Past holidays this household answered for, newest first. */
 export async function historyFor(householdId: string): Promise<{ holiday: Holiday; answer: Answer }[]> {
   const sheet = await loadSheet();
@@ -212,6 +272,77 @@ export async function historyFor(householdId: string): Promise<{ holiday: Holida
   return [...seen.values()]
     .map((answer) => ({ answer, holiday: holidays.get(answer.holidayKey)! }))
     .sort((a, b) => b.holiday.date.localeCompare(a.holiday.date));
+}
+
+// ── writing ───────────────────────────────────────────────────────────────────
+
+async function appendRow(tab: string, headers: readonly string[], row: string[]): Promise<void> {
+  const store = sheetStore();
+  // A tab whose first row is data would have that row read back as the header
+  // and silently swallowed, so write headers when the tab is empty.
+  if ((await store.read(tab)).length === 0) await store.append(tab, [...headers]);
+  await store.append(tab, row);
+  invalidateSheet();
+}
+
+// ── circles ───────────────────────────────────────────────────────────────────
+
+/** Latest event wins, so hiding a family and adding it back both just append. */
+function connectionState(connections: Connection[], householdId: string): Map<string, 'add' | 'remove'> {
+  const state = new Map<string, 'add' | 'remove'>();
+  for (const c of connections) {
+    if (c.householdId === householdId) state.set(c.connectedTo, c.action);
+  }
+  return state;
+}
+
+/** The families this household can see — its whole world in the app. */
+export async function circleOf(householdId: string): Promise<Household[]> {
+  const sheet = await loadSheet();
+  const state = connectionState(sheet.connections, householdId);
+  return sheet.households.filter((h) => h.id !== householdId && state.get(h.id) === 'add');
+}
+
+export async function isConnected(a: string, b: string): Promise<boolean> {
+  return connectionState((await loadSheet()).connections, a).get(b) === 'add';
+}
+
+/** Introducing two families is mutual; hiding one is not. */
+export async function connect(a: string, b: string): Promise<void> {
+  const at = new Date().toISOString();
+  await appendRow(TABS.connections, HEADERS.connections, [a, b, 'add', at]);
+  await appendRow(TABS.connections, HEADERS.connections, [b, a, 'add', at]);
+}
+
+export async function hideFamily(mine: string, theirs: string): Promise<void> {
+  await appendRow(TABS.connections, HEADERS.connections, [
+    mine,
+    theirs,
+    'remove',
+    new Date().toISOString(),
+  ]);
+}
+
+export async function createInvite(householdId: string): Promise<string> {
+  const token = randomUUID().replace(/-/g, '').slice(0, 12);
+  await appendRow(TABS.invites, HEADERS.invites, [token, householdId, new Date().toISOString()]);
+  return token;
+}
+
+/** Reusable: a link in the family group should bring in more than one household. */
+export async function inviteHousehold(token: string): Promise<Household | undefined> {
+  const sheet = await loadSheet();
+  const invite = sheet.invites.find((i) => i.token === token);
+  return invite ? sheet.households.find((h) => h.id === invite.createdBy) : undefined;
+}
+
+export async function addHousehold(name: string): Promise<string> {
+  const used = (await loadSheet()).households
+    .map((h) => Number(h.id))
+    .filter((n) => Number.isInteger(n));
+  const id = String(Math.max(0, ...used) + 1);
+  await appendRow(TABS.households, HEADERS.households, [id, name, 'TRUE']);
+  return id;
 }
 
 // ── conflicts ─────────────────────────────────────────────────────────────────
@@ -285,15 +416,6 @@ export async function rewriteConflicts(): Promise<void> {
 }
 
 // ── writes ────────────────────────────────────────────────────────────────────
-
-async function appendRow(tab: string, headers: readonly string[], row: string[]): Promise<void> {
-  const store = sheetStore();
-  // A tab whose first row is data would have that row read back as the header
-  // and silently swallowed, so write headers when the tab is empty.
-  if ((await store.read(tab)).length === 0) await store.append(tab, [...headers]);
-  await store.append(tab, row);
-  invalidateSheet();
-}
 
 export async function addPerson(person: Person): Promise<void> {
   await appendRow(TABS.people, HEADERS.people, [person.phone, person.name, person.householdId]);

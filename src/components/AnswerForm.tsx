@@ -19,6 +19,8 @@ type Props = {
   daysAway: number;
   /** Households that said they are coming to us. Only meaningful when hosting. */
   guests: { id: string; name: string }[];
+  /** Where everyone in the circle is. Empty until we have answered ourselves. */
+  circleStatus: { id: string; name: string; kind: string; hostName: string }[];
   /** Set when our host answered that they are not hosting. */
   hostDisagrees: boolean;
   /** Neighbouring holidays inside the month-ahead window, if there are any. */
@@ -46,6 +48,7 @@ export function AnswerForm({
   host,
   daysAway,
   guests,
+  circleStatus,
   hostDisagrees,
   earlierKey,
   laterKey,
@@ -189,9 +192,16 @@ export function AnswerForm({
         </form>
       )}
 
-      <Link href="/history" className={`${quietButton} text-center`}>
-        איפה היינו בחגים קודמים
-      </Link>
+      {answered && circleStatus.length > 0 && <Circle families={circleStatus} />}
+
+      <div className="flex flex-col items-center gap-3">
+        <Link href="/families" className={quietButton}>
+          המשפחות שלי
+        </Link>
+        <Link href="/history" className={quietButton}>
+          איפה היינו בחגים קודמים
+        </Link>
+      </div>
     </div>
   );
 }
@@ -227,6 +237,31 @@ function Step({
         <path d={d} stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </Link>
+  );
+}
+
+/** Where the rest of the circle is — visible only once you have answered. */
+function Circle({ families }: { families: { id: string; name: string; kind: string; hostName: string }[] }) {
+  const said = (kind: string, hostName: string) => {
+    if (kind === 'hosting') return 'מארחים';
+    if (kind === 'guest') return `אצל ${hostName}`;
+    return 'עוד לא ענו';
+  };
+
+  return (
+    <section className={`${card} flex flex-col gap-1 p-0`}>
+      <h2 className="px-5 pt-4 pb-1 text-sm font-bold text-muted">איפה כולם</h2>
+      <ul className="divide-y divide-line">
+        {families.map((family) => (
+          <li key={family.id} className="flex items-baseline justify-between gap-3 px-5 py-3">
+            <span className="font-semibold text-ink">{family.name}</span>
+            <span className={family.kind === 'none' ? 'text-sm text-muted' : 'text-sm font-semibold text-brand'}>
+              {said(family.kind, family.hostName)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -97,26 +97,26 @@ Phase A is the whole idea. B is small and makes it worth opening. C is where the
 
 ---
 
-## 5. Open questions
+## 5. Decided
 
-**Q1. Removing a family — one-sided or mutual?**
-"קל להעלים" suggests hiding. If Tamir removes a family, does that family still see him? One-sided
-hiding is kinder and reversible; mutual removal is honest but lets one side silently cut the other.
-**Assumed: one-sided hide, so nobody is cut off without knowing.**
+- **Hiding is one-sided.** You stop seeing them; they still see you. Nobody is cut off without
+  knowing. *(Assumed, not explicitly confirmed — say so if you want it mutual.)*
+- **Answers are hidden until you answer.** Knowing where everyone is, is the reward for saying
+  where you are.
+- **Invite links are reusable.** One link can go in the family WhatsApp group and bring in several
+  households.
+- **The eleven existing families are all linked to each other**, so nothing changed for anyone
+  already using it.
+- **You can only answer for a family in your circle.** Connect first, then answer.
 
-**Q2. Should answers be hidden until you answer?**
-The strongest incentive available, and free. Also mildly coercive, and it means a curious relative
-must commit before they can look. **Assumed: no, unless you want it.**
+## 6. Built in phase A
 
-**Q3. Can an invite link be reused?**
-A single-use link is safer; a reusable one can go in the family WhatsApp group and bring in five
-households at once. **Assumed: reusable but expiring, since the whole point is growth.**
+- `Connections` and `Invites` tabs, both append-only.
+- The dropdown holds only your circle.
+- **המשפחות שלי** — the list, with hide, add-by-phone, and a reusable invite link.
+- **Joining is by invitation only.** An unknown number with no invite is told to ask for a link;
+  nobody waits on the sheet's owner.
+- **איפה כולם** — where everyone in your circle is, revealed once you have answered.
 
-**Q4. What happens to the eleven families already in the sheet?**
-**Assumed: all eleven linked to each other on migration**, so today's users see exactly what they
-see now and nothing appears to change.
-
-**Q5. Does a household need to be visible to be answerable?**
-If you are at a family you are not connected to, you currently cannot record it. Add a connection
-implicitly when you pick them? You cannot — they are not in your dropdown. **Assumed: connect
-first, then answer.**
+Still to come: hosting stats, the reminder before a holiday, push, and deleting the `Conflicts`
+tab in favour of computing conflicts on read.
