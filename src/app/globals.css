@@ -16,6 +16,7 @@
   --color-line: #e7dddf;
   --color-brand: #7c2740;
   --color-brand-wash: #f6eaed;
+  --color-glow: rgba(124, 39, 64, 0.11);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -26,7 +27,8 @@
     --color-muted: #a3939a;
     --color-line: #332b2e;
     --color-brand: #e39bb0;
-    --color-brand-wash: #2c1d22;
+    --color-brand-wash: #2f1f25;
+    --color-glow: rgba(227, 155, 176, 0.16);
   }
 }
 
@@ -36,6 +38,20 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-text-size-adjust: 100%;
+}
+
+/*
+ * A warm pool of light behind the holiday, so the screen reads like a table with
+ * a candle on it rather than an empty form.
+ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(72% 46% at 50% 12%, var(--color-glow), transparent 70%),
+    radial-gradient(52% 34% at 50% 96%, var(--color-glow), transparent 72%);
 }
 
 :focus-visible {

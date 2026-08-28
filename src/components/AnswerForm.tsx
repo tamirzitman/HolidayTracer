@@ -5,7 +5,8 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import { answer, type ActionResult } from '@/app/actions';
 import { formatPhone } from '@/lib/phone';
 import type { Answer, Holiday, Household } from '@/lib/types';
-import { ErrorNote, Title, card, field, primaryButton, quietButton, secondaryButton } from './ui';
+import { holidayEmoji } from '@/lib/holiday-emoji';
+import { DatePill, ErrorNote, Title, card, field, primaryButton, quietButton, secondaryButton } from './ui';
 
 type Props = {
   holiday: Holiday;
@@ -75,21 +76,26 @@ export function AnswerForm({
     <div className="flex flex-col gap-6">
       <header className="flex flex-col items-center gap-1 text-center">
         {householdName && (
-          <span className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-sm font-semibold text-muted">
+          <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand-wash px-3.5 py-1.5 text-sm font-bold text-brand">
             <span aria-hidden="true">🏡</span>
             {householdName}
           </span>
         )}
-        <div className="flex w-full items-center justify-center gap-1">
-          <Step to={earlierKey} label="החג הקודם" glyph="›" />
+        <span className="text-5xl leading-none" aria-hidden="true">
+          {holidayEmoji(holiday.key)}
+        </span>
+        <div className="mt-1 flex w-full items-center justify-between gap-2">
+          <Step to={earlierKey} label="החג הקודם" points="earlier" />
           <p className="font-display grow text-4xl leading-tight font-bold text-balance text-ink">
             {holiday.nameHe}
           </p>
-          <Step to={laterKey} label="החג הבא" glyph="‹" />
+          <Step to={laterKey} label="החג הבא" points="later" />
         </div>
-        <p className="text-sm text-muted">
-          {formatDate(holiday.date)} · {whenLabel(daysAway)}
-        </p>
+        <DatePill>
+          <span>{formatDate(holiday.date)}</span>
+          <span aria-hidden="true" className="text-line">|</span>
+          <span className="font-semibold text-ink">{whenLabel(daysAway)}</span>
+        </DatePill>
       </header>
 
       {celebrating && <Celebration kind={current?.kind} />}
@@ -97,10 +103,10 @@ export function AnswerForm({
       {answered ? (
         <div className={`${card} celebrate-card flex flex-col items-center gap-3 text-center`}>
           {current.kind === 'hosting' ? (
-            <p className="font-display text-2xl font-bold text-brand">אנחנו מארחים</p>
+            <p className="font-display text-3xl font-bold text-brand">אנחנו מארחים</p>
           ) : (
             <>
-              <p className="font-display text-2xl font-bold text-brand">
+              <p className="font-display text-3xl leading-snug font-bold text-balance text-brand">
                 מתארחים אצל {host?.name}
               </p>
               {host?.phone && (
@@ -113,7 +119,10 @@ export function AnswerForm({
                 </a>
               )}
               {hostDisagrees && (
-                <p className="text-sm text-muted">שימו לב — הם ענו שהם מתארחים</p>
+                <p className="mt-1 rounded-xl border border-line bg-ground px-3 py-2 text-sm text-muted">
+                  <span aria-hidden="true">⚠️ </span>
+                  שימו לב — הם ענו שהם מתארחים
+                </p>
               )}
             </>
           )}
@@ -190,13 +199,33 @@ export function AnswerForm({
 /**
  * One step through the holidays inside the window. A link rather than a button,
  * so the chosen holiday lives in the URL and survives a refresh.
+ *
+ * The chevron is drawn, not typed: ‹ and › are mirrored by the browser in a
+ * right-to-left page, so a typed glyph points the wrong way.
  */
-function Step({ to, label, glyph }: { to: string | undefined; label: string; glyph: string }) {
-  const shape = 'grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl';
-  if (!to) return <span aria-hidden="true" className={`${shape} text-transparent`} />;
+function Step({
+  to,
+  label,
+  points,
+}: {
+  to: string | undefined;
+  label: string;
+  points: 'earlier' | 'later';
+}) {
+  const shape = 'grid h-12 w-12 shrink-0 place-items-center rounded-full';
+  if (!to) return <span aria-hidden="true" className={shape} />;
+
+  // In a right-to-left page, later is to the left.
+  const d = points === 'later' ? 'M15 5 L8 12 L15 19' : 'M9 5 L16 12 L9 19';
   return (
-    <Link href={`/?h=${encodeURIComponent(to)}`} aria-label={label} className={`${shape} text-brand`}>
-      {glyph}
+    <Link
+      href={`/?h=${encodeURIComponent(to)}`}
+      aria-label={label}
+      className={`${shape} border border-line bg-surface text-brand transition active:scale-95`}
+    >
+      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
+        <path d={d} stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
     </Link>
   );
 }
