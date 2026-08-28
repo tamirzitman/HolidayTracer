@@ -5,7 +5,11 @@ import { createOccasion, deleteOccasion, type ActionResult } from '@/app/actions
 import { formatDayAndDate } from '@/lib/dates';
 import { ErrorNote, Title, card, field, primaryButton, quietButton } from './ui';
 
-/** Occasions belong to one family: nobody else's list grows because of yours. */
+/**
+ * Dates one family adds for itself — most often simply another holiday, or the
+ * day after one, that this family gathers on and others don't. They belong to
+ * whoever added them: nobody else's list grows because of yours.
+ */
 export function OccasionsManager({
   occasions,
   today,
@@ -21,7 +25,7 @@ export function OccasionsManager({
       <header className="flex flex-col items-center gap-2 text-center">
         <span className="text-4xl" aria-hidden="true">🗓️</span>
         <Title>המועדים שלנו</Title>
-        <p className="text-muted">מועדים שרק המשפחה שלכם רואה — יום הולדת, אזכרה, מנגל.</p>
+        <p className="text-muted">תאריכים נוספים שרק המשפחה שלכם רואה.</p>
       </header>
 
       {occasions.length > 0 && (

@@ -158,198 +158,204 @@ export function AnswerForm({
 
   return (
     <div
-      ref={slider}
-      className="flex flex-col gap-6 [touch-action:pan-y]"
+      className="flex flex-col gap-5 [touch-action:pan-y]"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      <header className="flex flex-col items-center gap-1 text-center">
-        <div className="mb-3 flex w-full items-center justify-center gap-2">
-          {householdName && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand-wash px-3.5 py-1.5 text-sm font-bold text-brand">
-              <span aria-hidden="true">🏡</span>
-              {householdName}
-            </span>
-          )}
-          {/* The family's own dates live one tap from the question they belong to. */}
-          <Link
-            href="/occasions"
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs font-bold text-muted transition hover:border-brand/40 hover:text-brand"
-          >
-            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-              <path d="M12 5.5v13M5.5 12h13" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-            </svg>
-            מועד
-          </Link>
-        </div>
-        <span className="text-5xl leading-none" aria-hidden="true">
-          {holidayEmoji(holiday.key)}
-        </span>
-        <div className="mt-1 flex w-full items-center justify-between gap-2">
-          <Step to={earlierKey} label="החג הקודם" points="earlier" />
-          <p className="font-display grow text-4xl leading-tight font-bold text-balance text-ink">
-            {holiday.nameHe}
-          </p>
-          <Step to={laterKey} label="החג הבא" points="later" />
-        </div>
-        <DatePill>
-          <span>{formatDayAndDate(holiday.date)}</span>
-          <span aria-hidden="true" className="text-line">|</span>
-          <span className="font-semibold text-ink">{whenLabel(daysAway)}</span>
-        </DatePill>
-
-        {position.total > 1 && (
-          <>
-            {/* Without this the year looks like one holiday and nothing suggests
-                the page moves sideways at all. */}
-            <div className="mt-3 flex items-center justify-center gap-1.5">
-              {Array.from({ length: position.total }, (_, i) => (
-                <span
-                  key={i}
-                  aria-hidden="true"
-                  className={`h-1.5 rounded-full transition-all ${
-                    i === position.index ? 'w-5 bg-brand' : 'w-1.5 bg-line'
-                  }`}
-                />
-              ))}
-            </div>
-            <p className="mt-1.5 text-xs text-muted">
-              {position.index + 1} מתוך {position.total} · החליקו לצדדים
-            </p>
-          </>
+      {/* Who you are, and adding a date of your own. Both hold still while the
+          holidays travel past them. */}
+      <div className="flex w-full flex-wrap items-center justify-center gap-2">
+        {householdName && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand-wash px-4 py-2.5 text-sm font-bold text-brand">
+            <span aria-hidden="true">🏡</span>
+            {householdName}
+          </span>
         )}
-      </header>
-
-      {celebrating && <Celebration kind={shown?.kind} />}
-
-      {/* Answered and unanswered holidays fill a card to different heights, and
-          swiping through a half-filled year made the page grow and shrink under
-          the finger. Both cards keep the same floor, so the space sits inside
-          the card where it looks intended rather than as a hole beneath it. */}
-      <div className="flex flex-col">
-        {answered ? (
-          <div className={`${card} ${cardFloor} celebrate-card flex flex-col items-center justify-center gap-3 text-center`}>
-            {shown.kind === 'hosting' ? (
-              <p className="font-display text-3xl font-bold text-brand">אנחנו מארחים</p>
-            ) : shown.kind === 'away' ? (
-              <p className="font-display text-3xl font-bold text-brand">לא מגיעים</p>
-            ) : (
-              <>
-                <p className="font-display text-3xl leading-snug font-bold text-balance text-brand">
-                  מתארחים אצל{' '}
-                  {host?.name ?? households.find((h) => h.id === shown.hostHouseholdId)?.name}
-                </p>
-                {host?.phone && (
-                  <a
-                    href={`tel:${host.phone}`}
-                    dir="ltr"
-                    className="text-sm font-semibold text-muted underline underline-offset-4"
-                  >
-                    {formatPhone(host.phone)}
-                  </a>
-                )}
-                {hostDisagrees && (
-                  <p className="mt-1 rounded-xl border border-line bg-ground px-3 py-2 text-sm text-muted">
-                    <span aria-hidden="true">⚠️ </span>
-                    שימו לב — הם ענו שהם מתארחים
-                  </p>
-                )}
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setChoosingHost(false);
-                setEditing(true);
-              }}
-              className={quietButton}
-            >
-              שינוי תשובה
-            </button>
-
-            {shown.kind === 'hosting' && <Guests guests={guests} />}
-          </div>
-        ) : (
-          <form
-            action={(data) => {
-              const kind = String(data.get('kind') ?? '') as Answer['kind'];
-              const hostId = String(data.get('hostHouseholdId') ?? '');
-              setOptimistic({
-                timestamp: new Date().toISOString(),
-                holidayKey: holiday.key,
-                kind,
-                hostHouseholdId: hostId,
-                byPhone: '',
-                householdId: '',
-              });
-              formAction(data);
-            }}
-            className={`${card} ${cardFloor} flex flex-col justify-center gap-3`}
-          >
-            <input type="hidden" name="holidayKey" value={holiday.key} />
-            <Title>איפה אתם בחג?</Title>
-
-            {!choosingHost ? (
-              <>
-                <button
-                  type="submit"
-                  name="kind"
-                  value="hosting"
-                  disabled={pending}
-                  className={secondaryButton}
-                >
-                  אנחנו מארחים
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setChoosingHost(true)}
-                  className={primaryButton}
-                >
-                  מתארחים אצל…
-                </button>
-                <button
-                  type="submit"
-                  name="kind"
-                  value="away"
-                  disabled={pending}
-                  className={quietButton}
-                >
-                  לא מגיעים בכלל
-                </button>
-              </>
-            ) : (
-              <>
-                <input type="hidden" name="kind" value="guest" />
-                <select
-                  ref={hostSelect}
-                  name="hostHouseholdId"
-                  required
-                  defaultValue=""
-                  className={field}
-                >
-                  <option value="" disabled>
-                    בחרו משפחה
-                  </option>
-                  {households.map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.name}
-                    </option>
-                  ))}
-                </select>
-                <button type="submit" disabled={pending} className={primaryButton}>
-                  {pending ? 'רגע…' : 'אישור'}
-                </button>
-                <button type="button" onClick={() => setChoosingHost(false)} className={quietButton}>
-                  חזרה
-                </button>
-              </>
-            )}
-
-            <ErrorNote>{state.error}</ErrorNote>
-          </form>
-        )}
+        <Link
+          href="/occasions"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line px-4 py-2.5 text-sm font-bold text-muted transition hover:border-brand/40 hover:text-brand"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M12 5.5v13M5.5 12h13" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+          </svg>
+          מועד
+        </Link>
       </div>
+
+      {/* Only this panel travels: the holiday and the answer that belongs to it.
+          Everything around it — who you are, the pager, the tab bar — stays
+          where it is, so it is obvious what is being paged. */}
+      <div ref={slider} className="flex flex-col gap-6">
+        <header className="flex flex-col items-center gap-1 text-center">
+          <span className="text-5xl leading-none" aria-hidden="true">
+            {holidayEmoji(holiday.key)}
+          </span>
+          <div className="mt-1 flex w-full items-center justify-between gap-2">
+            <Step to={earlierKey} label="החג הקודם" points="earlier" />
+            <p className="font-display grow text-4xl leading-tight font-bold text-balance text-ink">
+              {holiday.nameHe}
+            </p>
+            <Step to={laterKey} label="החג הבא" points="later" />
+          </div>
+          <DatePill>
+            <span>{formatDayAndDate(holiday.date)}</span>
+            <span aria-hidden="true" className="text-line">|</span>
+            <span className="font-semibold text-ink">{whenLabel(daysAway)}</span>
+          </DatePill>
+        </header>
+
+        {celebrating && <Celebration kind={shown?.kind} />}
+
+        {/* Answered and unanswered holidays fill a card to different heights, and
+            swiping through a half-filled year made the page grow and shrink under
+            the finger. Both cards keep the same floor, so the space sits inside
+            the card where it looks intended rather than as a hole beneath it. */}
+        <div className="flex flex-col">
+          {answered ? (
+            <div className={`${card} ${cardFloor} celebrate-card flex flex-col items-center justify-center gap-3 text-center`}>
+              {shown.kind === 'hosting' ? (
+                <p className="font-display text-3xl font-bold text-brand">אנחנו מארחים</p>
+              ) : shown.kind === 'away' ? (
+                <p className="font-display text-3xl font-bold text-brand">לא מגיעים</p>
+              ) : (
+                <>
+                  <p className="font-display text-3xl leading-snug font-bold text-balance text-brand">
+                    מתארחים אצל{' '}
+                    {host?.name ?? households.find((h) => h.id === shown.hostHouseholdId)?.name}
+                  </p>
+                  {host?.phone && (
+                    <a
+                      href={`tel:${host.phone}`}
+                      dir="ltr"
+                      className="text-sm font-semibold text-muted underline underline-offset-4"
+                    >
+                      {formatPhone(host.phone)}
+                    </a>
+                  )}
+                  {hostDisagrees && (
+                    <p className="mt-1 rounded-xl border border-line bg-ground px-3 py-2 text-sm text-muted">
+                      <span aria-hidden="true">⚠️ </span>
+                      שימו לב — הם ענו שהם מתארחים
+                    </p>
+                  )}
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setChoosingHost(false);
+                  setEditing(true);
+                }}
+                className={quietButton}
+              >
+                שינוי תשובה
+              </button>
+
+              {shown.kind === 'hosting' && <Guests guests={guests} />}
+            </div>
+          ) : (
+            <form
+              action={(data) => {
+                const kind = String(data.get('kind') ?? '') as Answer['kind'];
+                const hostId = String(data.get('hostHouseholdId') ?? '');
+                setOptimistic({
+                  timestamp: new Date().toISOString(),
+                  holidayKey: holiday.key,
+                  kind,
+                  hostHouseholdId: hostId,
+                  byPhone: '',
+                  householdId: '',
+                });
+                formAction(data);
+              }}
+              className={`${card} ${cardFloor} flex flex-col justify-center gap-3`}
+            >
+              <input type="hidden" name="holidayKey" value={holiday.key} />
+              <Title>איפה אתם בחג?</Title>
+
+              {!choosingHost ? (
+                <>
+                  <button
+                    type="submit"
+                    name="kind"
+                    value="hosting"
+                    disabled={pending}
+                    className={secondaryButton}
+                  >
+                    אנחנו מארחים
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChoosingHost(true)}
+                    className={primaryButton}
+                  >
+                    מתארחים אצל…
+                  </button>
+                  <button
+                    type="submit"
+                    name="kind"
+                    value="away"
+                    disabled={pending}
+                    className={quietButton}
+                  >
+                    לא מגיעים בכלל
+                  </button>
+                </>
+              ) : (
+                <>
+                  <input type="hidden" name="kind" value="guest" />
+                  <select
+                    ref={hostSelect}
+                    name="hostHouseholdId"
+                    required
+                    defaultValue=""
+                    className={field}
+                  >
+                    <option value="" disabled>
+                      בחרו משפחה
+                    </option>
+                    {households.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="submit" disabled={pending} className={primaryButton}>
+                    {pending ? 'רגע…' : 'אישור'}
+                  </button>
+                  <button type="button" onClick={() => setChoosingHost(false)} className={quietButton}>
+                    חזרה
+                  </button>
+                </>
+              )}
+
+              <ErrorNote>{state.error}</ErrorNote>
+            </form>
+          )}
+        </div>
+      </div>
+
+      {/* Under the panel, where a pager belongs: without it the year looks like
+          one holiday and nothing says the page moves at all. */}
+      {position.total > 1 && (
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="flex items-center justify-center gap-1.5">
+            {Array.from({ length: position.total }, (_, i) => (
+              <span
+                key={i}
+                aria-hidden="true"
+                className={`h-1.5 rounded-full transition-all ${
+                  i === position.index ? 'w-5 bg-brand' : 'w-1.5 bg-line'
+                }`}
+              />
+            ))}
+          </div>
+          <p className="text-xs text-muted">
+            {position.index + 1} מתוך {position.total} · החליקו לצדדים
+          </p>
+        </div>
+      )}
 
       {!answered && choosingHost && <AddFamilyInline />}
 

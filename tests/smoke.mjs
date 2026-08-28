@@ -255,9 +255,15 @@ check(`the counts follow the correction (${stats.join('/')} → ${corrected.join
 
 // ── the year is shown as something you can page through ──────────────────────
 await dad.goto(BASE);
-const dots = await dad.$$eval('header span[aria-hidden=true].rounded-full', (els) => els.length);
+const dots = await dad.$$eval('main span[aria-hidden=true].rounded-full', (els) => els.length);
 check(`the pager shows the whole round of the year (${dots} dots)`, dots > 1);
-check('and says which holiday this is', /\d+ מתוך \d+ · החליקו לצדדים/.test(await dad.innerText('header')));
+check('and says which holiday this is',
+  /\d+ מתוך \d+ · החליקו לצדדים/.test(await dad.innerText('main')));
+// Only the holiday and its answer travel; who you are and the pager hold still.
+const travels = await dad.$eval('main [class*="flex-col gap-6"]', (el) =>
+  el.innerText.split('\n').filter(Boolean).slice(0, 2).join(' | '));
+check(`the panel that moves holds the holiday itself (${travels})`,
+  travels.includes('ערב ראש השנה'));
 
 // ── occasions belong to one family ───────────────────────────────────────────
 const SOON = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
