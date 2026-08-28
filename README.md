@@ -9,8 +9,17 @@ Sign in with a phone number and a name — no password, no email, no code — re
 cookie so you only ever type it once. **A Google Sheet is the entire database**, and everything is
 managed by hand in it. Hebrew, right-to-left.
 
-**Phase 1 is built.** See [docs/PLAN.md](docs/PLAN.md) for the design and
-[docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) for what's still undecided.
+Four screens, on a tab bar: the question, **המשפחות** (your circle, and invites), **היסטוריה**
+(what happened, and correcting it), and **מועדים** — occasions a family adds for itself, a birthday
+or a memorial. An occasion is **private to the family that added it**: it joins their round of the
+year and nobody else's list grows because of it.
+
+Answering steps through the whole year: swipe sideways, or use the arrows, to reach any holiday from
+the next one up to that same holiday a year later.
+
+See [docs/PLAN.md](docs/PLAN.md) for the design, [docs/GROWTH.md](docs/GROWTH.md) for how it reaches
+families beyond your own, and [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) for what's still
+undecided.
 
 ---
 
@@ -25,8 +34,8 @@ npm run seed:holidays          # fills the Holidays tab with candidate dates
 npm run fixtures               # sample families, so the dropdown isn't empty
 ```
 
-Then open `.dev-sheet.json`, find a holiday in the `Holidays` tab and change its last column from
-`FALSE` to `TRUE` — that's the same edit you'll make in the real sheet. Now:
+Then open `.dev-sheet.json`, find a holiday in the `Holidays` tab and set its `include` column to
+`TRUE` — that's the same edit you'll make in the real sheet. Now:
 
 ```bash
 SESSION_SECRET=dev npm run dev
@@ -48,15 +57,14 @@ npm run test:smoke
 ## Setting up the real thing
 
 ### 1. The spreadsheet
-Create a Google Sheet with five tabs named exactly `Holidays`, `Households`, `People`, `Answers`,
-`Conflicts`. Only the first two need anything typed into them — the app writes headers for the rest
-the first time it needs them.
+Run `npm run setup` and the tabs are created for you: `Holidays`, `Households`, `People`,
+`Answers`, `Conflicts`, `Connections`, `Invites`. Only the first two need anything typed into them.
 
-`Households` — the dropdown. **This tab is yours alone; the app never adds to it.**
+`Households` — the families.
 
-| household_id | name | phone | active |
-|---|---|---|---|
-| hh_parents | אבא ואמא | +972501234567 | TRUE |
+| household_id | name | active |
+|---|---|---|
+| hh_parents | אבא ואמא | TRUE |
 
 `People` — which number belongs to which family. The app appends here when somebody registers, and
 you can add rows yourself.
@@ -98,16 +106,20 @@ deploy — nothing else is needed, because there is nothing else to run.
 
 ## What the app is allowed to write
 
-Three things only: a `People` row when somebody registers, an `Answers` row per answer, and (in
-phase 2) the `Conflicts` tab. It never creates a family, never edits an existing row, and never
-touches `Holidays`.
+Every tab is **append-only**: an answer, a connection, an invite, a conflict, a family's own
+occasion. Nothing is ever edited or deleted in place — correcting the record means a newer row, and
+the newest row for a key wins. That is what makes two people answering at the same moment safe, and
+it means the sheet doubles as its own history.
+
+The one exception is `npm run align`, a maintenance command you run by hand: it adds any newly
+introduced column name to a tab's header row, leaving every data row untouched.
 
 ## Layout
 
 ```
-src/app/          the two screens and the server actions
+src/app/          the four screens (question, families, history, occasions) and the server actions
 src/lib/          sheet access, the domain layer, phone normalization, the session cookie
-src/components/   the three forms
-scripts/          the one-off holiday seeder, and local dev fixtures
+src/components/   the forms and the tab bar
+scripts/          setup, the holiday seeder, header alignment, and local dev fixtures
 tests/smoke.mjs   end-to-end check of every flow above
 ```

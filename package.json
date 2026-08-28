@@ -12,8 +12,8 @@
     "test:smoke": "node tests/smoke.mjs",
     "setup": "tsx scripts/setup.mts",
     "mark": "tsx scripts/mark-holidays.mts",
-    "migrate": "tsx scripts/migrate.mts",
-    "connect-all": "tsx scripts/connect-all.mts"
+    "connect-all": "tsx scripts/connect-all.mts",
+    "align": "tsx scripts/align-headers.mts"
   },
   "dependencies": {
     "googleapis": "^176.0.0",

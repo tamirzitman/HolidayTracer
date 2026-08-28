@@ -107,16 +107,20 @@ export function FamiliesManager({
             >
               {busy === 'family' ? 'רגע…' : 'הזמנת משפחה'}
             </button>
-            <button
-              type="button"
-              onClick={() => makeLink('household')}
-              disabled={busy !== null}
-              className={secondaryButton}
-            >
-              {busy === 'household' ? 'רגע…' : `הזמנה לבית שלנו`}
-            </button>
+            {/*
+              A second button here made a household invite — attaching a spouse or
+              a grown child to *your* house instead of opening a new one. It earned
+              too little for the room it took, so it is off the screen; the kind is
+              still carried end to end (newInviteLink → readInvite → register), so
+              putting it back is this button again and nothing else:
+
+              <button type="button" onClick={() => makeLink('household')}
+                disabled={busy !== null} className={secondaryButton}>
+                {busy === 'household' ? 'רגע…' : 'הזמנה לבית שלנו'}
+              </button>
+            */}
             <p className="text-center text-xs text-muted">
-              “הזמנת משפחה” פותחת בית חדש. “הזמנה לבית שלנו” מצרפת מישהו אליכם — בן זוג, ילד שגדל.
+              כל מי שנכנס דרך הקישור פותח משפחה משלו, ומתחבר אליכם.
             </p>
 
             <div className="mt-1 border-t border-line pt-3">

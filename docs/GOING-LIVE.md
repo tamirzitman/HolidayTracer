@@ -93,6 +93,11 @@ Re-running the seed is safe: your edits survive, and so do rows you add by hand.
 
 Run `npm run setup` once more — it will confirm you have families and at least one upcoming holiday.
 
+**After a version that adds a column**, run `npm run align` once against the live sheet (`--dry`
+first to see what it would do). It adds the new column name to the header row of whichever tab
+needs it and leaves every data row untouched. It is safe to run twice, and does nothing when the
+sheet is already up to date.
+
 ---
 
 ## 5. Deploy to Vercel — 5 minutes

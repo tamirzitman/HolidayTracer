@@ -49,17 +49,26 @@ The app is deliberately dumb: it reads the sheet, shows a question, and appends 
 
 ## 2. The spreadsheet
 
-Five tabs, and nothing in them that isn't needed. Names live in `Households`, phone numbers live in
+Seven tabs, and nothing in them that isn't needed. Names live in `Households`, phone numbers live in
 `People`, and everything else references them by key. Years are **Gregorian**: 2026, not 5786.
 
 ### `Holidays` — only what you gather for
-| holiday_key | name_he | type | date | year | include |
-|---|---|---|---|---|---|
-| `erev_rosh_hashana_2026` | <span dir="rtl">ערב ראש השנה</span> | <span dir="rtl">ערב חג</span> | 2026-09-11 | 2026 | TRUE |
+| holiday_key | name_he | type | date | year | include | owner_household_id |
+|---|---|---|---|---|---|---|
+| `erev_rosh_hashana_2026` | <span dir="rtl">ערב ראש השנה</span> | <span dir="rtl">ערב חג</span> | 2026-09-11 | 2026 | TRUE | |
+| `own_hh_parents_20260420_l3k` | <span dir="rtl">יום הולדת לסבתא</span> | <span dir="rtl">מועד</span> | 2026-04-20 | 2026 | TRUE | `hh_parents` |
 
 The seed writes **only the kinds of holiday your family gathers for** — seven kinds over ten years
 is seventy rows, not two hundred. `npm run seed:holidays -- --list-kinds` shows what can be asked
 for; `--kinds` changes the set; `npm run mark -- --on purim` switches one on across every year.
+
+An empty `owner_household_id` is a holiday everybody shares. A filled one is **one family's own
+occasion** — a birthday, an azkara, a barbecue — added from the מועדים screen and visible only to
+that family. Nobody else's round of the year grows because of it.
+
+Like every other tab this one is append-only: removing an occasion appends the same row with
+`include = FALSE`, and the newest row for a key wins. Nothing is deleted, so the sheet keeps its
+own history.
 
 The app has **no calendar logic**. `@hebcal/core` runs in the seed script only.
 

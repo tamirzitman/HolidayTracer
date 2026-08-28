@@ -90,16 +90,24 @@ async function fetchSheet(): Promise<Sheet> {
   );
 
   return {
-    holidays: holidaysTab.body
-      .map((row) => ({
-        key: cell(row, holidaysTab.headers, 'holiday_key'),
-        nameHe: cell(row, holidaysTab.headers, 'name_he'),
-        type: cell(row, holidaysTab.headers, 'type'),
-        date: cell(row, holidaysTab.headers, 'date'),
-        year: cell(row, holidaysTab.headers, 'year'),
-        include: isTrue(cell(row, holidaysTab.headers, 'include')),
-      }))
-      .filter((h) => h.key && h.date),
+    // Append-only like everything else: the last row for a key is the one that counts,
+    // so switching an occasion off is another row rather than a rewrite.
+    holidays: [
+      ...new Map(
+        holidaysTab.body
+          .map((row) => ({
+            key: cell(row, holidaysTab.headers, 'holiday_key'),
+            nameHe: cell(row, holidaysTab.headers, 'name_he'),
+            type: cell(row, holidaysTab.headers, 'type'),
+            date: cell(row, holidaysTab.headers, 'date'),
+            year: cell(row, holidaysTab.headers, 'year'),
+            include: isTrue(cell(row, holidaysTab.headers, 'include')),
+            ownerHouseholdId: cell(row, holidaysTab.headers, 'owner_household_id'),
+          }))
+          .filter((h) => h.key && h.date)
+          .map((h) => [h.key, h] as const),
+      ).values(),
+    ],
 
     households: householdsTab.body
       .map((row) => ({
@@ -186,6 +194,10 @@ export async function householdPhone(householdId: string): Promise<string> {
   return (await loadSheet()).people.find((p) => p.householdId === householdId)?.phone ?? '';
 }
 
+/** Shared holidays have no owner; a family's own occasion is theirs alone. */
+const visibleTo = (holiday: Holiday, householdId?: string): boolean =>
+  !holiday.ownerHouseholdId || holiday.ownerHouseholdId === householdId;
+
 /** erev_pesach_2027 → erev_pesach */
 const holidayKind = (key: string): string => key.replace(/_\d{4}$/, '');
 
@@ -194,22 +206,23 @@ const holidayKind = (key: string): string => key.replace(/_\d{4}$/, '');
  * including — that same holiday's next occurrence. So from erev Rosh Hashana you
  * can step through every holiday until the following Rosh Hashana, and no further.
  */
-export async function getUpcomingHolidays(): Promise<Holiday[]> {
+export async function getUpcomingHolidays(householdId?: string): Promise<Holiday[]> {
   const today = todayInIsrael();
   const included = (await loadSheet()).holidays
-    .filter((h) => h.include && h.date >= today)
+    .filter((h) => h.include && h.date >= today && visibleTo(h, householdId))
     .sort((a, b) => a.date.localeCompare(b.date));
 
   if (included.length === 0) return [];
 
-  const first = included[0];
-  const repeatsAt = included.findIndex((h, i) => i > 0 && holidayKind(h.key) === holidayKind(first.key));
+  // The round is measured against a shared holiday, never one family's own
+  // occasion: an occasion has a one-off key that never comes round again, so
+  // anchoring on it would open every year in the sheet at once.
+  const anchor = included.find((h) => !h.ownerHouseholdId) ?? included[0];
+  const from = included.indexOf(anchor);
+  const repeatsAt = included.findIndex(
+    (h, i) => i > from && holidayKind(h.key) === holidayKind(anchor.key),
+  );
   return repeatsAt === -1 ? included : included.slice(0, repeatsAt);
-}
-
-/** The earliest included holiday that hasn't passed. Undefined means the tab needs more rows. */
-export async function getNextHoliday(): Promise<Holiday | undefined> {
-  return (await getUpcomingHolidays())[0];
 }
 
 /** The log is append-only, so a household's answer is its last row for that holiday. */
@@ -282,15 +295,61 @@ export async function historyFor(
   }
 
   return sheet.holidays
-    .filter((h) => h.include && h.date < today)
+    .filter((h) => h.include && h.date < today && visibleTo(h, householdId))
     .sort((a, b) => b.date.localeCompare(a.date))
     .map((holiday) => ({ holiday, answer: mine.get(holiday.key) }));
 }
 
 /** A holiday that has already passed, for correcting the record after the fact. */
-export async function getPastHoliday(key: string): Promise<Holiday | undefined> {
+export async function getPastHoliday(
+  key: string,
+  householdId?: string,
+): Promise<Holiday | undefined> {
   const today = todayInIsrael();
-  return (await loadSheet()).holidays.find((h) => h.key === key && h.date < today);
+  return (await loadSheet()).holidays.find(
+    (h) => h.key === key && h.date < today && visibleTo(h, householdId),
+  );
+}
+
+/** The occasions this family added for itself. */
+export async function occasionsOf(householdId: string): Promise<Holiday[]> {
+  return (await loadSheet()).holidays
+    .filter((h) => h.ownerHouseholdId === householdId)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export async function addOccasion(
+  householdId: string,
+  name: string,
+  date: string,
+): Promise<void> {
+  const key = `own_${householdId}_${date.replace(/-/g, '')}_${Date.now().toString(36)}`;
+  await appendRow(TABS.holidays, HEADERS.holidays, [
+    key,
+    name,
+    'מועד',
+    date,
+    date.slice(0, 4),
+    'TRUE',
+    householdId,
+  ]);
+}
+
+/** Another row with include=FALSE, rather than deleting one. */
+export async function removeOccasion(householdId: string, key: string): Promise<void> {
+  const holiday = (await loadSheet()).holidays.find(
+    (h) => h.key === key && h.ownerHouseholdId === householdId,
+  );
+  if (!holiday) return;
+  await appendRow(TABS.holidays, HEADERS.holidays, [
+    holiday.key,
+    holiday.nameHe,
+    holiday.type,
+    holiday.date,
+    holiday.year,
+    'FALSE',
+    householdId,
+  ]);
 }
 
 // ── writing ───────────────────────────────────────────────────────────────────

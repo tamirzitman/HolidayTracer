@@ -45,7 +45,9 @@ export default async function Page({
     );
   }
 
-  const upcoming = await getUpcomingHolidays();
+  // Scoped to this family, so its own occasions are in the round and nobody
+  // else's are.
+  const upcoming = await getUpcomingHolidays(person.householdId);
   if (upcoming.length === 0) {
     return (
       <div className={`${card} flex flex-col gap-2 text-center`}>

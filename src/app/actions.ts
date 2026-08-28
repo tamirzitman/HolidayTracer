@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   addHousehold,
+  addOccasion,
   addPerson,
   appendAnswer,
   circleOf,
@@ -13,6 +14,7 @@ import {
   getHousehold,
   getPastHoliday,
   getUpcomingHolidays,
+  removeOccasion,
   isConnected,
   readInvite,
   recordConflicts,
@@ -175,7 +177,10 @@ export async function editHistory(
   const person = await findPerson(phone);
   if (!person) return { error: 'עוד לא סיימתם להירשם' };
 
-  const holiday = await getPastHoliday(String(formData.get('holidayKey') ?? '').trim());
+  const holiday = await getPastHoliday(
+    String(formData.get('holidayKey') ?? '').trim(),
+    person.householdId,
+  );
   if (!holiday) return { error: 'החג הזה לא נמצא' };
 
   const kind = String(formData.get('kind') ?? '') as AnswerKind;
@@ -202,6 +207,40 @@ export async function editHistory(
 
   revalidatePath('/history');
   // A changing value, so the form can tell one save from the next and close.
+  return { savedAt: new Date().toISOString() };
+}
+
+/** An occasion only this family sees — a birthday, a memorial, a barbecue. */
+export async function createOccasion(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const name = String(formData.get('name') ?? '').trim();
+  const date = String(formData.get('date') ?? '').trim();
+  if (!name) return { error: 'צריך שם למועד' };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'צריך תאריך' };
+
+  await addOccasion(me.householdId, name, date);
+  revalidatePath('/');
+  revalidatePath('/occasions');
+  revalidatePath('/history');
+  return { savedAt: new Date().toISOString() };
+}
+
+export async function deleteOccasion(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  await removeOccasion(me.householdId, String(formData.get('holidayKey') ?? '').trim());
+  revalidatePath('/');
+  revalidatePath('/occasions');
+  revalidatePath('/history');
   return { savedAt: new Date().toISOString() };
 }
 
@@ -232,7 +271,7 @@ export async function answer(_prev: ActionResult, formData: FormData): Promise<A
   // Which holiday is being answered comes from the form, because the screen may
   // have been stepped forward. Only holidays inside the window are accepted.
   const holidayKey = String(formData.get('holidayKey') ?? '').trim();
-  const upcoming = await getUpcomingHolidays();
+  const upcoming = await getUpcomingHolidays(person.householdId);
   const holiday = upcoming.find((h) => h.key === holidayKey) ?? (holidayKey ? undefined : upcoming[0]);
   if (!holiday) return { error: 'החג הזה כבר לא פתוח לתשובות' };
 

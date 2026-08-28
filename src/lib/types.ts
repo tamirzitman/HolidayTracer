@@ -18,6 +18,8 @@ export type Holiday = {
   date: string; // YYYY-MM-DD
   year: string; // Gregorian
   include: boolean;
+  /** Empty for the seeded holidays everyone shares; set for one family's own occasion. */
+  ownerHouseholdId: string;
 };
 
 /** away — not gathering at all this holiday: no host, no guests. */
@@ -78,7 +80,7 @@ export const TABS = {
 } as const;
 
 export const HEADERS = {
-  holidays: ['holiday_key', 'name_he', 'type', 'date', 'year', 'include'],
+  holidays: ['holiday_key', 'name_he', 'type', 'date', 'year', 'include', 'owner_household_id'],
   households: ['household_id', 'name', 'active'],
   people: ['phone', 'name', 'household_id'],
   answers: ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone'],

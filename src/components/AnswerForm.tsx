@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useActionState, useEffect, useOptimistic, useRef, useState } from 'react';
 import { answer, type ActionResult } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { formatPhone } from '@/lib/phone';
@@ -54,6 +55,27 @@ export function AnswerForm({
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(answer, {});
   const [choosingHost, setChoosingHost] = useState(false);
   const [editing, setEditing] = useState(false);
+  const router = useRouter();
+
+  // Show the answer the instant it is given; the sheet catches up behind it.
+  const [optimistic, setOptimistic] = useOptimistic<Answer | undefined, Answer>(
+    current,
+    (_prev, next) => next,
+  );
+
+  // Opening the list should be one tap, not two.
+  const hostSelect = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    if (!choosingHost) return;
+    const select = hostSelect.current;
+    if (!select) return;
+    select.focus();
+    try {
+      (select as HTMLSelectElement & { showPicker?: () => void }).showPicker?.();
+    } catch {
+      // Not every browser will open it for us; the field is focused either way.
+    }
+  }, [choosingHost]);
 
   // A new answer arrived from the server: drop out of editing and show it back,
   // and mark the moment worth a small celebration.
@@ -71,10 +93,35 @@ export function AnswerForm({
     return () => clearTimeout(timer);
   }, [answeredAt]);
 
-  const answered = current && !editing;
+  const shown = optimistic;
+  const answered = shown && !editing;
+
+  // Both neighbours are fetched up front, so a swipe lands on a page that is
+  // already there instead of waiting for a round trip.
+  const href = (key: string) => `/?h=${encodeURIComponent(key)}`;
+  useEffect(() => {
+    for (const key of [earlierKey, laterKey]) if (key) router.prefetch(href(key));
+  }, [earlierKey, laterKey, router]);
+
+  // Swiping beats aiming at a small arrow. In a right-to-left page the next
+  // holiday sits to the left, so dragging leftwards brings it in.
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touch.current;
+    touch.current = null;
+    if (!start) return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    const dy = e.changedTouches[0].clientY - start.y;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const to = dx < 0 ? laterKey : earlierKey;
+    if (to) router.push(href(to));
+  };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <header className="flex flex-col items-center gap-1 text-center">
         {householdName && (
           <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand-wash px-3.5 py-1.5 text-sm font-bold text-brand">
@@ -99,18 +146,19 @@ export function AnswerForm({
         </DatePill>
       </header>
 
-      {celebrating && <Celebration kind={current?.kind} />}
+      {celebrating && <Celebration kind={shown?.kind} />}
 
       {answered ? (
         <div className={`${card} celebrate-card flex flex-col items-center gap-3 text-center`}>
-          {current.kind === 'hosting' ? (
+          {shown.kind === 'hosting' ? (
             <p className="font-display text-3xl font-bold text-brand">אנחנו מארחים</p>
-          ) : current.kind === 'away' ? (
+          ) : shown.kind === 'away' ? (
             <p className="font-display text-3xl font-bold text-brand">לא מגיעים</p>
           ) : (
             <>
               <p className="font-display text-3xl leading-snug font-bold text-balance text-brand">
-                מתארחים אצל {host?.name}
+                מתארחים אצל{' '}
+                {host?.name ?? households.find((h) => h.id === shown.hostHouseholdId)?.name}
               </p>
               {host?.phone && (
                 <a
@@ -140,10 +188,25 @@ export function AnswerForm({
             שינוי תשובה
           </button>
 
-          {current.kind === 'hosting' && <Guests guests={guests} />}
+          {shown.kind === 'hosting' && <Guests guests={guests} />}
         </div>
       ) : (
-        <form action={formAction} className={`${card} flex flex-col gap-3`}>
+        <form
+          action={(data) => {
+            const kind = String(data.get('kind') ?? '') as Answer['kind'];
+            const hostId = String(data.get('hostHouseholdId') ?? '');
+            setOptimistic({
+              timestamp: new Date().toISOString(),
+              holidayKey: holiday.key,
+              kind,
+              hostHouseholdId: hostId,
+              byPhone: '',
+              householdId: '',
+            });
+            formAction(data);
+          }}
+          className={`${card} flex flex-col gap-3`}
+        >
           <input type="hidden" name="holidayKey" value={holiday.key} />
           <Title>איפה אתם בחג?</Title>
 
@@ -178,7 +241,13 @@ export function AnswerForm({
           ) : (
             <>
               <input type="hidden" name="kind" value="guest" />
-              <select name="hostHouseholdId" required defaultValue="" className={field}>
+              <select
+                ref={hostSelect}
+                name="hostHouseholdId"
+                required
+                defaultValue=""
+                className={field}
+              >
                 <option value="" disabled>
                   בחרו משפחה
                 </option>

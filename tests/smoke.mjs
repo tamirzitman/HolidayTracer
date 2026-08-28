@@ -253,6 +253,34 @@ const corrected = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.te
 check(`the counts follow the correction (${stats.join('/')} → ${corrected.join('/')})`,
   Number(corrected[0]) === Number(stats[0]) + 1);
 
+// ── occasions belong to one family ───────────────────────────────────────────
+const SOON = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+await dad.click('nav >> text=מועדים');
+await dad.waitForURL('**/occasions');
+await dad.fill('input[name=name]', 'יום הולדת לסבתא');
+await dad.fill('input[name=date]', SOON);
+await dad.click('button[type=submit]');
+await dad.waitForSelector('text=יום הולדת לסבתא');
+check('a family can add an occasion of its own', await dad.isVisible('text=יום הולדת לסבתא'));
+check('and it is written with the family as its owner',
+  rows('Holidays').at(-1)[6] === 'hh_parents');
+
+await dad.goto(BASE);
+check('the occasion is asked about like any holiday',
+  (await dad.innerText('.font-display')).includes('יום הולדת לסבתא'));
+
+await newcomer.goto(BASE);
+check('but no other family sees it',
+  !(await newcomer.innerText('body')).includes('יום הולדת לסבתא'));
+
+await dad.goto(`${BASE}/occasions`);
+const beforeRemove = rows('Holidays').length;
+await dad.click('text=הסרה');
+await dad.waitForSelector('text=יום הולדת לסבתא', { state: 'detached' });
+check('removing it leaves the list', !(await dad.isVisible('text=יום הולדת לסבתא')));
+check('and erases nothing — the tab only grew',
+  rows('Holidays').length === beforeRemove + 1);
+
 // ── the log stays keys-only ──────────────────────────────────────────────────
 const a = rows('Answers').at(-1);
 check(`the log holds five columns and no names (${a.join(' | ')})`,

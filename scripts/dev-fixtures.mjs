@@ -31,9 +31,22 @@ sheet.People = [
 
 // One holiday already in the past, with an answer, so the history screen has
 // something to show without waiting a year.
-const PAST = ['erev_pesach_2026', 'ערב פסח', 'ערב חג', '2026-04-01', '2026', 'TRUE'];
-sheet.Holidays ??= [['holiday_key', 'name_he', 'type', 'date', 'year', 'include']];
-if (!sheet.Holidays.some((r) => r[0] === PAST[0])) sheet.Holidays.push(PAST);
+const HOLIDAY_HEADER = [
+  'holiday_key', 'name_he', 'type', 'date', 'year', 'include', 'owner_household_id',
+];
+// The last column is empty: a seeded holiday belongs to everybody. Only a family's
+// own occasion carries an owner.
+const PAST = ['erev_pesach_2026', 'ערב פסח', 'ערב חג', '2026-04-01', '2026', 'TRUE', ''];
+// A second one, deliberately left unanswered, so the history screen has a gap to
+// mark as missing.
+const GAP = ['erev_shavuot_2026', 'ערב שבועות', 'ערב חג', '2026-05-21', '2026', 'TRUE', ''];
+sheet.Holidays ??= [HOLIDAY_HEADER];
+sheet.Holidays[0] = HOLIDAY_HEADER;
+// Occasions added by a previous run would otherwise pile up.
+sheet.Holidays = sheet.Holidays.filter((r, i) => i === 0 || !r[6]);
+for (const row of [PAST, GAP]) {
+  if (!sheet.Holidays.some((r) => r[0] === row[0])) sheet.Holidays.push(row);
+}
 
 sheet.Answers = [
   ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone'],
@@ -48,7 +61,7 @@ for (const a of active) {
     if (a !== b) sheet.Connections.push([a, b, 'add', now]);
   }
 }
-sheet.Invites = [['token', 'created_by', 'created_at']];
+sheet.Invites = [['token', 'created_by', 'kind', 'created_at']];
 
 delete sheet.Conflicts;
 
