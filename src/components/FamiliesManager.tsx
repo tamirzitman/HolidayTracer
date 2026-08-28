@@ -18,13 +18,24 @@ export function FamiliesManager({
   const [hideState, hideAction] = useActionState<ActionResult, FormData>(hide, {});
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const message = (url: string) => `הצטרפו אלינו — עונים בשתי נגיעות איפה אתם בחג:\n${url}`;
 
   async function makeLink() {
-    const token = await newInviteLink();
-    const url = `${window.location.origin}/join/${token}`;
-    setLink(url);
+    setBusy(true);
     try {
-      await navigator.clipboard.writeText(url);
+      const token = await newInviteLink();
+      setLink(`${window.location.origin}/join/${token}`);
+      setCopied(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(link);
       setCopied(true);
     } catch {
       setCopied(false);
@@ -95,16 +106,24 @@ export function FamiliesManager({
         </p>
         {link ? (
           <>
-            <p dir="ltr" className="rounded-2xl border border-line bg-ground px-4 py-3 text-center text-sm break-all text-ink">
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(message(link))}`}
+              target="_blank"
+              rel="noreferrer"
+              className={primaryButton}
+            >
+              שליחה בוואטסאפ
+            </a>
+            <button type="button" onClick={copy} className={secondaryButton}>
+              {copied ? 'הקישור הועתק ✓' : 'העתקת הקישור'}
+            </button>
+            <p dir="ltr" className="rounded-2xl border border-line bg-ground px-4 py-3 text-center text-xs break-all text-muted">
               {link}
-            </p>
-            <p className="text-center text-sm text-muted">
-              {copied ? 'הקישור הועתק' : 'העתיקו את הקישור ושלחו אותו'}
             </p>
           </>
         ) : (
-          <button type="button" onClick={makeLink} className={primaryButton}>
-            יצירת קישור הזמנה
+          <button type="button" onClick={makeLink} disabled={busy} className={primaryButton}>
+            {busy ? 'רגע…' : 'יצירת קישור הזמנה'}
           </button>
         )}
       </div>
