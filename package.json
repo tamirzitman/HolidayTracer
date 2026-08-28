@@ -10,7 +10,8 @@
     "seed:holidays": "tsx scripts/seed-holidays.mts",
     "fixtures": "node scripts/dev-fixtures.mjs",
     "test:smoke": "node tests/smoke.mjs",
-    "setup": "tsx scripts/setup.mts"
+    "setup": "tsx scripts/setup.mts",
+    "mark": "tsx scripts/mark-holidays.mts"
   },
   "dependencies": {
     "googleapis": "^176.0.0",
