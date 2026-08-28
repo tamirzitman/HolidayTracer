@@ -101,6 +101,7 @@ export default async function Page({
       hostDisagrees={Boolean(conflict)}
       earlierKey={at > 0 ? upcoming[at - 1].key : undefined}
       laterKey={at < upcoming.length - 1 ? upcoming[at + 1].key : undefined}
+      position={{ index: at, total: upcoming.length }}
     />
   );
 }

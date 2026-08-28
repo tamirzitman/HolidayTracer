@@ -15,19 +15,17 @@ const ITEMS = [
     path: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM17.5 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3 19c0-2.8 2.7-5 6-5s6 2.2 6 5M16 14c2.8 0 5 1.8 5 4',
   },
   {
-    href: '/occasions',
-    label: 'מועדים',
-    // A star, not another calendar: two calendars side by side read as one tab.
-    path: 'M12 4.2l2.3 4.7 5.2.8-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1L4.5 9.7l5.2-.8L12 4.2Z',
-  },
-  {
     href: '/history',
     label: 'היסטוריה',
     path: 'M12 7v5l3 2M12 21a9 9 0 1 0-9-9',
   },
 ];
 
-/** A real tab bar: these are whole screens, not footnotes. */
+/**
+ * A real tab bar: these are whole screens, not footnotes. Adding a family's own
+ * dates is not one of them — it belongs beside the holiday it changes, so it is
+ * reached from the question screen instead.
+ */
 export function BottomNav() {
   const pathname = usePathname();
 

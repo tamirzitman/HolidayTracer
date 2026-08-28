@@ -48,7 +48,7 @@ export function OccasionsManager({
 
         <label className="flex flex-col gap-2">
           <span className="text-sm font-semibold text-muted">שם</span>
-          <input name="name" type="text" required placeholder="יום הולדת לסבתא" className={field} />
+          <input name="name" type="text" required placeholder="שם האירוע" className={field} />
         </label>
 
         <label className="flex flex-col gap-2">

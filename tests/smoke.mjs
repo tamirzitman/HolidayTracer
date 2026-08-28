@@ -253,9 +253,17 @@ const corrected = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.te
 check(`the counts follow the correction (${stats.join('/')} → ${corrected.join('/')})`,
   Number(corrected[0]) === Number(stats[0]) + 1);
 
+// ── the year is shown as something you can page through ──────────────────────
+await dad.goto(BASE);
+const dots = await dad.$$eval('header span[aria-hidden=true].rounded-full', (els) => els.length);
+check(`the pager shows the whole round of the year (${dots} dots)`, dots > 1);
+check('and says which holiday this is', /\d+ מתוך \d+ · החליקו לצדדים/.test(await dad.innerText('header')));
+
 // ── occasions belong to one family ───────────────────────────────────────────
 const SOON = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
-await dad.click('nav >> text=מועדים');
+check('the question screen offers adding an occasion',
+  await dad.isVisible('a[href="/occasions"]'));
+await dad.click('a[href="/occasions"]');
 await dad.waitForURL('**/occasions');
 await dad.fill('input[name=name]', 'יום הולדת לסבתא');
 await dad.fill('input[name=date]', SOON);
