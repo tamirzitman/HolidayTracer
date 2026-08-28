@@ -1,11 +1,13 @@
 # HolidayTracer
 
-A dead-simple web app for a family. One question each holiday:
+A one-screen web app for a family. Each holiday it asks:
 
 > **<span dir="rtl">איפה אתם בחג?</span>** — <span dir="rtl">אני מארח</span>, or
-> <span dir="rtl">מתארח אצל</span> + a phone number.
+> <span dir="rtl">מתארח אצל</span> + a household picked from a dropdown.
 
-Phone numbers are households. Hebrew (RTL) interface, Jewish holidays on the Israeli schedule.
+**A Google Sheet is the entire database.** All management happens by hand in the sheet; the app
+has no admin screens. Google sign-in identifies who's answering. Hebrew (RTL), Jewish holidays on
+the Israeli schedule.
 
 > **Status: planning.** No code yet.
 
