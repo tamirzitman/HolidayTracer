@@ -53,10 +53,16 @@ export type Connection = {
   at: string;
 };
 
-/** A link that brings a whole new household in. Reusable until it expires. */
+/**
+ * A link, because nobody types phone numbers. Two kinds:
+ *   family    — the opener names a new household, connected to the inviter
+ *   household — the opener joins the inviter's own household (a spouse, a grown child)
+ * Reusable: one link can go in a WhatsApp group and bring in several families.
+ */
 export type Invite = {
   token: string;
   createdBy: string;
+  kind: 'family' | 'household';
   createdAt: string;
 };
 
@@ -77,5 +83,5 @@ export const HEADERS = {
   answers: ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone'],
   conflicts: ['holiday_key', 'household_id', 'host_household_id', 'host_kind', 'host_host_household_id', 'detected_at'],
   connections: ['household_id', 'connected_to', 'action', 'at'],
-  invites: ['token', 'created_by', 'created_at'],
+  invites: ['token', 'created_by', 'kind', 'created_at'],
 } as const;

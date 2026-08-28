@@ -146,6 +146,8 @@ async function fetchSheet(): Promise<Sheet> {
       .map((row) => ({
         token: cell(row, invitesTab.headers, 'token'),
         createdBy: cell(row, invitesTab.headers, 'created_by'),
+        // Links written before there were two kinds are family invites.
+        kind: (cell(row, invitesTab.headers, 'kind') || 'family') as 'family' | 'household',
         createdAt: cell(row, invitesTab.headers, 'created_at'),
       }))
       .filter((i) => i.token && i.createdBy),
@@ -323,17 +325,29 @@ export async function hideFamily(mine: string, theirs: string): Promise<void> {
   ]);
 }
 
-export async function createInvite(householdId: string): Promise<string> {
+export async function createInvite(
+  householdId: string,
+  kind: 'family' | 'household',
+): Promise<string> {
   const token = randomUUID().replace(/-/g, '').slice(0, 12);
-  await appendRow(TABS.invites, HEADERS.invites, [token, householdId, new Date().toISOString()]);
+  await appendRow(TABS.invites, HEADERS.invites, [
+    token,
+    householdId,
+    kind,
+    new Date().toISOString(),
+  ]);
   return token;
 }
 
 /** Reusable: a link in the family group should bring in more than one household. */
-export async function inviteHousehold(token: string): Promise<Household | undefined> {
+export async function readInvite(
+  token: string,
+): Promise<{ household: Household; kind: 'family' | 'household' } | undefined> {
   const sheet = await loadSheet();
   const invite = sheet.invites.find((i) => i.token === token);
-  return invite ? sheet.households.find((h) => h.id === invite.createdBy) : undefined;
+  if (!invite) return undefined;
+  const household = sheet.households.find((h) => h.id === invite.createdBy);
+  return household ? { household, kind: invite.kind } : undefined;
 }
 
 export async function addHousehold(name: string): Promise<string> {

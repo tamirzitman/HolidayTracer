@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { addFamily, hide, newInviteLink, type ActionResult } from '@/app/actions';
+import { hide, newInviteLink, type ActionResult } from '@/app/actions';
 import { formatPhone } from '@/lib/phone';
 import { ErrorNote, Title, card, field, primaryButton, quietButton, secondaryButton } from './ui';
 
@@ -14,22 +14,21 @@ export function FamiliesManager({
   householdName: string;
   families: Family[];
 }) {
-  const [addState, addAction, adding] = useActionState<ActionResult, FormData>(addFamily, {});
   const [hideState, hideAction] = useActionState<ActionResult, FormData>(hide, {});
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'family' | 'household' | null>(null);
 
   const message = (url: string) => `הצטרפו אלינו — עונים בשתי נגיעות איפה אתם בחג:\n${url}`;
 
-  async function makeLink() {
-    setBusy(true);
+  async function makeLink(kind: 'family' | 'household') {
+    setBusy(kind);
     try {
-      const token = await newInviteLink();
+      const token = await newInviteLink(kind);
       setLink(`${window.location.origin}/join/${token}`);
       setCopied(false);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -81,29 +80,12 @@ export function FamiliesManager({
       </section>
       <ErrorNote>{hideState.error}</ErrorNote>
 
-      <form action={addAction} className={`${card} flex flex-col gap-3`}>
-        <h2 className="font-display text-xl font-bold text-ink">הוספת משפחה שכבר רשומה</h2>
-        <p className="text-sm text-muted">הזינו מספר טלפון של מישהו מהמשפחה הזו.</p>
-        <input
-          name="phone"
-          type="tel"
-          inputMode="tel"
-          dir="ltr"
-          required
-          placeholder="050-123-4567"
-          className={`${field} text-center`}
-        />
-        <ErrorNote>{addState.error}</ErrorNote>
-        <button type="submit" disabled={adding} className={secondaryButton}>
-          {adding ? 'רגע…' : 'הוספה'}
-        </button>
-      </form>
-
       <div className={`${card} flex flex-col gap-3`}>
-        <h2 className="font-display text-xl font-bold text-ink">הזמנת משפחה חדשה</h2>
+        <h2 className="font-display text-xl font-bold text-ink">הזמנה</h2>
         <p className="text-sm text-muted">
-          שלחו את הקישור למשפחה שעוד לא באפליקציה. אפשר לשלוח אותו לכמה משפחות.
+          שולחים קישור בוואטסאפ. מי שפותח אותו מתחבר אליכם — גם אם הוא כבר באפליקציה.
         </p>
+
         {link ? (
           <>
             <a
@@ -117,14 +99,32 @@ export function FamiliesManager({
             <button type="button" onClick={copy} className={secondaryButton}>
               {copied ? 'הקישור הועתק ✓' : 'העתקת הקישור'}
             </button>
-            <p dir="ltr" className="rounded-2xl border border-line bg-ground px-4 py-3 text-center text-xs break-all text-muted">
-              {link}
-            </p>
+            <button type="button" onClick={() => setLink('')} className={quietButton}>
+              קישור אחר
+            </button>
           </>
         ) : (
-          <button type="button" onClick={makeLink} disabled={busy} className={primaryButton}>
-            {busy ? 'רגע…' : 'יצירת קישור הזמנה'}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => makeLink('family')}
+              disabled={busy !== null}
+              className={primaryButton}
+            >
+              {busy === 'family' ? 'רגע…' : 'הזמנת משפחה'}
+            </button>
+            <button
+              type="button"
+              onClick={() => makeLink('household')}
+              disabled={busy !== null}
+              className={secondaryButton}
+            >
+              {busy === 'household' ? 'רגע…' : `הזמנה לבית שלנו`}
+            </button>
+            <p className="text-center text-xs text-muted">
+              “הזמנת משפחה” פותחת בית חדש. “הזמנה לבית שלנו” מצרפת מישהו אליכם — בן זוג, ילד שגדל.
+            </p>
+          </>
         )}
       </div>
 

@@ -53,12 +53,14 @@ check('answering reveals where everyone is', await dad.isVisible('text=איפה 
 check('and the circle lists the other families', await dad.isVisible('text=טמיר ואפיק'));
 
 // ── invite a family that is not in the app at all ────────────────────────────
-await dad.goto(`${BASE}/families`);
-await dad.waitForSelector('text=המשפחות שלי');
+await dad.click('nav >> text=המשפחות');
+await dad.waitForURL('**/families');
+check('the tab bar reaches the families screen', await dad.isVisible('text=המשפחות שלי'));
 const beforeInvite = rows('Invites').length;
-await dad.click('text=יצירת קישור הזמנה');
-await dad.waitForSelector('text=/\\/join\\//');
+await dad.click('text=הזמנת משפחה');
+await dad.waitForSelector('text=שליחה בוואטסאפ');
 check('an invite link is created', rows('Invites').length === beforeInvite + 1);
+check('the invite is a family invite', rows('Invites').at(-1)[2] === 'family');
 const token = rows('Invites').at(-1)[0];
 
 const newcomer = await open();
@@ -67,6 +69,7 @@ await newcomer.fill('input[name=phone]', NEWCOMER);
 await newcomer.click('button[type=submit]');
 await newcomer.waitForSelector('input[name=householdName]');
 check('the invite names who invited them', await newcomer.isVisible('text=אבא ואמא'));
+check('and asks for no phone number', !(await newcomer.isVisible('input[name=joinPhone]')));
 await newcomer.fill('input[name=name]', 'דנה');
 await newcomer.fill('input[name=householdName]', 'דנה ויוסי');
 await newcomer.click('button[type=submit]');
@@ -92,8 +95,8 @@ await dad.goto(BASE);
 check('and they show up as coming', await dad.isVisible('text=דנה ויוסי'));
 
 // ── hiding is one-sided ──────────────────────────────────────────────────────
-await dad.goto(`${BASE}/families`);
-await dad.waitForSelector('text=המשפחות שלי');
+await dad.click('nav >> text=המשפחות');
+await dad.waitForURL('**/families');
 const hideRow = dad.locator('li', { hasText: 'אח ואשתו' });
 await hideRow.locator('text=הסתרה').click();
 await dad.waitForTimeout(1200);

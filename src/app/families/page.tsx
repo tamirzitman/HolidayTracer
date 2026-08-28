@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { FamiliesManager } from '@/components/FamiliesManager';
 import { quietButton } from '@/components/ui';
@@ -25,9 +24,6 @@ export default async function FamiliesPage() {
   return (
     <div className="flex flex-col gap-6">
       <FamiliesManager householdName={mine?.name ?? ''} families={families} />
-      <Link href="/" className={`${quietButton} text-center`}>
-        חזרה לחג
-      </Link>
     </div>
   );
 }

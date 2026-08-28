@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Title, card, quietButton } from '@/components/ui';
 import { findPerson, getHouseholds, historyFor } from '@/lib/data';
@@ -36,9 +35,6 @@ export default async function HistoryPage() {
         </ul>
       )}
 
-      <Link href="/" className={`${quietButton} text-center`}>
-        חזרה לחג הקרוב
-      </Link>
     </div>
   );
 }

@@ -13,8 +13,8 @@ import {
   getHousehold,
   getUpcomingHolidays,
   hideFamily,
-  inviteHousehold,
   isConnected,
+  readInvite,
   rewriteConflicts,
 } from '@/lib/data';
 import { normalizePhone } from '@/lib/phone';
@@ -51,51 +51,28 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
   if (await findPerson(phone)) return {};
 
   const token = String(formData.get('token') ?? '').trim();
-  const inviter = token ? await inviteHousehold(token) : undefined;
-  if (!inviter) return { error: 'צריך הזמנה ממשפחה שכבר רשומה' };
+  const invite = token ? await readInvite(token) : undefined;
+  if (!invite) return { error: 'צריך הזמנה ממשפחה שכבר רשומה' };
 
   const name = String(formData.get('name') ?? '').trim();
   if (!name) return { error: 'צריך שם' };
 
-  const joinPhone = normalizePhone(String(formData.get('joinPhone') ?? ''));
-  const householdName = String(formData.get('householdName') ?? '').trim();
-
   let householdId: string;
-  if (joinPhone) {
-    const relative = await findPerson(joinPhone);
-    if (!relative) return { error: 'המספר הזה לא מוכר לנו' };
-    householdId = relative.householdId;
-  } else if (householdName) {
-    householdId = await addHousehold(householdName);
+  if (invite.kind === 'household') {
+    // Joining the inviter's own household — a spouse, a grown child.
+    householdId = invite.household.id;
   } else {
-    return { error: 'צריך שם למשפחה, או מספר של מישהו שכבר רשום ממנה' };
+    const householdName = String(formData.get('householdName') ?? '').trim();
+    if (!householdName) return { error: 'צריך שם למשפחה' };
+    householdId = await addHousehold(householdName);
   }
 
   await addPerson({ phone, name, householdId });
-  if (householdId !== inviter.id) await connect(householdId, inviter.id);
+  if (householdId !== invite.household.id) await connect(householdId, invite.household.id);
 
   // Straight to the question: that is what they came for.
   revalidatePath('/');
   redirect('/');
-}
-
-/** Connect to a family already in the app, by a number you would call anyway. */
-export async function addFamily(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const me = await currentHousehold();
-  if ('error' in me) return me;
-
-  const phone = normalizePhone(String(formData.get('phone') ?? ''));
-  if (!phone) return { error: 'מספר הטלפון לא נראה תקין' };
-
-  const person = await findPerson(phone);
-  if (!person) return { error: 'המספר הזה עוד לא רשום. שלחו להם הזמנה' };
-  if (person.householdId === me.householdId) return { error: 'זו המשפחה שלכם' };
-  if (await isConnected(me.householdId, person.householdId)) return { error: 'הם כבר ברשימה שלכם' };
-
-  await connect(me.householdId, person.householdId);
-  revalidatePath('/families');
-  revalidatePath('/');
-  return {};
 }
 
 /** One-sided: they keep seeing you, so nobody is cut off without knowing. */
@@ -112,10 +89,10 @@ export async function hide(_prev: ActionResult, formData: FormData): Promise<Act
   return {};
 }
 
-export async function newInviteLink(): Promise<string> {
+export async function newInviteLink(kind: 'family' | 'household'): Promise<string> {
   const me = await currentHousehold();
   if ('error' in me) throw new Error(me.error);
-  return createInvite(me.householdId);
+  return createInvite(me.householdId, kind);
 }
 
 async function currentHousehold(): Promise<{ householdId: string } | ActionResult & { error: string }> {

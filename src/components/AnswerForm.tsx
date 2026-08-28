@@ -194,14 +194,6 @@ export function AnswerForm({
 
       {answered && circleStatus.length > 0 && <Circle families={circleStatus} />}
 
-      <div className="flex flex-col items-center gap-3">
-        <Link href="/families" className={quietButton}>
-          המשפחות שלי
-        </Link>
-        <Link href="/history" className={quietButton}>
-          איפה היינו בחגים קודמים
-        </Link>
-      </div>
     </div>
   );
 }
