@@ -1,11 +1,11 @@
 # HolidayTracer — Plan
 
 > Status: **plan / not yet implemented**. Reflects decisions confirmed with Tamir on 2026-08-28.
-> Open items are in [OPEN-QUESTIONS.md](./OPEN-QUESTIONS.md). Assumptions I had to make are marked
-> **[ASSUMPTION]**.
+> Remaining items are in [OPEN-QUESTIONS.md](./OPEN-QUESTIONS.md). Unavoidable assumptions are
+> marked **[ASSUMPTION]**.
 >
-> Third version. Earlier drafts (family circles and per-person RSVPs; then a Postgres app where you
-> typed phone numbers) are in git history. Both were over-built.
+> Fourth version. Earlier drafts (family circles with per-person RSVPs; a Postgres app with typed
+> phone numbers; Google sign-in) are in git history.
 
 ---
 
@@ -20,29 +20,27 @@ Two answers, both by **tapping — never typing**:
 | Answer | What the user does |
 |---|---|
 | <span dir="rtl">**אני מארח**</span> | One tap. Done. |
-| <span dir="rtl">**מתארח אצל…**</span> | Picks a household **by name** from a dropdown. |
+| <span dir="rtl">**מתארח אצל…**</span> | Picks a family **by name** from a dropdown. |
 
-Names, not numbers. The phone number lives behind the name in the spreadsheet — the app resolves
-it; nobody ever types one.
+**A Google Sheet is the entire data store**, and **everything is managed by hand in it** — which
+families exist, who belongs to which, which dates count as a holiday worth gathering for. The app
+has **no admin screens at all**.
 
-**There is no database.** A **Google Sheet is the entire data store**, and all management —
-adding a household, fixing a name, correcting a phone number, editing history — happens by hand in
-that sheet. The app writes to it and reads from it. Nothing else.
-
-That means the app has **no admin screens at all**. No "add household", no "manage members", no
-settings. If something needs changing, you open the sheet.
+The app is deliberately dumb: it reads the sheet, shows a question, and appends the answer.
 
 ### Confirmed decisions
 
 | | |
 |---|---|
-| The question | One per holiday: hosting, or a guest at another household |
-| Choosing a host | **Dropdown of household names.** No typing, no phone entry |
+| The question | One per holiday: hosting, or a guest at another family |
+| Choosing a host | **Dropdown of family names.** No typing, no phone entry |
 | Data store | **Google Sheets** — the single source of truth |
-| Management | **Manual, in the sheet.** The app has no admin UI |
+| Holidays | **A tab you fill in once.** You define what counts as חג / מועד / ערב חג |
+| Families | **Manually managed by you.** The app never creates one |
 | Signing in | **Phone number + name.** No password, no email, no SMS code |
-| Answers format | **A log** — one appended row per answer, nothing overwritten |
-| Holidays | **Computed automatically**, Israel schedule |
+| Session | Remembered in a **signed browser cookie** — you type your number once, ever |
+| Answers | **One tab, forever**, append-only, carrying the Hebrew year so it sorts by year |
+| Contradictions | Flagged **both in the app and in the sheet** |
 | Hosting | Free tier |
 | Interface | Hebrew, right-to-left, mobile web |
 
@@ -50,146 +48,179 @@ settings. If something needs changing, you open the sheet.
 
 ## 2. The spreadsheet
 
-Three tabs. This *is* the schema.
+Five tabs. This *is* the schema.
 
-### `Households`
+### `Holidays` — filled in once, by you
+The app has **no calendar logic whatsoever**. It does not know what Passover is. It reads this tab.
+
+| holiday_key | name_he | type | date | hebrew_year | include |
+|---|---|---|---|---|---|
+| `rosh_hashana_eve_5787` | <span dir="rtl">ערב ראש השנה</span> | <span dir="rtl">ערב חג</span> | 2026-09-11 | 5787 | TRUE |
+| `yom_kippur_eve_5787` | <span dir="rtl">ערב יום כיפור</span> | <span dir="rtl">ערב חג</span> | 2026-09-20 | 5787 | FALSE |
+| `seder_5787` | <span dir="rtl">ליל הסדר</span> | <span dir="rtl">חג</span> | 2027-04-21 | 5787 | TRUE |
+
+**`include` is the whole point.** Every candidate date is seeded once; you flip `TRUE` on the ones
+that actually matter for a family meal and leave the rest `FALSE`. That is how
+*<span dir="rtl">מה נחשב חג, מועד או ערב חג שמעניין אותנו לאירוח משפחתי</span>* gets decided —
+by you, in the sheet, not by me in code.
+
+The seeding is a **one-off script**, run once by hand, that uses `@hebcal/core` to write out every
+holiday and eve for the next several years with `include = FALSE`.
+**[ASSUMPTION: ten years, Israel schedule.]** After that it is a plain tab you edit like any other
+— add a row, delete a row, rename one. Adding Friday nights, birthdays or anything else is just
+adding rows; nothing in the app needs to change.
+
+`@hebcal/core` is therefore a **build-time tool, not a runtime dependency**. The deployed app has
+no calendar library in it.
+
+### `Households` — the dropdown
 | household_id | name | phone | active |
 |---|---|---|---|
 | `hh_parents` | <span dir="rtl">אבא ואמא</span> | +972501234567 | TRUE |
 | `hh_tamir` | <span dir="rtl">תמיר ורעיה</span> | +972521234567 | TRUE |
 
-The dropdown in the app is built from this tab — every row with `active = TRUE`. Adding a family
-to the app means **adding a row here**, nothing more.
+Every row with `active = TRUE` is an option in the app. **Only you add rows here.** That is what
+makes duplicates impossible — the app has no way to create a family.
 
-### `People`
+### `People` — phone number → family
 | phone | name | household_id |
 |---|---|---|
 | +972501234567 | <span dir="rtl">אבא</span> | `hh_parents` |
 | +972501119999 | <span dir="rtl">אמא</span> | `hh_parents` |
 
-This is what turns a phone number into a household. Both parents' numbers point at the same
-`household_id` — that is how one household holds several people. The `Households` tab's own `phone`
-column is just the number shown beside the family's name in the app, so you can call them.
+Both parents' numbers point at the same `household_id` — that is how one family holds several
+people. The app appends a row here when somebody registers (§3), and never touches it otherwise.
 
-### `Answers` — the log
-| timestamp | holiday_key | holiday_name | by_phone | household_id | household_name | kind | host_household_id | host_household_name |
-|---|---|---|---|---|---|---|---|---|
-| 2026-09-01T19:04Z | `rosh_hashana_5787` | <span dir="rtl">ראש השנה</span> | +972521234567 | `hh_tamir` | <span dir="rtl">תמיר ורעיה</span> | `guest` | `hh_parents` | <span dir="rtl">אבא ואמא</span> |
-| 2026-09-01T20:12Z | `rosh_hashana_5787` | <span dir="rtl">ראש השנה</span> | +972501234567 | `hh_parents` | <span dir="rtl">אבא ואמא</span> | `hosting` | | |
+### `Answers` — the log, one tab forever
+| timestamp | hebrew_year | holiday_key | holiday_name | by_phone | household_id | household_name | kind | host_household_id | host_household_name |
+|---|---|---|---|---|---|---|---|---|---|
+| 2026-09-01T19:04Z | 5787 | `rosh_hashana_eve_5787` | <span dir="rtl">ערב ראש השנה</span> | +972521234567 | `hh_tamir` | <span dir="rtl">תמיר ורעיה</span> | `guest` | `hh_parents` | <span dir="rtl">אבא ואמא</span> |
+| 2026-09-01T20:12Z | 5787 | `rosh_hashana_eve_5787` | <span dir="rtl">ערב ראש השנה</span> | +972501234567 | `hh_parents` | <span dir="rtl">אבא ואמא</span> | `hosting` | | |
 
-**Append-only.** Changing your answer writes a new row; **the newest row for a given
-holiday + household wins**. Nothing is ever overwritten, so a mis-tap can't destroy history and
-the sheet doubles as an audit trail.
+**One tab, all years, never split.** `hebrew_year` is a column so you can sort or filter by year
+without the data living in separate places.
 
-Names are written alongside ids deliberately — the sheet stays readable without a single lookup
-formula.
+**Append-only.** Changing an answer writes a new row; the **newest row for a given holiday +
+household wins**. Nothing is overwritten, so a mis-tap can't destroy history and the sheet doubles
+as a record of who said what, when.
+
+Names sit next to ids deliberately — the sheet reads correctly on its own, no lookup formulas.
+
+### `Conflicts` — written by the app
+| holiday_name | household | said | host | but_host_said | detected_at |
+|---|---|---|---|---|---|
+| <span dir="rtl">ערב ראש השנה</span> | <span dir="rtl">תמיר ורעיה</span> | <span dir="rtl">מתארחים</span> | <span dir="rtl">אבא ואמא</span> | <span dir="rtl">מתארחים אצל אח ואשתו</span> | 2026-09-02T08:31Z |
+
+You said you're going to a family that says it isn't hosting. The app shows the person one quiet
+line — *<span dir="rtl">"שימו לב — הם ענו שהם מתארחים"</span>* — with no notification and no
+action demanded, **and records it here so you can see it in the sheet**.
+
+This tab is **derived, not a log**: the app clears and rewrites it after every answer, so it always
+reflects the current state. It is the one tab you should never edit by hand — anything typed there
+disappears on the next answer.
+
+**Detection rule:** for each holiday, an answer of `guest` at household *H* is a conflict when
+*H*'s own newest answer for that holiday is **not** `hosting`. A host who simply hasn't answered
+yet is not a conflict — that's just an unanswered question.
 
 ---
 
-## 3. How it's wired
+## 3. Signing in
+
+1. Type your **phone number**.
+2. **Known number** → straight in, as your family.
+3. **New number** → type your **name**, then pick your family from the dropdown.
+   - **It's there** → a row is appended to `People` and you're in.
+   - **It isn't there** → you can't finish. The app says
+     *<span dir="rtl">"המשפחה שלכם עדיין לא ברשימה — בקשו להוסיף אתכם"</span>*.
+
+That last case is deliberate: families come from the sheet, so there are **no duplicates, ever**.
+The cost is that a genuinely new family is blocked until you add a row — which is the trade you
+chose, and correct while the family is being set up.
+
+**You type your number once, ever.** It's kept in a **signed browser cookie**, so every later visit
+opens straight on the question — no sign-in screen, no re-typing. The cookie holds nothing but the
+number and can't be edited by hand. Clearing browser data or switching phone means typing it
+again; that's the only way back in, and it's two taps.
+
+**The trade-off, accepted deliberately:** with no verification code, anyone who opens the app can
+enter any registered phone number and act as that family. Keep the link unlisted and inside the
+family. The cost of a code — money per message, and a step your parents must get past — was judged
+higher than the risk.
+
+### What the app is allowed to write
+Only three things: a **`People` row** at registration, an **`Answers` row** per answer, and the
+**`Conflicts` tab**. It never creates a family, never edits an existing row, never touches
+`Holidays`.
+
+---
+
+## 4. Screens
+
+Two, plus one field for your phone number.
+
+1. **<span dir="rtl">החג</span>** — the next holiday from the sheet and its date, the question, two
+   buttons, the dropdown. After answering: your answer in one line with the family's number beside
+   it, a link to change it, the quiet contradiction line if there is one, and — if you're hosting —
+   who said they're coming.
+2. **<span dir="rtl">היסטוריה</span>** — one line per past holiday:
+   *<span dir="rtl">"סוכות תשפ״ו — היינו אצל אבא ואמא"</span>*. Read straight from the log.
+
+**Which holiday is "next"** is simply the earliest row in `Holidays` with `include = TRUE` and a
+date not yet passed. If the tab runs out of future rows, the app says so plainly rather than
+guessing — that's your cue to seed more years.
+
+---
+
+## 5. How it's wired
 
 ```
   Family member's phone
-          │  phone number + name
+          │  phone number, kept in a cookie
           ▼
   Next.js app on Vercel  ──── service account ────►  Google Sheet
-  (the only UI)                 (read + append)        (the database)
+  (the only UI)                (read + append)         (the database)
                                                             ▲
                                                             │ you, by hand
-                                                      management & cleanup
+                                                    families · people · holidays
 ```
 
-### Signing in — phone and name, nothing else
-1. Type your **phone number**.
-2. **Known number** → you're straight in, as your household.
-3. **New number** → type your **name**, then answer *<span dir="rtl">"איזו משפחה אתם?"</span>* with
-   the same dropdown everyone uses:
-   - **Your family is already there** (a spouse registered it) → you join that household.
-   - **It isn't** → a new household is created, named after you.
-
-**You type your number once, ever.** It is kept in a **browser cookie**, so every visit after the
-first opens straight on the question — no sign-in screen, no re-typing. The cookie is signed so it
-can't be edited by hand, and it holds nothing but the phone number. Clearing browser data, or
-opening the app on a different phone, means typing the number again — that's the only way back in,
-and it's two taps.
-
-No password, no email, no verification code. Registration is the app's own job — the only case
-where the app writes anything to the sheet other than an answer.
-
-**A new family appears in everyone's dropdown immediately.** Nothing waits on approval. The
-`active` column exists as a manual off-switch for you, not a gate for them.
-
-**The trade-off, accepted deliberately:** with no verification code, anyone who opens the app can
-enter any phone number and act as that household. Keep the URL unlisted and inside the family. The
-cost of a code — money per message, and a step your parents must get past — was judged higher than
-the risk for a closed family app.
-
-### Everything else
-| | |
-|---|---|
-| Sheet access | A **service account** (a robot Google account) holds the credentials. You share the sheet with its address once, as Editor. **Family members never get access to the sheet itself** |
-| Holiday dates | Computed with **`@hebcal/core`**, Israel schedule, offline, no API key |
-| Session | A **signed browser cookie** holding the phone number, long-lived so nobody signs in twice. No auth provider — "this number is registered" is less machinery than any library would add |
-| Management | You, in the sheet: fixing a name, merging duplicate households, correcting a phone number, editing an old answer |
-
-### Why not Google Apps Script?
-It looked ideal — free hosting from Google, direct sheet access, no service account. It was
-rejected because running the script as the visitor would require giving every family member edit
-access to the spreadsheet, which defeats "management is yours alone"; and running it as its owner
-makes the whole app a single shared identity with no clean way to hold a per-person session.
-
-### Stack
 | | |
 |---|---|
 | App | **Next.js + TypeScript** on **Vercel free tier** |
 | Interface | **Tailwind**, `dir="rtl"`, logical properties |
-| Sheet access | **`googleapis`** with a service account key in an environment variable |
-| Holidays | **`@hebcal/core`** |
+| Sheet access | **`googleapis`** with a service account key in an environment variable. You share the sheet with the robot address once, as Editor — **family members never get access to the sheet** |
+| Session | A signed cookie holding the phone number |
+| Seeding | A one-off local script using **`@hebcal/core`** to fill the `Holidays` tab |
 
-No database, no ORM, no migrations, no auth provider, no admin panel.
+No database, no ORM, no migrations, no auth provider, no admin panel, no calendar logic at runtime.
 
-## 4. Screens
-
-Two. There is nothing else.
-
-1. **<span dir="rtl">החג</span>** — the holiday and its date, the question, the two buttons, and
-   the household dropdown. After answering: your answer in one line (with the host's phone shown
-   next to the name, so you can call them), and a link to change it. If you're hosting, the
-   households that said they're coming to you.
-2. **<span dir="rtl">היסטוריה</span>** — one line per past holiday:
-   *<span dir="rtl">"סוכות תשפ״ו — היינו אצל אבא ואמא"</span>*. Read straight from the log.
-
-Sign-in is one field — your phone number — and, the first time only, your name and your family.
-There is no third screen, because everything a third screen would do is done in the spreadsheet.
+### Why not Google Apps Script?
+Free hosting from Google and direct sheet access made it tempting. Rejected because running the
+script as the visitor would require giving **every family member edit access to the spreadsheet**,
+defeating the point of management being yours alone; and running it as its owner makes the whole
+app one shared identity, with no clean way to hold a per-person session.
 
 ---
 
-## 5. Order of build
+## 6. Order of build
 
 | Phase | Scope |
 |---|---|
-| **1** | Sheet template + service account, phone sign-in and first-time registration, holiday computation, the question with the dropdown, appending an answer |
-| **2** | "Who's coming to you", the history screen |
+| **1** | Sheet template + seed script + service account; phone sign-in and registration; reading the next holiday; the question with its dropdown; appending an answer |
+| **2** | "Who's coming to you", the conflict line and the `Conflicts` tab, the history screen |
 | **3** | Hebrew polish, home-screen install, a share-to-WhatsApp line |
-
-Phase 1 is the product. It is realistically a weekend.
 
 ---
 
-## 6. Things worth knowing
+## 7. Things worth knowing
+- **Reading the whole log on each page load is fine** at family scale. If it ever isn't, the fix is
+  caching, not a database. **[ASSUMPTION: fewer than ~50 families.]**
+- **The sheet has no privacy layer** and isn't meant to. The app shows each person only what
+  touches them; the sheet shows you everything.
+- **Google Sheets API quotas** are per-minute and generous; a family app will never approach them.
 
-- **Reading the whole log on each page load is fine** at family scale (hundreds of rows for many
-  years). If it ever isn't, the fix is caching, not a database. **[ASSUMPTION: fewer than ~50
-  households.]**
-- **Everything is visible to whoever holds the sheet** — that's you. The app still shows each
-  person only what touches them, but the sheet has no privacy layer and isn't meant to.
-- **The app creates a household only at registration** — when a new number signs up and says their
-  family isn't in the list. It never creates one any other way: if you want to add a family who
-  hasn't registered, you add the row yourself.
-- **Duplicates are yours to merge.** Because anyone can create a household instantly, you may end
-  up with both <span dir="rtl">"אבא ואמא"</span> and <span dir="rtl">"הורים"</span>. Fixing that is a
-  manual merge in the sheet — the accepted cost of nobody waiting on approval.
-
-## 7. Not building
+## 8. Not building
 Admin screens · per-person RSVPs and attendance states · hosting rotation and statistics · family
-circles · menus, photos, times, addresses · invitations or notifications · a database.
+circles · menus, photos, times, addresses · invitations or notifications · a database · any
+calendar logic inside the app.

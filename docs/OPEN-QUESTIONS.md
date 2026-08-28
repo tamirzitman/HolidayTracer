@@ -1,78 +1,46 @@
 # Open questions
 
-Not decided, and not guessed.
+Short list now — most of what was here got answered by moving decisions into the spreadsheet.
 
 ---
 
-### Q1. Which holidays does the app ask about? 🔴 *blocks phase 1*
-Dates are computed automatically, but **which** holidays get asked is still a list I need. My
-starting guess, to be corrected:
+### Q1. How many years should the seed script write?
+The one-off script fills the `Holidays` tab with every candidate date, `include = FALSE`, for you
+to mark up. **Currently assumed: ten years.** More is harmless — it's a tab you can sort and
+filter. When it runs out, the app says so instead of guessing, and you re-run the script.
 
-<div dir="rtl">
-
-ראש השנה · ערב יום כיפור · סוכות · שמחת תורה · ליל הסדר · שביעי של פסח · שבועות
-
-</div>
-
-Unclear: חנוכה, פורים, יום העצמאות, ל״ג בעומר.
+Related: should the seed include **every Friday night** as rows, so Shabbat is available to switch
+on later without re-seeding? It's ~520 rows over ten years — nothing for a spreadsheet, but it
+makes the tab longer to scan. **Currently assumed: no, holidays and eves only.**
 
 ---
 
-### Q2. Friday-night Shabbat too, or holidays only? 🔴 *blocks phase 1*
-*"Where are you this time"* fits Shabbat exactly, and it's the same question 52 times a year
-instead of 7. Cheap to include now; it changes the main screen from *the next holiday* to
-*this coming Shabbat, and the next holiday*.
+### Q2. How many families in the dropdown?
+Under about fifteen it's a plain list. Beyond that it wants grouping or a search field. Nothing
+structural — just the shape of one control.
 
 ---
 
-### Q3. Should the app flag a contradiction? *(asked before, still open)*
-You answer that you're at your parents'; your parents answer that they're at your brother's. The
-log holds both, so the app could show you one line:
-<span dir="rtl">"שים לב — הם ענו שהם מתארחים"</span>.
-
-It's the one thing that stops the app from being quietly wrong — but it is a feature beyond the
-single question. **In or out?**
+### Q3. History: yours only, or everyone's?
+The log holds every family's answers. Should the history screen show **only your own** past
+holidays, or the whole family's? **Currently assumed: only your own.**
 
 ---
 
-### Q4. Duplicate households will happen. How much do you care?
-Anyone can create a household the moment they register, with no approval. Two people from the same
-family registering separately produce two households —
-<span dir="rtl">"אבא ואמא"</span> and <span dir="rtl">"הורים"</span> — and both sit in everyone's
-dropdown until you merge them by hand in the sheet.
-
-That's the accepted price of nobody waiting on you. The question is only whether the app should
-help a little: showing the existing list prominently at registration
-(<span dir="rtl">"אולי המשפחה שלכם כבר כאן?"</span>) costs nothing and prevents most of it.
-**Currently assumed: yes, show the list first, and create only if they don't pick one.**
+### Q4. Who does a blocked newcomer ask?
+When someone signs in and their family isn't in `Households`, they see
+<span dir="rtl">"המשפחה שלכם עדיין לא ברשימה — בקשו להוסיף אתכם"</span>. Should that message name
+a person, or show a phone number to contact? **Currently assumed: generic wording, no name.**
 
 ---
 
-### Q5. What is a household called when it creates itself?
-A new number registers as <span dir="rtl">"אמא"</span> and no family exists yet. The household is
-named after her — but <span dir="rtl">"אמא"</span> is a name only *you* would use; in everyone
-else's dropdown it should probably read <span dir="rtl">"אבא ואמא"</span> or
-<span dir="rtl">"הורים"</span>.
+## Answered — kept here so the reasoning isn't lost
 
-Should the app ask for the **family name** separately at registration
-(<span dir="rtl">"איך המשפחה שלכם תופיע לאחרים?"</span>), or just use the person's name and let you
-fix it in the sheet? **Currently assumed: ask — it is one extra field, once, and it saves cleanup.**
-
----
-
-### Q6. How many households will be in the dropdown?
-Under ~15 it's a plain list. Beyond that it wants grouping or a search field. Doesn't change
-anything structural — just the shape of one control.
-
----
-
-### Q7. Should the history screen show everyone, or only you?
-The log holds every household's answers, and the sheet is yours to read anyway. Should the app's
-history screen show **only your own** past holidays, or the whole family's?
-**Currently assumed: only your own.**
-
----
-
-### Q8. One sheet forever, or one per year?
-A single `Answers` tab that grows indefinitely is simplest and never breaks. A tab per Hebrew year
-is tidier to read by hand. **Currently assumed: one tab, forever.**
+- **Which holidays count?** → Not a code decision. Every candidate date is seeded into the
+  `Holidays` tab and you flip `include` on the ones that matter for a family meal.
+- **Shabbat too?** → Same answer: add rows if you want them. Nothing in the app changes.
+- **Duplicate families?** → Impossible now. The app cannot create a household; only you add rows.
+- **One tab per year, or one forever?** → One `Answers` tab forever, with a `hebrew_year` column
+  to sort and filter by.
+- **Flag contradictions?** → Yes, both ways: a quiet line in the app, and a `Conflicts` tab in the
+  sheet that the app rewrites after each answer.
