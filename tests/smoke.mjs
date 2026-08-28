@@ -65,11 +65,11 @@ check('host phone offered to call', await brother.isVisible('a[href="tel:+972501
 check('exactly one row appended', rows('Answers').length === before + 1);
 
 const a = rows('Answers').at(-1);
-check(`answer row is right (${a.slice(2).join(' | ')})`,
-  a[3] === 'hh_brother' && a[4] === 'guest' && a[5] === 'hh_parents');
-check(`the year is Gregorian, not Hebrew (${a[1]})`, /^20\d{2}$/.test(a[1]));
+check(`answer row is right (${a.join(' | ')})`,
+  a[1] === 'erev_rosh_hashana_2026' && a[2] === 'guest' && a[3] === 'hh_parents');
+check(`the log holds five columns and nothing derivable (${a.length})`, a.length === 5);
 check('the log stores no names', !a.some((v) => /[\u0590-\u05FF]/.test(v)));
-check('the answer records who answered, by phone', /^\+\d{9,}$/.test(a[6]));
+check('the answer records who answered, by phone', /^\+\d{9,}$/.test(a[4]));
 
 // ── the parents host, and see who is coming ───────────────────────────────────
 const dad = await open();
@@ -99,6 +99,7 @@ check('the guest is warned their host is not hosting',
 const conflicts = rows('Conflicts');
 check(`the conflict reached the sheet (${conflicts.length} row)`,
   conflicts.length === 1 && conflicts[0][1] === 'hh_brother' && conflicts[0][2] === 'hh_parents');
+check('the answering household is shown on screen', await brother.isVisible('text=אח ואשתו'));
 
 // ── the conflict clears itself when the parents host again ───────────────────
 await dad.click('text=שינוי תשובה');

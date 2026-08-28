@@ -36,8 +36,8 @@ sheet.Holidays ??= [['holiday_key', 'name_he', 'type', 'date', 'year', 'include'
 if (!sheet.Holidays.some((r) => r[0] === PAST[0])) sheet.Holidays.push(PAST);
 
 sheet.Answers = [
-  ['timestamp', 'year', 'holiday_key', 'household_id', 'kind', 'host_household_id', 'by_phone'],
-  ['2026-04-01T15:00:00.000Z', '2026', 'erev_pesach_2026', 'hh_parents', 'guest', 'hh_tamir', '+972501234567'],
+  ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone'],
+  ['2026-04-01T15:00:00.000Z', 'erev_pesach_2026', 'guest', 'hh_tamir', '+972501234567'],
 ];
 delete sheet.Conflicts;
 

@@ -57,16 +57,15 @@ const households = hhRaw.slice(1).map((row) => [
   pick(row, hHeader, 'active') || 'TRUE',
 ]);
 
-// Answers: by_person_id → by_phone.
+// Answers: year and household_id go away — the year is in Holidays and the
+// household follows the person through People.
 const ansRaw = await store.read(TABS.answers);
 const aHeader = ansRaw[0] ?? [];
 const answers = ansRaw.slice(1).map((row) => {
   const byId = pick(row, aHeader, 'by_person_id');
   return [
     pick(row, aHeader, 'timestamp'),
-    pick(row, aHeader, 'year'),
     pick(row, aHeader, 'holiday_key'),
-    pick(row, aHeader, 'household_id'),
     pick(row, aHeader, 'kind'),
     pick(row, aHeader, 'host_household_id'),
     pick(row, aHeader, 'by_phone') || idToPhone.get(byId) || '',

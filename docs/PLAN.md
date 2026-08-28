@@ -82,12 +82,16 @@ No second id: the number already identifies the person. Several people in one ho
 the same `household_id`.
 
 ### `Answers` — the log, one tab forever
-| timestamp | year | holiday_key | household_id | kind | host_household_id | by_phone |
-|---|---|---|---|---|---|---|
-| 2026-08-28T16:21:39Z | 2026 | `erev_rosh_hashana_2026` | `hh_tamir` | `guest` | `hh_ofer` | +972584844848 |
+| timestamp | holiday_key | kind | host_household_id | by_phone |
+|---|---|---|---|---|
+| 2026-08-28T16:21:39Z | `erev_rosh_hashana_2026` | `guest` | `2` | +972584844848 |
 
-Keys only — no names copied out of other tabs. `by_phone` points at a row in `People`, the same way
-`household_id` points at `Households`.
+Five columns, and nothing that can be worked out from elsewhere. The **year** is in `Holidays`, and
+**whose answer it is** follows `by_phone` through `People` — so neither is a column here.
+
+One consequence, accepted deliberately: if somebody moves household, their past answers move with
+them. In a family that happens about once a decade, and it keeps the log honest about who typed
+what.
 
 **Append-only:** changing an answer writes a new row and the newest row for a holiday + household
 wins, so a mis-tap can't destroy history.

@@ -73,9 +73,7 @@ export async function answer(_prev: ActionResult, formData: FormData): Promise<A
 
   await appendAnswer({
     timestamp: new Date().toISOString(),
-    year: holiday.year,
     holidayKey: holiday.key,
-    householdId: household.id,
     kind,
     hostHouseholdId,
     byPhone: person.phone,

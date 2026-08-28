@@ -8,6 +8,7 @@ import {
   type Holiday,
   type Household,
   type Person,
+  type StoredAnswer,
 } from './types';
 
 /**
@@ -65,6 +66,13 @@ async function fetchSheet(): Promise<Sheet> {
   const peopleTab = indexRows(raw[TABS.people] ?? []);
   const answersTab = indexRows(raw[TABS.answers] ?? []);
 
+  const householdOf = new Map(
+    peopleTab.body.map((row) => [
+      cell(row, peopleTab.headers, 'phone'),
+      cell(row, peopleTab.headers, 'household_id'),
+    ]),
+  );
+
   return {
     holidays: holidaysTab.body
       .map((row) => ({
@@ -94,15 +102,18 @@ async function fetchSheet(): Promise<Sheet> {
       .filter((p) => p.phone),
 
     answers: answersTab.body
-      .map((row) => ({
-        timestamp: cell(row, answersTab.headers, 'timestamp'),
-        year: cell(row, answersTab.headers, 'year'),
-        holidayKey: cell(row, answersTab.headers, 'holiday_key'),
-        householdId: cell(row, answersTab.headers, 'household_id'),
-        kind: cell(row, answersTab.headers, 'kind') as AnswerKind,
-        hostHouseholdId: cell(row, answersTab.headers, 'host_household_id'),
-        byPhone: cell(row, answersTab.headers, 'by_phone'),
-      }))
+      .map((row) => {
+        const byPhone = cell(row, answersTab.headers, 'by_phone');
+        return {
+          timestamp: cell(row, answersTab.headers, 'timestamp'),
+          holidayKey: cell(row, answersTab.headers, 'holiday_key'),
+          kind: cell(row, answersTab.headers, 'kind') as AnswerKind,
+          hostHouseholdId: cell(row, answersTab.headers, 'host_household_id'),
+          byPhone,
+          // Derived, never stored: whose answer this is follows the person.
+          householdId: householdOf.get(byPhone) ?? '',
+        };
+      })
       .filter((a) => a.holidayKey && a.householdId),
 
     conflicts: (raw[TABS.conflicts] ?? []).slice(1),
@@ -271,12 +282,10 @@ export async function addPerson(person: Person): Promise<void> {
   await appendRow(TABS.people, HEADERS.people, [person.phone, person.name, person.householdId]);
 }
 
-export async function appendAnswer(answer: Answer): Promise<void> {
+export async function appendAnswer(answer: StoredAnswer): Promise<void> {
   await appendRow(TABS.answers, HEADERS.answers, [
     answer.timestamp,
-    answer.year,
     answer.holidayKey,
-    answer.householdId,
     answer.kind,
     answer.hostHouseholdId,
     answer.byPhone,

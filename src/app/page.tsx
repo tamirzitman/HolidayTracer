@@ -56,10 +56,13 @@ export default async function Page() {
       }
     : undefined;
 
+  const myHousehold = households.find((h) => h.id === person.householdId);
+
   return (
     <AnswerForm
       holiday={holiday}
       households={households}
+      householdName={myHousehold?.name ?? ''}
       current={current}
       host={host}
       daysAway={daysUntil(holiday.date)}
