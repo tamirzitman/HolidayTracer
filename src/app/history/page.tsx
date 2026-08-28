@@ -21,15 +21,7 @@ export default async function HistoryPage() {
   const nameOf = (id: string) => households.find((h) => h.id === id)?.name ?? id;
 
   const answered = past.filter((entry) => entry.answer !== undefined);
-  const hosted = answered.filter((entry) => entry.answer!.kind === 'hosting').length;
-
-  // Who we ended up with most often — the one thing a raw count doesn't say.
-  const visits = new Map<string, number>();
-  for (const { answer } of answered) {
-    if (answer!.kind !== 'guest' || !answer!.hostHouseholdId) continue;
-    visits.set(answer!.hostHouseholdId, (visits.get(answer!.hostHouseholdId) ?? 0) + 1);
-  }
-  const favourite = [...visits.entries()].sort((a, b) => b[1] - a[1])[0];
+  const count = (kind: string) => answered.filter((entry) => entry.answer!.kind === kind).length;
 
   return (
     <div className="flex flex-col gap-5">
@@ -39,18 +31,15 @@ export default async function HistoryPage() {
         <p className="text-muted">עוד לא נאסף כאן כלום. אחרי החג הראשון תופיע כאן שורה.</p>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3">
-            <Stat value={hosted} label="אירחנו" />
-            <Stat value={answered.length - hosted} label="התארחנו" />
-            <Stat value={answered.length} label="סה״כ חגים" />
-          </div>
+          <p className="text-center text-sm text-muted">
+            {answered.length} מתוך {past.length} חגים מולאו
+          </p>
 
-          {favourite && (
-            <p className="text-center text-sm text-muted">
-              הכי הרבה אצל <span className="font-bold text-ink">{nameOf(favourite[0])}</span> —{' '}
-              {favourite[1] === 1 ? 'פעם אחת' : `${favourite[1]} פעמים`}
-            </p>
-          )}
+          <div className="grid grid-cols-3 gap-3">
+            <Stat value={count('hosting')} label="אירחנו" />
+            <Stat value={count('guest')} label="התארחנו" />
+            <Stat value={count('away')} label="לא היינו" />
+          </div>
 
           <HistoryList
             entries={past.map(({ holiday, answer }) => ({

@@ -2,6 +2,7 @@
  * Fills the Holidays tab.
  *
  *   npm run seed:holidays -- --years 10
+ *   npm run seed:holidays -- --back 5     # also fill in past years, so history has something to fill
  *   npm run seed:holidays -- --kinds erev_pesach,purim
  *   npm run seed:holidays -- --list-kinds     # what's available to ask for
  *   npm run seed:holidays -- --dry            # print, don't write
@@ -79,8 +80,12 @@ function classify(ev: Event): string | null {
 }
 
 const years = Number(arg('years', '10'));
-const start = new Date();
-const end = new Date(start.getFullYear() + years, start.getMonth(), start.getDate());
+// Past years are worth seeding: without them the history screen has nothing to
+// show and no gap to fill in.
+const back = Number(arg('back', '0'));
+const now = new Date();
+const start = new Date(now.getFullYear() - back, now.getMonth(), now.getDate());
+const end = new Date(now.getFullYear() + years, now.getMonth(), now.getDate());
 
 const all = HebrewCalendar.calendar({ start, end, il: true, sedrot: false, candlelighting: false })
   .map((ev) => {
@@ -125,7 +130,7 @@ const known = new Set(existingBody.map((row) => row[0]));
 const added = candidates.filter((row) => !known.has(row[0]));
 const rows = [...existingBody, ...added].sort((a, b) => (a[3] ?? '').localeCompare(b[3] ?? ''));
 
-console.log(`${wanted.size} kind(s) over ${years} years → ${candidates.length} rows`);
+console.log(`${wanted.size} kind(s) over ${years} years ahead and ${back} back → ${candidates.length} rows`);
 console.log(`${existingBody.length} already in the tab, ${added.length} new`);
 
 if (process.argv.includes('--dry')) {

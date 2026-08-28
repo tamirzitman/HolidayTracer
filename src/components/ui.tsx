@@ -15,6 +15,10 @@ export const field =
 
 export const quietButton = 'text-sm font-semibold text-brand underline underline-offset-4';
 
+/** A small call to action that sits inside a row, rather than filling it. */
+export const chipButton =
+  'shrink-0 rounded-full border border-brand bg-brand px-4 py-1.5 text-sm font-bold whitespace-nowrap text-ground';
+
 /** The date and countdown, as one quiet pill rather than loose grey text. */
 export function DatePill({ children }: { children: React.ReactNode }) {
   return (

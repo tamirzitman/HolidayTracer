@@ -306,7 +306,7 @@ async function appendRow(tab: string, headers: readonly string[], row: string[])
 
 // ── circles ───────────────────────────────────────────────────────────────────
 
-/** Latest event wins, so hiding a family and adding it back both just append. */
+/** Latest event wins. Rows are only ever appended, never rewritten. */
 function connectionState(connections: Connection[], householdId: string): Map<string, 'add' | 'remove'> {
   const state = new Map<string, 'add' | 'remove'>();
   for (const c of connections) {
@@ -331,32 +331,6 @@ export async function connect(a: string, b: string): Promise<void> {
   const at = new Date().toISOString();
   await appendRow(TABS.connections, HEADERS.connections, [a, b, 'add', at]);
   await appendRow(TABS.connections, HEADERS.connections, [b, a, 'add', at]);
-}
-
-export async function hideFamily(mine: string, theirs: string): Promise<void> {
-  await appendRow(TABS.connections, HEADERS.connections, [
-    mine,
-    theirs,
-    'remove',
-    new Date().toISOString(),
-  ]);
-}
-
-/** Undo a hide. Only my side changes — theirs never stopped. */
-export async function showFamily(mine: string, theirs: string): Promise<void> {
-  await appendRow(TABS.connections, HEADERS.connections, [
-    mine,
-    theirs,
-    'add',
-    new Date().toISOString(),
-  ]);
-}
-
-/** Families I hid — so hiding is a choice I can take back, not a dead end. */
-export async function hiddenFrom(householdId: string): Promise<Household[]> {
-  const sheet = await loadSheet();
-  const state = connectionState(sheet.connections, householdId);
-  return sheet.households.filter((h) => state.get(h.id) === 'remove');
 }
 
 export async function createInvite(

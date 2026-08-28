@@ -6,6 +6,7 @@ import { answer, type ActionResult } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { formatPhone } from '@/lib/phone';
 import type { Answer, Holiday, Household } from '@/lib/types';
+import { formatDayAndDate } from '@/lib/dates';
 import { holidayEmoji } from '@/lib/holiday-emoji';
 import { DatePill, ErrorNote, Title, card, field, primaryButton, quietButton, secondaryButton } from './ui';
 
@@ -35,11 +36,7 @@ function whenLabel(daysAway: number): string {
   return `בעוד ${daysAway} ימים`;
 }
 
-/** 2026-09-11 → 11.9.2026 */
-function formatDate(date: string): string {
-  const [y, m, d] = date.split('-');
-  return `${Number(d)}.${Number(m)}.${y}`;
-}
+
 
 export function AnswerForm({
   holiday,
@@ -96,7 +93,7 @@ export function AnswerForm({
           <Step to={laterKey} label="החג הבא" points="later" />
         </div>
         <DatePill>
-          <span>{formatDate(holiday.date)}</span>
+          <span>{formatDayAndDate(holiday.date)}</span>
           <span aria-hidden="true" className="text-line">|</span>
           <span className="font-semibold text-ink">{whenLabel(daysAway)}</span>
         </DatePill>
@@ -108,6 +105,8 @@ export function AnswerForm({
         <div className={`${card} celebrate-card flex flex-col items-center gap-3 text-center`}>
           {current.kind === 'hosting' ? (
             <p className="font-display text-3xl font-bold text-brand">אנחנו מארחים</p>
+          ) : current.kind === 'away' ? (
+            <p className="font-display text-3xl font-bold text-brand">לא מגיעים</p>
           ) : (
             <>
               <p className="font-display text-3xl leading-snug font-bold text-balance text-brand">
@@ -165,6 +164,15 @@ export function AnswerForm({
                 className={primaryButton}
               >
                 מתארחים אצל…
+              </button>
+              <button
+                type="submit"
+                name="kind"
+                value="away"
+                disabled={pending}
+                className={quietButton}
+              >
+                לא מגיעים בכלל
               </button>
             </>
           ) : (
@@ -240,6 +248,7 @@ function Circle({ families }: { families: { id: string; name: string; kind: stri
   const said = (kind: string, hostName: string) => {
     if (kind === 'hosting') return 'מארחים';
     if (kind === 'guest') return `אצל ${hostName}`;
+    if (kind === 'away') return 'לא מגיעים';
     return 'עוד לא ענו';
   };
 
@@ -262,7 +271,7 @@ function Circle({ families }: { families: { id: string; name: string; kind: stri
 
 /** A small flourish the moment an answer lands. Silent for anyone who asked for less motion. */
 function Celebration({ kind }: { kind: AnswerKindLike }) {
-  const emoji = kind === 'hosting' ? '🎉' : '🍽️';
+  const emoji = kind === 'hosting' ? '🎉' : kind === 'away' ? '👋' : '🍽️';
   return (
     <div
       aria-hidden="true"
@@ -280,7 +289,7 @@ function Celebration({ kind }: { kind: AnswerKindLike }) {
   );
 }
 
-type AnswerKindLike = 'hosting' | 'guest' | undefined;
+type AnswerKindLike = 'hosting' | 'guest' | 'away' | undefined;
 
 /** Who said they are coming to us — the whole reward for answering "we're hosting". */
 function Guests({ guests }: { guests: { id: string; name: string }[] }) {

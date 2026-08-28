@@ -20,7 +20,8 @@ export type Holiday = {
   include: boolean;
 };
 
-export type AnswerKind = 'hosting' | 'guest';
+/** away — not gathering at all this holiday: no host, no guests. */
+export type AnswerKind = 'hosting' | 'guest' | 'away';
 
 /** What actually goes in the sheet. Everything else about an answer is derivable. */
 export type StoredAnswer = {

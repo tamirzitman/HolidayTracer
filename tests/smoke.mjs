@@ -45,6 +45,8 @@ await dad.fill('input[name=phone]', DAD);
 await dad.click('button[type=submit]');
 await dad.waitForSelector('text=איפה אתם בחג?');
 check('a known number goes straight to the question', await dad.isVisible('text=איפה אתם בחג?'));
+// Saturday is "שבת", with no "יום" in front of it.
+check('the holiday carries its weekday', /(יום \S+|שבת) · \d/.test(await dad.innerText('header')));
 check('nobody else is shown before you answer', !(await dad.isVisible('text=איפה כולם')));
 
 await dad.click('text=אנחנו מארחים');
@@ -135,36 +137,6 @@ await newcomer.reload();
 check('the warning is gone for the guest',
   !(await newcomer.isVisible('text=שימו לב — הם ענו שהם מתארחים')));
 
-// ── hiding is one-sided ──────────────────────────────────────────────────────
-await dad.click('nav >> text=המשפחות');
-await dad.waitForURL('**/families');
-const hideRow = dad.locator('li', { hasText: 'אח ואשתו' });
-await hideRow.locator('text=הסתרה').click();
-await dad.waitForTimeout(1200);
-await dad.goto(BASE);
-await dad.click('text=שינוי תשובה');
-await dad.waitForSelector('text=מתארחים אצל…');
-await dad.click('text=מתארחים אצל…');
-await dad.waitForSelector('select[name=hostHouseholdId]');
-const afterHide = await dad.$$eval('select[name=hostHouseholdId] option', (els) =>
-  els.map((e) => e.textContent.trim()),
-);
-check('a hidden family leaves your list', !afterHide.includes('אח ואשתו'));
-
-const brotherStillSees = rows('Connections').filter(
-  (r) => r[0] === 'hh_brother' && r[1] === 'hh_parents',
-);
-check('but they still see you', brotherStillSees.at(-1)?.[2] === 'add');
-
-// ── hiding can be taken back ─────────────────────────────────────────────────
-await dad.goto(`${BASE}/families`);
-check('hidden families are listed separately', await dad.isVisible('text=מוסתרות'));
-await dad.locator('section:has-text("מוסתרות") li', { hasText: 'אח ואשתו' }).locator('text=החזרה').click();
-await dad.waitForTimeout(1200);
-await dad.goto(`${BASE}/families`);
-const backInList = await dad.locator('section').first().innerText();
-check('bringing one back returns it to the list', backInList.includes('אח ואשתו'));
-
 // ── adding a family from the question screen ─────────────────────────────────
 // The case this exists for: answering on the night, and the host is not listed.
 const beforeAdd = rows('Households').length;
@@ -226,15 +198,11 @@ await dad.context().addInitScript(
 );
 
 await dad.goto(`${BASE}/families`);
-const danaRow = dad.locator('li', { hasText: 'דנה ויוסי' });
-await danaRow.locator('text=הסתרה').click();
-await dad.waitForTimeout(1200);
-
-await dad.goto(`${BASE}/families`);
 check('the picker appears when the browser has one', await dad.isVisible('text=בחירה מאנשי הקשר'));
 await dad.click('text=בחירה מאנשי הקשר');
-await dad.waitForSelector('text=נוספו:');
-check('a contact already in the app is connected', await dad.isVisible('text=נוספו: דנה ויוסי'));
+await dad.waitForSelector('text=/נוספו:|כבר ברשימה:/');
+check('a contact already in the app is reported as already there',
+  await dad.isVisible('text=כבר ברשימה: דנה ויוסי'));
 check('a contact who is not gets an invite', await dad.isVisible('text=שכנים'));
 const inviteHref = await dad.getAttribute('li:has-text("שכנים") >> a', 'href');
 check(`the invite is addressed to their number (${inviteHref?.slice(0, 24)}…)`,
@@ -248,14 +216,26 @@ await dad.waitForURL(/\?h=rosh_hashana_ii_2026/);
 check(`the arrow moves to the next holiday (${firstHoliday} → ${(await dad.innerText('.font-display')).trim()})`,
   (await dad.innerText('.font-display')).trim() !== firstHoliday);
 
+// ── not coming at all ────────────────────────────────────────────────────────
+await newcomer.goto(BASE);
+await newcomer.click('text=שינוי תשובה');
+await newcomer.waitForSelector('text=לא מגיעים בכלל');
+await newcomer.click('text=לא מגיעים בכלל');
+await newcomer.waitForSelector('text=שינוי תשובה');
+check('a family can answer that it is not gathering at all',
+  rows('Answers').at(-1)[2] === 'away');
+await dad.goto(BASE);
+check('and the circle shows it', await dad.isVisible('text=לא מגיעים'));
+
 // ── history: counts, and correcting the record ───────────────────────────────
 await dad.click('nav >> text=היסטוריה');
 await dad.waitForURL('**/history');
 check('past holidays are listed', await dad.isVisible('text=ערב פסח'));
 
 const stats = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.textContent.trim()));
-check(`three counts, and they add up (${stats.join(' / ')})`,
-  stats.length === 3 && Number(stats[0]) + Number(stats[1]) === Number(stats[2]));
+check(`three counts are shown (${stats.join(' / ')})`, stats.length === 3);
+check('holidays with no answer are marked as missing', await dad.isVisible('text=חסר'));
+check('a past date carries its weekday', /(יום \S+|שבת) · \d/.test(await dad.innerText('li')));
 
 const beforeEdit = rows('Answers').length;
 const pastRow = dad.locator('li', { hasText: 'ערב פסח' });
@@ -266,6 +246,7 @@ await pastRow.getByRole('button', { name: 'אירחנו', exact: true }).click()
 await dad.waitForTimeout(1500);
 check('editing a past holiday appends rather than overwrites',
   rows('Answers').length === beforeEdit + 1);
+check('and the row closes itself after saving', !(await dad.isVisible('text=שמירה')));
 
 await dad.goto(`${BASE}/history`);
 const corrected = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.textContent.trim()));

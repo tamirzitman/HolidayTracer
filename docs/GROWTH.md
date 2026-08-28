@@ -103,8 +103,8 @@ Phase A is the whole idea. B is small and makes it worth opening. C is where the
 
 ## 5. Decided
 
-- **Hiding is one-sided.** You stop seeing them; they still see you. Nobody is cut off without
-  knowing. *(Assumed, not explicitly confirmed — say so if you want it mutual.)*
+- **There is no hiding.** It was built one-sided, then dropped as unnecessary machinery. A family
+  you connect to stays in your list.
 - **Answers are hidden until you answer.** Knowing where everyone is, is the reward for saying
   where you are.
 - **Invite links are reusable.** One link can go in the family WhatsApp group and bring in several
@@ -117,7 +117,7 @@ Phase A is the whole idea. B is small and makes it worth opening. C is where the
 
 - `Connections` and `Invites` tabs, both append-only.
 - The dropdown holds only your circle.
-- **המשפחות שלי** — the list, with hide, add-by-phone, and a reusable invite link.
+- **המשפחות שלי** — the list, and a reusable invite link.
 - **Joining is by invitation only.** An unknown number with no invite is told to ask for a link;
   nobody waits on the sheet's owner.
 - **איפה כולם** — where everyone in your circle is, revealed once you have answered.

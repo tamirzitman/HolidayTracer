@@ -13,17 +13,15 @@ import {
   getHousehold,
   getPastHoliday,
   getUpcomingHolidays,
-  hideFamily,
   isConnected,
   readInvite,
   recordConflicts,
-  showFamily,
 } from '@/lib/data';
 import { normalizePhone } from '@/lib/phone';
 import { clearSession, getSessionPhone, setSessionPhone } from '@/lib/session';
 import type { AnswerKind } from '@/lib/types';
 
-export type ActionResult = { error?: string };
+export type ActionResult = { error?: string; savedAt?: string };
 
 export async function signIn(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const phone = normalizePhone(String(formData.get('phone') ?? ''));
@@ -124,20 +122,6 @@ export async function connectContacts(
   return { connected, already, missing };
 }
 
-/** One-sided: they keep seeing you, so nobody is cut off without knowing. */
-export async function hide(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const me = await currentHousehold();
-  if ('error' in me) return me;
-
-  const theirs = String(formData.get('householdId') ?? '').trim();
-  if (!theirs) return { error: 'לא הבנתי איזו משפחה' };
-
-  await hideFamily(me.householdId, theirs);
-  revalidatePath('/families');
-  revalidatePath('/');
-  return {};
-}
-
 /**
  * Adding a family from the question screen, at the moment somebody is trying to
  * answer and cannot find their host.
@@ -195,7 +179,7 @@ export async function editHistory(
   if (!holiday) return { error: 'החג הזה לא נמצא' };
 
   const kind = String(formData.get('kind') ?? '') as AnswerKind;
-  if (kind !== 'hosting' && kind !== 'guest') return { error: 'לא הבנתי את התשובה' };
+  if (!['hosting', 'guest', 'away'].includes(kind)) return { error: 'לא הבנתי את התשובה' };
 
   let hostHouseholdId = '';
   if (kind === 'guest') {
@@ -217,20 +201,8 @@ export async function editHistory(
   });
 
   revalidatePath('/history');
-  return {};
-}
-
-export async function unhide(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const me = await currentHousehold();
-  if ('error' in me) return me;
-
-  const theirs = String(formData.get('householdId') ?? '').trim();
-  if (!theirs) return { error: 'לא הבנתי איזו משפחה' };
-
-  await showFamily(me.householdId, theirs);
-  revalidatePath('/families');
-  revalidatePath('/');
-  return {};
+  // A changing value, so the form can tell one save from the next and close.
+  return { savedAt: new Date().toISOString() };
 }
 
 export async function newInviteLink(kind: 'family' | 'household'): Promise<string> {
@@ -265,7 +237,7 @@ export async function answer(_prev: ActionResult, formData: FormData): Promise<A
   if (!holiday) return { error: 'החג הזה כבר לא פתוח לתשובות' };
 
   const kind = String(formData.get('kind') ?? '') as AnswerKind;
-  if (kind !== 'hosting' && kind !== 'guest') return { error: 'לא הבנתי את התשובה' };
+  if (!['hosting', 'guest', 'away'].includes(kind)) return { error: 'לא הבנתי את התשובה' };
 
   let hostHouseholdId = '';
   if (kind === 'guest') {
