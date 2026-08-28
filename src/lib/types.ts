@@ -81,7 +81,7 @@ export const HEADERS = {
   households: ['household_id', 'name', 'active'],
   people: ['phone', 'name', 'household_id'],
   answers: ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone'],
-  conflicts: ['holiday_key', 'household_id', 'host_household_id', 'host_kind', 'host_host_household_id', 'detected_at'],
+  conflicts: ['holiday_key', 'household_id', 'host_household_id', 'status', 'at'],
   connections: ['household_id', 'connected_to', 'action', 'at'],
   invites: ['token', 'created_by', 'kind', 'created_at'],
 } as const;

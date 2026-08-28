@@ -57,14 +57,18 @@ nothing to build. It is also mildly coercive — see Q2.
 
 Staying on Sheets was the call: fine, and worth knowing the order in which it will hurt.
 
-### 3.1 Concurrent writes — a correctness bug, not a limit 🔴
-`rewriteConflicts` clears the whole `Conflicts` tab and writes it again. **Two families answering at
-the same moment can lose each other's rows**, and on erev chag that is exactly when everyone
-answers at once. It has not bitten yet because there are four users.
+### 3.1 Concurrent writes — fixed ✅
+`rewriteConflicts` used to clear the whole `Conflicts` tab and write it again, so two families
+answering at the same moment could erase each other's rows — and erev chag is exactly when everyone
+answers at once.
 
-**The fix is to delete the tab, not to defend it.** Conflicts are already computed on the fly for
-the screen; the tab is only there so Tamir can see them in the sheet. Removing it also removes the
-only write that touches more than one row.
+Deleting the tab would have been the smaller fix, but seeing contradictions in the sheet was asked
+for. So the tab became an **event log** instead, like `Answers` and `Connections`: a contradiction
+appends `open`, settling it appends `resolved`, and the newest row for a holiday + household + host
+is its state. Rows are only ever added, so nothing can be erased by someone else's write, and each
+answer appends only what actually changed.
+
+**No tab is rewritten anywhere in the app any more.** Every write is an append.
 
 ### 3.2 Reading the whole log to answer one question
 Every page load fetches every tab, including all answers ever. **[ESTIMATE:** 300 households × 7

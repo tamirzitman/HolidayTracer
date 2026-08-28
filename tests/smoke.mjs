@@ -94,6 +94,47 @@ check('the newcomer can answer for the family that invited them',
 await dad.goto(BASE);
 check('and they show up as coming', await dad.isVisible('text=דנה ויוסי'));
 
+// ── both say they are at the other, and the sheet records it ─────────────────
+// The Conflicts tab is an event log now: rows are appended, never rewritten, so
+// two families answering at once cannot erase each other.
+const conflictState = () => {
+  const state = new Map();
+  for (const r of rows('Conflicts')) state.set(`${r[0]}|${r[1]}|${r[2]}`, r[3]);
+  return state;
+};
+
+await dad.goto(BASE);
+await dad.click('text=שינוי תשובה');
+await dad.waitForSelector('text=מתארחים אצל…');
+await dad.click('text=מתארחים אצל…');
+await dad.waitForSelector('select[name=hostHouseholdId]');
+await dad.selectOption('select[name=hostHouseholdId]', { label: 'דנה ויוסי' });
+await dad.click('button[type=submit]');
+await dad.waitForSelector('text=מתארחים אצל דנה ויוסי');
+
+await newcomer.reload();
+check('the guest is warned their host is not hosting',
+  await newcomer.isVisible('text=שימו לב — הם ענו שהם מתארחים'));
+
+const newcomerHousehold = rows('Households').at(-1)[0];
+const KEY = `erev_rosh_hashana_2026|${newcomerHousehold}|hh_parents`;
+check(`the contradiction is written to the sheet (${rows('Conflicts').length} rows)`,
+  conflictState().get(KEY) === 'open');
+
+const openedRows = rows('Conflicts').length;
+await dad.click('text=שינוי תשובה');
+await dad.waitForSelector('text=אנחנו מארחים');
+await dad.click('text=אנחנו מארחים');
+await dad.waitForSelector('text=מגיעים אליכם');
+check('resolving it is recorded as resolved', conflictState().get(KEY) === 'resolved');
+check('and nothing was erased to do it — the tab only grew',
+  rows('Conflicts').length > openedRows &&
+    rows('Conflicts').some((r) => r[3] === 'open'));
+
+await newcomer.reload();
+check('the warning is gone for the guest',
+  !(await newcomer.isVisible('text=שימו לב — הם ענו שהם מתארחים')));
+
 // ── hiding is one-sided ──────────────────────────────────────────────────────
 await dad.click('nav >> text=המשפחות');
 await dad.waitForURL('**/families');

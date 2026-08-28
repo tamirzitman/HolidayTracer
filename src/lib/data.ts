@@ -44,7 +44,7 @@ export type Sheet = {
   households: Household[];
   people: Person[];
   answers: Answer[];
-  conflicts: string[][];
+  conflicts: { holidayKey: string; householdId: string; hostHouseholdId: string; status: 'open' | 'resolved' }[];
   connections: Connection[];
   invites: Invite[];
 };
@@ -80,6 +80,7 @@ async function fetchSheet(): Promise<Sheet> {
   const answersTab = indexRows(raw[TABS.answers] ?? []);
   const connectionsTab = indexRows(raw[TABS.connections] ?? []);
   const invitesTab = indexRows(raw[TABS.invites] ?? []);
+  const conflictsTab = indexRows(raw[TABS.conflicts] ?? []);
 
   const householdOf = new Map(
     peopleTab.body.map((row) => [
@@ -131,7 +132,14 @@ async function fetchSheet(): Promise<Sheet> {
       })
       .filter((a) => a.holidayKey && a.householdId),
 
-    conflicts: (raw[TABS.conflicts] ?? []).slice(1),
+    conflicts: conflictsTab.body
+      .map((row) => ({
+        holidayKey: cell(row, conflictsTab.headers, 'holiday_key'),
+        householdId: cell(row, conflictsTab.headers, 'household_id'),
+        hostHouseholdId: cell(row, conflictsTab.headers, 'host_household_id'),
+        status: (cell(row, conflictsTab.headers, 'status') || 'open') as 'open' | 'resolved',
+      }))
+      .filter((c) => c.holidayKey && c.householdId),
 
     connections: connectionsTab.body
       .map((row) => ({
@@ -429,30 +437,46 @@ export async function findConflict(
 }
 
 /**
- * Rewrites the Conflicts tab, but only when it would actually change — an
- * unchanged tab is two Google requests nobody needed. Derived, so anything typed
- * there by hand is lost on the next answer.
+ * The Conflicts tab is an event log, not a snapshot: rows are only ever
+ * appended. It used to be cleared and written again on every answer, so two
+ * families answering at the same moment could erase each other's rows — and erev
+ * chag is precisely when everyone answers at once.
+ *
+ * The newest row for a holiday + household + host is its state, the same rule
+ * the answers themselves follow.
  */
-export async function rewriteConflicts(): Promise<void> {
+export async function recordConflicts(): Promise<void> {
+  // Called straight after an answer, so read past the memo rather than around it.
+  invalidateSheet();
   const sheet = await loadSheet();
   const today = todayInIsrael();
-  const detectedAt = new Date().toISOString();
 
-  const rows = sheet.holidays
-    .filter((h) => h.date >= today)
-    .flatMap((h) => conflictsIn(latestByHousehold(sheet.answers, h.key)))
-    .map((c) => [c.holidayKey, c.householdId, c.hostHouseholdId, c.hostKind, c.hostHostHouseholdId]);
+  const open = new Set<string>();
+  for (const holiday of sheet.holidays.filter((h) => h.date >= today)) {
+    for (const c of conflictsIn(latestByHousehold(sheet.answers, holiday.key))) {
+      open.add(`${c.holidayKey}|${c.householdId}|${c.hostHouseholdId}`);
+    }
+  }
 
-  const same =
-    sheet.conflicts.length === rows.length &&
-    rows.every((row, i) => row.every((v, j) => (sheet.conflicts[i]?.[j] ?? '') === v));
-  if (same) return;
+  const recorded = new Map<string, 'open' | 'resolved'>();
+  for (const c of sheet.conflicts) {
+    recorded.set(`${c.holidayKey}|${c.householdId}|${c.hostHouseholdId}`, c.status);
+  }
 
-  await sheetStore().replace(TABS.conflicts, [
-    [...HEADERS.conflicts],
-    ...rows.map((row) => [...row, detectedAt]),
-  ]);
-  invalidateSheet();
+  const at = new Date().toISOString();
+  const rows: string[][] = [];
+
+  // Only what changed: a contradiction that has appeared, or one now settled.
+  for (const key of open) {
+    if (recorded.get(key) !== 'open') rows.push([...key.split('|'), 'open', at]);
+  }
+  for (const [key, status] of recorded) {
+    if (status === 'open' && !open.has(key)) rows.push([...key.split('|'), 'resolved', at]);
+  }
+
+  for (const row of rows) {
+    await appendRow(TABS.conflicts, HEADERS.conflicts, row);
+  }
 }
 
 // ── writes ────────────────────────────────────────────────────────────────────

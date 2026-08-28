@@ -16,7 +16,7 @@ import {
   hideFamily,
   isConnected,
   readInvite,
-  rewriteConflicts,
+  recordConflicts,
   showFamily,
 } from '@/lib/data';
 import { normalizePhone } from '@/lib/phone';
@@ -290,12 +290,12 @@ export async function answer(_prev: ActionResult, formData: FormData): Promise<A
     byPhone: person.phone,
   });
 
-  // Derived from every answer, so it is recomputed after each one. The answer is
-  // already safely recorded; a failure here must not lose it.
+  // Appended after every answer. The answer is already safely recorded, so a
+  // failure here must not lose it.
   try {
-    await rewriteConflicts();
+    await recordConflicts();
   } catch (error) {
-    console.error('could not rewrite the Conflicts tab', error);
+    console.error('could not record conflicts', error);
   }
 
   revalidatePath('/');
