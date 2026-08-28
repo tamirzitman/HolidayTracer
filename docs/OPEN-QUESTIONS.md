@@ -35,20 +35,28 @@ single question. **In or out?**
 
 ---
 
-### Q4. Adding a person is now manual. Is that acceptable?
-Google sign-in plus manual management means a new family member **cannot let themselves in**: they
-sign in, aren't found in `People`, and see "ask to be added". Somebody — you — must paste their
-Gmail address into the sheet first.
+### Q4. Duplicate households will happen. How much do you care?
+Anyone can create a household the moment they register, with no approval. Two people from the same
+family registering separately produce two households —
+<span dir="rtl">"אבא ואמא"</span> and <span dir="rtl">"הורים"</span> — and both sit in everyone's
+dropdown until you merge them by hand in the sheet.
 
-That is the direct consequence of "all management is manual", and it's fine if you expect to set
-the family up once. Worth confirming you're happy being the gatekeeper.
+That's the accepted price of nobody waiting on you. The question is only whether the app should
+help a little: showing the existing list prominently at registration
+(<span dir="rtl">"אולי המשפחה שלכם כבר כאן?"</span>) costs nothing and prevents most of it.
+**Currently assumed: yes, show the list first, and create only if they don't pick one.**
 
 ---
 
-### Q5. Do people know their own Gmail address?
-The whole identity model rests on every adult having a Google account and signing in with it.
-Fine for most, occasionally a real obstacle for a parent who only ever uses WhatsApp. If that's a
-risk, the fallback is picking your own name from a second dropdown, with no sign-in at all.
+### Q5. What is a household called when it creates itself?
+A new number registers as <span dir="rtl">"אמא"</span> and no family exists yet. The household is
+named after her — but <span dir="rtl">"אמא"</span> is a name only *you* would use; in everyone
+else's dropdown it should probably read <span dir="rtl">"אבא ואמא"</span> or
+<span dir="rtl">"הורים"</span>.
+
+Should the app ask for the **family name** separately at registration
+(<span dir="rtl">"איך המשפחה שלכם תופיע לאחרים?"</span>), or just use the person's name and let you
+fix it in the sheet? **Currently assumed: ask — it is one extra field, once, and it saves cleanup.**
 
 ---
 
