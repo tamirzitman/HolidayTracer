@@ -137,6 +137,45 @@ export async function hide(_prev: ActionResult, formData: FormData): Promise<Act
   return {};
 }
 
+/**
+ * Adding a family from the question screen, at the moment somebody is trying to
+ * answer and cannot find their host.
+ *
+ * A number makes the household claimable: whoever owns it simply signs in later
+ * and is already in the right family. Without one the household still works, but
+ * nobody from it can ever join — so it is shown as not-yet-joined until a number
+ * is attached. Only the person who added it is connected: nothing is inherited.
+ */
+export async function addFamilyNow(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const name = String(formData.get('familyName') ?? '').trim();
+  const phone = normalizePhone(String(formData.get('familyPhone') ?? ''));
+  if (!name && !phone) return { error: 'צריך שם למשפחה' };
+
+  // A number we already know belongs to a household — connect, never duplicate.
+  const known = phone ? await findPerson(phone) : undefined;
+  if (known) {
+    if (known.householdId === me.householdId) return { error: 'זו המשפחה שלכם' };
+    if (!(await isConnected(me.householdId, known.householdId))) {
+      await connect(me.householdId, known.householdId);
+    }
+  } else {
+    if (!name) return { error: 'צריך שם למשפחה' };
+    const householdId = await addHousehold(name);
+    if (phone) await addPerson({ phone, name, householdId });
+    await connect(me.householdId, householdId);
+  }
+
+  revalidatePath('/');
+  revalidatePath('/families');
+  return {};
+}
+
 export async function unhide(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const me = await currentHousehold();
   if ('error' in me) return me;

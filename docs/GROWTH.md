@@ -118,5 +118,24 @@ Phase A is the whole idea. B is small and makes it worth opening. C is where the
   nobody waits on the sheet's owner.
 - **איפה כולם** — where everyone in your circle is, revealed once you have answered.
 
+### Adding a family at the moment you need one
+Under the dropdown, **"לא מוצאים? הוסיפו משפחה"** — for erev chag, when the host simply isn't
+listed and leaving the screen to invite them is not going to happen.
+
+- **With a number** (picked from contacts, or typed): the household and a person row are created.
+  Nothing is "pending" — when that number later signs in, they are simply already in, in the right
+  family, connected to whoever added them. There is no claiming step to build.
+- **With a name only:** the household works and can be answered for, but nobody from it can ever
+  join. It is shown as **טרם הצטרפו** until a number is attached.
+- **A number already known never creates a second household** — it connects to the existing one.
+- **Nothing is inherited.** Only the person who added them is connected; anyone else adds them
+  themselves, and using the same number lands on the same household.
+
+### Contacts
+Families can be picked out of the phone's address book: numbers already in the app are connected
+on the spot, and the rest come back as a WhatsApp invite addressed to that person. Nothing from the
+address book is stored. **Chrome on Android only** — the Contact Picker API does not exist in
+Safari on iOS or on desktop, so the button is behind a feature check.
+
 Still to come: hosting stats, the reminder before a holiday, push, and deleting the `Conflicts`
 tab in favour of computing conflicts on read.

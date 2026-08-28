@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { answer, type ActionResult } from '@/app/actions';
+import { AddFamilyInline } from './AddFamilyInline';
 import { formatPhone } from '@/lib/phone';
 import type { Answer, Holiday, Household } from '@/lib/types';
 import { holidayEmoji } from '@/lib/holiday-emoji';
@@ -191,6 +192,8 @@ export function AnswerForm({
           <ErrorNote>{state.error}</ErrorNote>
         </form>
       )}
+
+      {!answered && choosingHost && <AddFamilyInline />}
 
       {answered && circleStatus.length > 0 && <Circle families={circleStatus} />}
 

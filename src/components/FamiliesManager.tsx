@@ -65,10 +65,12 @@ export function FamiliesManager({
               <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">
                 <div className="grow">
                   <p className="font-semibold text-ink">{family.name}</p>
-                  {family.phone && (
+                  {family.phone ? (
                     <a href={`tel:${family.phone}`} dir="ltr" className="text-sm text-muted">
                       {formatPhone(family.phone)}
                     </a>
+                  ) : (
+                    <span className="text-sm text-muted">טרם הצטרפו</span>
                   )}
                 </div>
                 <form action={hideAction}>

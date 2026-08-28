@@ -124,6 +124,47 @@ await dad.goto(`${BASE}/families`);
 const backInList = await dad.locator('section').first().innerText();
 check('bringing one back returns it to the list', backInList.includes('אח ואשתו'));
 
+// ── adding a family from the question screen ─────────────────────────────────
+// The case this exists for: answering on the night, and the host is not listed.
+const beforeAdd = rows('Households').length;
+await dad.goto(BASE);
+await dad.click('text=שינוי תשובה');
+await dad.waitForSelector('text=מתארחים אצל…');
+await dad.click('text=מתארחים אצל…');
+await dad.click('text=לא מוצאים? הוסיפו משפחה');
+await dad.fill('input[name=familyName]', 'משפחת כהן');
+await dad.click('text=הוספה');
+await dad.waitForTimeout(1500);
+check('a family can be added while answering', rows('Households').length === beforeAdd + 1);
+
+await dad.goto(BASE);
+await dad.click('text=שינוי תשובה');
+await dad.waitForSelector('text=מתארחים אצל…');
+await dad.click('text=מתארחים אצל…');
+await dad.waitForSelector('select[name=hostHouseholdId]');
+const withCohen = await dad.$$eval('select[name=hostHouseholdId] option', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check('and is immediately pickable', withCohen.includes('משפחת כהן'));
+await dad.selectOption('select[name=hostHouseholdId]', { label: 'משפחת כהן' });
+await dad.click('button[type=submit]');
+await dad.waitForSelector('text=מתארחים אצל משפחת כהן');
+check('answering at them works', await dad.isVisible('text=מתארחים אצל משפחת כהן'));
+
+await dad.goto(`${BASE}/families`);
+check('a family nobody has joined is marked', await dad.isVisible('text=טרם הצטרפו'));
+
+// nothing is inherited: the newcomer never sees them
+await newcomer.goto(BASE);
+await newcomer.click('text=שינוי תשובה');
+await newcomer.waitForSelector('text=מתארחים אצל…');
+await newcomer.click('text=מתארחים אצל…');
+await newcomer.waitForSelector('select[name=hostHouseholdId]');
+const newcomerSees = await newcomer.$$eval('select[name=hostHouseholdId] option', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check('and nobody else inherits them', !newcomerSees.includes('משפחת כהן'));
+
 // ── picking families out of the address book ─────────────────────────────────
 // Chromium has no Contact Picker, so we hand the page one. What is being tested
 // is what the app does with the contacts, not the browser's picker.
