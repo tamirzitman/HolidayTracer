@@ -9,9 +9,14 @@ import { google } from 'googleapis';
  */
 export type SheetStore = {
   read(tab: string): Promise<string[][]>;
+  /** Every tab in one request. Five round trips to Google is the difference between fast and slow. */
+  readMany(tabs: string[]): Promise<Record<string, string[][]>>;
   append(tab: string, row: string[]): Promise<void>;
   replace(tab: string, rows: string[][]): Promise<void>;
 };
+
+const asStrings = (values: unknown[][] | undefined): string[][] =>
+  (values ?? []).map((row) => row.map((cell) => String(cell ?? '')));
 
 function googleStore(spreadsheetId: string): SheetStore {
   const auth = new google.auth.JWT({
@@ -28,7 +33,19 @@ function googleStore(spreadsheetId: string): SheetStore {
         range: `${tab}!A:Z`,
         valueRenderOption: 'UNFORMATTED_VALUE',
       });
-      return (res.data.values ?? []).map((row) => row.map((cell) => String(cell ?? '')));
+      return asStrings(res.data.values ?? undefined);
+    },
+    async readMany(tabs) {
+      const res = await sheets.spreadsheets.values.batchGet({
+        spreadsheetId,
+        ranges: tabs.map((tab) => `${tab}!A:Z`),
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      });
+      const out: Record<string, string[][]> = {};
+      (res.data.valueRanges ?? []).forEach((range, i) => {
+        out[tabs[i]] = asStrings(range.values ?? undefined);
+      });
+      return out;
     },
     async append(tab, row) {
       await sheets.spreadsheets.values.append({
@@ -71,6 +88,10 @@ function localStore(): SheetStore {
   return {
     async read(tab) {
       return (await load())[tab] ?? [];
+    },
+    async readMany(tabs) {
+      const data = await load();
+      return Object.fromEntries(tabs.map((tab) => [tab, data[tab] ?? []]));
     },
     async append(tab, row) {
       const data = await load();

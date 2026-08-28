@@ -48,7 +48,7 @@ await brother.fill('input[name=name]', 'אח');
 await brother.selectOption('select[name=householdId]', 'hh_brother');
 await brother.click('button[type=submit]');
 await brother.waitForSelector('text=איפה אתם בחג?');
-check('a People row was appended', rows('People').some((r) => r[1] === 'אח' && r[2] === 'hh_brother'));
+check('a People row was appended', rows('People').some((r) => r[2] === 'אח' && r[3] === 'hh_brother'));
 
 const holidayName = (await brother.innerText('.font-display')).trim();
 check(`next holiday is the soonest included one (${holidayName})`, holidayName.length > 0);
@@ -65,9 +65,12 @@ check('host phone offered to call', await brother.isVisible('a[href="tel:+972501
 check('exactly one row appended', rows('Answers').length === before + 1);
 
 const a = rows('Answers').at(-1);
-check(`answer row is right (${a.slice(5, 10).join(' | ')})`,
-  a[5] === 'hh_brother' && a[7] === 'guest' && a[8] === 'hh_parents');
-check('hebrew year carried on the row', /^\d{4}$/.test(a[1]));
+check(`answer row is right (${a.slice(2).join(' | ')})`,
+  a[3] === 'hh_brother' && a[4] === 'guest' && a[5] === 'hh_parents');
+check(`the year is Gregorian, not Hebrew (${a[1]})`, /^20\d{2}$/.test(a[1]));
+check('the log stores no names or phone numbers',
+  !a.some((v) => /[\u0590-\u05FF]/.test(v) || /^\+?\d{9,}$/.test(v)));
+check('the answer references a person by id', /^p_\d+$/.test(a[6]));
 
 // ── the parents host, and see who is coming ───────────────────────────────────
 const dad = await open();
@@ -96,7 +99,7 @@ check('the guest is warned their host is not hosting',
 
 const conflicts = rows('Conflicts');
 check(`the conflict reached the sheet (${conflicts.length} row)`,
-  conflicts.length === 1 && conflicts[0][1] === 'אח ואשתו' && conflicts[0][3] === 'אבא ואמא');
+  conflicts.length === 1 && conflicts[0][1] === 'hh_brother' && conflicts[0][2] === 'hh_parents');
 
 // ── the conflict clears itself when the parents host again ───────────────────
 await dad.click('text=שינוי תשובה');
@@ -112,7 +115,7 @@ check('and the warning disappears for the guest',
 // ── history ──────────────────────────────────────────────────────────────────
 await dad.click('text=איפה היינו בחגים קודמים');
 await dad.waitForURL('**/history');
-check('past holidays are listed', await dad.isVisible('text=היינו אצל תמיר ורעיה'));
+check('past holidays are listed', await dad.isVisible('text=היינו אצל טמיר ואפיק'));
 check('the upcoming holiday is not in the history', !(await dad.isVisible(`text=${holidayName}`)));
 
 // ── the cookie remembers, and nonsense is refused ────────────────────────────

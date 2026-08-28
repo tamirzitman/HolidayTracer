@@ -36,11 +36,11 @@ The app is deliberately dumb: it reads the sheet, shows a question, and appends 
 | The question | One per holiday: hosting, or a guest at another family |
 | Choosing a host | **Dropdown of family names.** No typing, no phone entry |
 | Data store | **Google Sheets** — the single source of truth |
-| Holidays | **A tab you fill in once.** You define what counts as חג / מועד / ערב חג |
+| Holidays | **A tab you fill in once**, holding only the holidays you gather for |
 | Families | **Manually managed by you.** The app never creates one |
 | Signing in | **Phone number + name.** No password, no email, no SMS code |
 | Session | Remembered in a **signed browser cookie** — you type your number once, ever |
-| Answers | **One tab, forever**, append-only, carrying the Hebrew year so it sorts by year |
+| Answers | **One tab, forever**, append-only, ids only, Gregorian years |
 | Contradictions | Flagged **both in the app and in the sheet** |
 | Hosting | Free tier |
 | Interface | Hebrew, right-to-left, mobile web |
@@ -49,82 +49,58 @@ The app is deliberately dumb: it reads the sheet, shows a question, and appends 
 
 ## 2. The spreadsheet
 
-Five tabs. This *is* the schema.
+Five tabs. **Every fact is stored once.** Names live in `Households`, phone numbers live in
+`People`, and everything else references them by id — so correcting a name or a number is one edit,
+not a hunt through the log. Years are **Gregorian**: 2026, not 5786.
 
-### `Holidays` — filled in once, by you
-The app has **no calendar logic whatsoever**. It does not know what Passover is. It reads this tab.
+### `Holidays` — only what you gather for
+| holiday_key | name_he | type | date | hebrew_date | year | include |
+|---|---|---|---|---|---|---|
+| `erev_rosh_hashana_2026` | <span dir="rtl">ערב ראש השנה</span> | <span dir="rtl">ערב חג</span> | 2026-09-11 | <span dir="rtl">כ״ט אלול תשפ״ו</span> | 2026 | TRUE |
 
-| holiday_key | name_he | type | date | hebrew_year | include |
-|---|---|---|---|---|---|
-| `rosh_hashana_eve_5787` | <span dir="rtl">ערב ראש השנה</span> | <span dir="rtl">ערב חג</span> | 2026-09-11 | 5787 | TRUE |
-| `yom_kippur_eve_5787` | <span dir="rtl">ערב יום כיפור</span> | <span dir="rtl">ערב חג</span> | 2026-09-20 | 5787 | FALSE |
-| `seder_5787` | <span dir="rtl">ליל הסדר</span> | <span dir="rtl">חג</span> | 2027-04-21 | 5787 | TRUE |
+The seed writes **only the kinds of holiday your family actually gathers for** — seven kinds over
+ten years is seventy rows, not two hundred. `npm run seed:holidays -- --list-kinds` shows what can
+be asked for; `--kinds` changes the set. `include` stays as an off-switch for a single occurrence.
 
-**`include` is the whole point.** Every candidate date is seeded once; you flip `TRUE` on the ones
-that actually matter for a family meal and leave the rest `FALSE`. That is how
-*<span dir="rtl">מה נחשב חג, מועד או ערב חג שמעניין אותנו לאירוח משפחתי</span>* gets decided —
-by you, in the sheet, not by me in code.
-
-The seeding is a **one-off script**, run once by hand, that uses `@hebcal/core` to write out every
-holiday and eve for the next several years with `include = FALSE`.
-**[ASSUMPTION: ten years, Israel schedule.]** After that it is a plain tab you edit like any other
-— add a row, delete a row, rename one. Adding Friday nights, birthdays or anything else is just
-adding rows; nothing in the app needs to change.
-
-`@hebcal/core` is therefore a **build-time tool, not a runtime dependency**. The deployed app has
-no calendar library in it.
+The app has **no calendar logic**. `@hebcal/core` runs in the seed script only.
 
 ### `Households` — the dropdown
-| household_id | name | phone | active |
+| household_id | name | contact_person_id | active |
 |---|---|---|---|
-| `hh_parents` | <span dir="rtl">אבא ואמא</span> | +972501234567 | TRUE |
-| `hh_tamir` | <span dir="rtl">תמיר ורעיה</span> | +972521234567 | TRUE |
+| `hh_parents` | <span dir="rtl">אבא ואמא</span> | `p_1` | TRUE |
 
-Every row with `active = TRUE` is an option in the app. **Only you add rows here.** That is what
-makes duplicates impossible — the app has no way to create a family.
+No phone column: the number to call comes from the contact person's row in `People`.
+**Only you add rows here** — the app cannot create a family, so duplicates are impossible.
 
-### `People` — phone number → family
-| phone | name | household_id |
-|---|---|---|
-| +972501234567 | <span dir="rtl">אבא</span> | `hh_parents` |
-| +972501119999 | <span dir="rtl">אמא</span> | `hh_parents` |
+### `People` — a phone number, stored once
+| person_id | phone | name | household_id |
+|---|---|---|---|
+| `p_1` | +972501234567 | <span dir="rtl">אבא</span> | `hh_parents` |
 
-Both parents' numbers point at the same `household_id` — that is how one family holds several
-people. The app appends a row here when somebody registers (§3), and never touches it otherwise.
+Several people in one household point at the same `household_id`. Ids are `p_1`, `p_2`, … and the
+app allocates the next one when somebody registers.
 
 ### `Answers` — the log, one tab forever
-| timestamp | hebrew_year | holiday_key | holiday_name | by_phone | household_id | household_name | kind | host_household_id | host_household_name |
-|---|---|---|---|---|---|---|---|---|---|
-| 2026-09-01T19:04Z | 5787 | `rosh_hashana_eve_5787` | <span dir="rtl">ערב ראש השנה</span> | +972521234567 | `hh_tamir` | <span dir="rtl">תמיר ורעיה</span> | `guest` | `hh_parents` | <span dir="rtl">אבא ואמא</span> |
-| 2026-09-01T20:12Z | 5787 | `rosh_hashana_eve_5787` | <span dir="rtl">ערב ראש השנה</span> | +972501234567 | `hh_parents` | <span dir="rtl">אבא ואמא</span> | `hosting` | | |
+| timestamp | year | holiday_key | household_id | kind | host_household_id | by_person_id |
+|---|---|---|---|---|---|---|
+| 2026-08-28T16:21:39Z | 2026 | `erev_rosh_hashana_2026` | `hh_tamir` | `guest` | `hh_ofer` | `p_1` |
 
-**One tab, all years, never split.** `hebrew_year` is a column so you can sort or filter by year
-without the data living in separate places.
-
-**Append-only.** Changing an answer writes a new row; the **newest row for a given holiday +
-household wins**. Nothing is overwritten, so a mis-tap can't destroy history and the sheet doubles
-as a record of who said what, when.
-
-Names sit next to ids deliberately — the sheet reads correctly on its own, no lookup formulas.
+Ids only — no names, no phone numbers. **Append-only:** changing an answer writes a new row and the
+newest row for a holiday + household wins, so a mis-tap can't destroy history.
 
 ### `Conflicts` — written by the app
-| holiday_name | household | said | host | but_host_said | detected_at |
+| holiday_key | household_id | host_household_id | host_kind | host_host_household_id | detected_at |
 |---|---|---|---|---|---|
-| <span dir="rtl">ערב ראש השנה</span> | <span dir="rtl">תמיר ורעיה</span> | <span dir="rtl">מתארחים</span> | <span dir="rtl">אבא ואמא</span> | <span dir="rtl">מתארחים אצל אח ואשתו</span> | 2026-09-02T08:31Z |
 
-You said you're going to a family that says it isn't hosting. The app shows the person one quiet
-line — *<span dir="rtl">"שימו לב — הם ענו שהם מתארחים"</span>* — with no notification and no
-action demanded, **and records it here so you can see it in the sheet**.
+Somebody is a guest at a family whose own newest answer isn't `hosting`. Derived, not a log: the
+app rewrites it whenever it would change, so **never edit it by hand**.
 
-This tab is **derived, not a log**: the app clears and rewrites it after every answer, so it always
-reflects the current state. It is the one tab you should never edit by hand — anything typed there
-disappears on the next answer.
+A host who simply hasn't answered yet is not a conflict — that's an unanswered question.
 
-**Detection rule:** for each holiday, an answer of `guest` at household *H* is a conflict when
-*H*'s own newest answer for that holiday is **not** `hosting`. A host who simply hasn't answered
-yet is not a conflict — that's just an unanswered question.
-
----
+### Speed
+The whole spreadsheet is fetched in **one batched request** and held in memory for twenty seconds,
+cleared by any write. Five separate round trips to Google was most of the wait after pressing a
+button: a page load went from seconds to about 25ms once warm.
 
 ## 3. Signing in
 

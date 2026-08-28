@@ -11,9 +11,11 @@ type Props = {
   holiday: Holiday;
   households: Household[];
   current: Answer | undefined;
+  /** Resolved from the id on the answer — the log itself stores no names. */
+  host: { name: string; phone: string } | undefined;
   daysAway: number;
   /** Households that said they are coming to us. Only meaningful when hosting. */
-  guests: { householdId: string; householdName: string }[];
+  guests: { id: string; name: string }[];
   /** Set when our host answered that they are not hosting. */
   hostDisagrees: boolean;
 };
@@ -28,6 +30,7 @@ export function AnswerForm({
   holiday,
   households,
   current,
+  host,
   daysAway,
   guests,
   hostDisagrees,
@@ -61,9 +64,17 @@ export function AnswerForm({
           ) : (
             <>
               <p className="font-display text-2xl font-bold text-brand">
-                מתארחים אצל {current.hostHouseholdName}
+                מתארחים אצל {host?.name}
               </p>
-              <HostPhone households={households} hostId={current.hostHouseholdId} />
+              {host?.phone && (
+                <a
+                  href={`tel:${host.phone}`}
+                  dir="ltr"
+                  className="text-sm font-semibold text-muted underline underline-offset-4"
+                >
+                  {formatPhone(host.phone)}
+                </a>
+              )}
               {hostDisagrees && (
                 <p className="text-sm text-muted">שימו לב — הם ענו שהם מתארחים</p>
               )}
@@ -139,7 +150,7 @@ export function AnswerForm({
 }
 
 /** Who said they are coming to us — the whole reward for answering "we're hosting". */
-function Guests({ guests }: { guests: { householdId: string; householdName: string }[] }) {
+function Guests({ guests }: { guests: { id: string; name: string }[] }) {
   return (
     <div className="mt-2 w-full border-t border-line pt-4">
       {guests.length === 0 ? (
@@ -149,23 +160,13 @@ function Guests({ guests }: { guests: { householdId: string; householdName: stri
           <p className="mb-2 text-sm font-semibold text-muted">מגיעים אליכם</p>
           <ul className="flex flex-col gap-1">
             {guests.map((g) => (
-              <li key={g.householdId} className="text-ink">
-                {g.householdName}
+              <li key={g.id} className="text-ink">
+                {g.name}
               </li>
             ))}
           </ul>
         </>
       )}
     </div>
-  );
-}
-
-function HostPhone({ households, hostId }: { households: Household[]; hostId: string }) {
-  const phone = households.find((h) => h.id === hostId)?.phone;
-  if (!phone) return null;
-  return (
-    <a href={`tel:${phone}`} dir="ltr" className="text-sm font-semibold text-muted underline underline-offset-4">
-      {formatPhone(phone)}
-    </a>
   );
 }

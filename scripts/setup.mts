@@ -12,15 +12,14 @@ import { google } from 'googleapis';
 
 loadEnv();
 
-const TAB_HEADERS: Record<string, string[]> = {
-  Holidays: ['holiday_key', 'name_he', 'type', 'date', 'hebrew_date', 'hebrew_year', 'include'],
-  Households: ['household_id', 'name', 'phone', 'active'],
-  People: ['phone', 'name', 'household_id'],
-  Answers: [
-    'timestamp', 'hebrew_year', 'holiday_key', 'holiday_name', 'by_phone',
-    'household_id', 'household_name', 'kind', 'host_household_id', 'host_household_name',
-  ],
-  Conflicts: ['holiday_name', 'household', 'said', 'host', 'but_host_said', 'detected_at'],
+const { HEADERS, TABS } = await import('../src/lib/types.ts');
+
+const TAB_HEADERS: Record<string, readonly string[]> = {
+  [TABS.holidays]: HEADERS.holidays,
+  [TABS.households]: HEADERS.households,
+  [TABS.people]: HEADERS.people,
+  [TABS.answers]: HEADERS.answers,
+  [TABS.conflicts]: HEADERS.conflicts,
 };
 
 function loadEnv(): void {
@@ -35,7 +34,8 @@ function loadEnv(): void {
       const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line);
       if (!match) continue;
       const [, key, rawValue] = match;
-      if (!process.env[key]) process.env[key] = rawValue.trim().replace(/^["']|["']$/g, '');
+      // `key in process.env` — not truthiness: an explicitly empty value is a choice.
+      if (!(key in process.env)) process.env[key] = rawValue.trim().replace(/^["']|["']$/g, '');
     }
   }
 }
@@ -129,7 +129,7 @@ for (const [tab, headers] of Object.entries(TAB_HEADERS)) {
       spreadsheetId,
       range: `${tab}!A1`,
       valueInputOption: 'RAW',
-      requestBody: { values: [headers] },
+      requestBody: { values: [[...headers]] },
     });
     console.log(`✓ wrote headers on ${tab}`);
   }

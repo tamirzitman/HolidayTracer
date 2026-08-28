@@ -83,11 +83,13 @@ people can call them.
 npm run seed:holidays -- --years 10
 ```
 
-This writes about 200 candidate dates into the **Holidays** tab, all with `include = FALSE`. Now go
-through it and **set `TRUE` on the dates your family actually gathers for**. Nothing else in the
-whole system decides this.
+This writes **only the kinds of holiday your family gathers for** — the set is at the top of
+`scripts/seed-holidays.mts`, or pass `--kinds`. Seven kinds over ten years is seventy rows.
 
-Re-running the seed later is safe: your `TRUE`s survive, and so do rows you add by hand.
+- `npm run seed:holidays -- --list-kinds` shows everything available.
+- `npm run mark -- --on purim` switches a kind on across every year, `--off` removes one.
+
+Re-running the seed is safe: your edits survive, and so do rows you add by hand.
 
 Run `npm run setup` once more — it will confirm you have families and at least one upcoming holiday.
 

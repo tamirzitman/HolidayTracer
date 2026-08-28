@@ -32,7 +32,8 @@ function loadEnv(): void {
       const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line);
       if (!match) continue;
       const [, key, rawValue] = match;
-      if (!process.env[key]) process.env[key] = rawValue.trim().replace(/^["']|["']$/g, '');
+      // `key in process.env` — not truthiness: an explicitly empty value is a choice.
+      if (!(key in process.env)) process.env[key] = rawValue.trim().replace(/^["']|["']$/g, '');
     }
   }
 }

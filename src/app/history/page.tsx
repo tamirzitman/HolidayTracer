@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Title, card, quietButton } from '@/components/ui';
-import { findPerson, historyFor } from '@/lib/data';
+import { findPerson, getHouseholds, historyFor } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,8 @@ export default async function HistoryPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const past = await historyFor(person.householdId);
+  const [past, households] = await Promise.all([historyFor(person.householdId), getHouseholds()]);
+  const nameOf = (id: string) => households.find((h) => h.id === id)?.name ?? id;
 
   return (
     <div className="flex flex-col gap-5">
@@ -27,7 +28,7 @@ export default async function HistoryPage() {
             <li key={holiday.key} className="flex flex-col gap-0.5 px-5 py-4">
               <span className="font-display text-lg font-bold text-ink">{holiday.nameHe}</span>
               <span className="text-muted">
-                {answer.kind === 'hosting' ? 'אירחנו' : `היינו אצל ${answer.hostHouseholdName}`}
+                {answer.kind === 'hosting' ? 'אירחנו' : `היינו אצל ${nameOf(answer.hostHouseholdId)}`}
               </span>
               <span className="text-sm text-muted">{holiday.hebrewDate}</span>
             </li>

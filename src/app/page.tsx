@@ -9,6 +9,7 @@ import {
   getLatestAnswer,
   getNextHoliday,
   guestsComingTo,
+  householdPhone,
   todayInIsrael,
 } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
@@ -47,13 +48,22 @@ export default async function Page() {
     findConflict(holiday.key, person.householdId),
   ]);
 
+  // Names and numbers are resolved here so the log itself can stay ids-only.
+  const host = current?.hostHouseholdId
+    ? {
+        name: households.find((h) => h.id === current.hostHouseholdId)?.name ?? current.hostHouseholdId,
+        phone: await householdPhone(current.hostHouseholdId),
+      }
+    : undefined;
+
   return (
     <AnswerForm
       holiday={holiday}
       households={households}
       current={current}
+      host={host}
       daysAway={daysUntil(holiday.date)}
-      guests={guests.map((g) => ({ householdId: g.householdId, householdName: g.householdName }))}
+      guests={guests.map((g) => ({ id: g.id, name: g.name }))}
       hostDisagrees={Boolean(conflict)}
     />
   );

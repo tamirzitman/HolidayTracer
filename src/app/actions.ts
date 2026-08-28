@@ -8,6 +8,7 @@ import {
   getHousehold,
   getHouseholds,
   getNextHoliday,
+  nextPersonId,
   rewriteConflicts,
 } from '@/lib/data';
 import { normalizePhone } from '@/lib/phone';
@@ -38,7 +39,7 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
   if (!household) return { error: 'המשפחה הזו לא נמצאה ברשימה' };
 
   if (!(await findPerson(phone))) {
-    await addPerson({ phone, name, householdId });
+    await addPerson({ id: await nextPersonId(), phone, name, householdId });
   }
   revalidatePath('/');
   return {};
@@ -60,7 +61,7 @@ export async function answer(_prev: ActionResult, formData: FormData): Promise<A
   const kind = String(formData.get('kind') ?? '') as AnswerKind;
   if (kind !== 'hosting' && kind !== 'guest') return { error: 'לא הבנתי את התשובה' };
 
-  let host = { id: '', name: '' };
+  let hostHouseholdId = '';
   if (kind === 'guest') {
     const hostId = String(formData.get('hostHouseholdId') ?? '').trim();
     if (!hostId) return { error: 'צריך לבחור אצל מי אתם מתארחים' };
@@ -68,20 +69,17 @@ export async function answer(_prev: ActionResult, formData: FormData): Promise<A
 
     const hostHousehold = await getHousehold(hostId);
     if (!hostHousehold) return { error: 'המשפחה הזו לא נמצאה ברשימה' };
-    host = { id: hostHousehold.id, name: hostHousehold.name };
+    hostHouseholdId = hostHousehold.id;
   }
 
   await appendAnswer({
     timestamp: new Date().toISOString(),
-    hebrewYear: holiday.hebrewYear,
+    year: holiday.year,
     holidayKey: holiday.key,
-    holidayName: holiday.nameHe,
-    byPhone: phone,
     householdId: household.id,
-    householdName: household.name,
     kind,
-    hostHouseholdId: host.id,
-    hostHouseholdName: host.name,
+    hostHouseholdId,
+    byPersonId: person.id,
   });
 
   // Derived from every answer, so it is recomputed after each one. The answer is
