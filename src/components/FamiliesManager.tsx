@@ -1,7 +1,8 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { hide, newInviteLink, type ActionResult } from '@/app/actions';
+import { hide, newInviteLink, unhide, type ActionResult } from '@/app/actions';
+import { ContactPicker } from './ContactPicker';
 import { formatPhone } from '@/lib/phone';
 import { ErrorNote, Title, card, field, primaryButton, quietButton, secondaryButton } from './ui';
 
@@ -10,11 +11,14 @@ type Family = { id: string; name: string; phone: string };
 export function FamiliesManager({
   householdName,
   families,
+  hidden,
 }: {
   householdName: string;
   families: Family[];
+  hidden: { id: string; name: string }[];
 }) {
   const [hideState, hideAction] = useActionState<ActionResult, FormData>(hide, {});
+  const [, unhideAction] = useActionState<ActionResult, FormData>(unhide, {});
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<'family' | 'household' | null>(null);
@@ -80,6 +84,25 @@ export function FamiliesManager({
       </section>
       <ErrorNote>{hideState.error}</ErrorNote>
 
+      {hidden.length > 0 && (
+        <section className={`${card} flex flex-col gap-1 p-0`}>
+          <h2 className="px-5 pt-4 pb-1 text-sm font-bold text-muted">מוסתרות</h2>
+          <ul className="divide-y divide-line">
+            {hidden.map((family) => (
+              <li key={family.id} className="flex items-center gap-3 px-5 py-3">
+                <span className="grow text-muted">{family.name}</span>
+                <form action={unhideAction}>
+                  <input type="hidden" name="householdId" value={family.id} />
+                  <button type="submit" className="text-sm font-bold text-brand underline underline-offset-4">
+                    החזרה
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <div className={`${card} flex flex-col gap-3`}>
         <h2 className="font-display text-xl font-bold text-ink">הזמנה</h2>
         <p className="text-sm text-muted">
@@ -124,6 +147,10 @@ export function FamiliesManager({
             <p className="text-center text-xs text-muted">
               “הזמנת משפחה” פותחת בית חדש. “הזמנה לבית שלנו” מצרפת מישהו אליכם — בן זוג, ילד שגדל.
             </p>
+
+            <div className="mt-1 border-t border-line pt-3">
+              <ContactPicker />
+            </div>
           </>
         )}
       </div>

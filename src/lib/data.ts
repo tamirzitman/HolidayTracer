@@ -178,24 +178,25 @@ export async function householdPhone(householdId: string): Promise<string> {
   return (await loadSheet()).people.find((p) => p.householdId === householdId)?.phone ?? '';
 }
 
-/**
- * The holidays worth answering for right now: everything included from today up
- * to a month out. Nobody plans Passover eighteen months ahead, and a short list
- * keeps the arrows meaningful.
- */
-export async function getUpcomingHolidays(withinDays = 31): Promise<Holiday[]> {
-  const today = todayInIsrael();
-  const until = new Date(Date.parse(`${today}T00:00:00Z`) + withinDays * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
+/** erev_pesach_2027 → erev_pesach */
+const holidayKind = (key: string): string => key.replace(/_\d{4}$/, '');
 
+/**
+ * One full round of the year: everything from the next holiday up to — but not
+ * including — that same holiday's next occurrence. So from erev Rosh Hashana you
+ * can step through every holiday until the following Rosh Hashana, and no further.
+ */
+export async function getUpcomingHolidays(): Promise<Holiday[]> {
+  const today = todayInIsrael();
   const included = (await loadSheet()).holidays
     .filter((h) => h.include && h.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // Always offer at least the nearest one, even if it is further out than the window.
-  const withinWindow = included.filter((h) => h.date <= until);
-  return withinWindow.length > 0 ? withinWindow : included.slice(0, 1);
+  if (included.length === 0) return [];
+
+  const first = included[0];
+  const repeatsAt = included.findIndex((h, i) => i > 0 && holidayKind(h.key) === holidayKind(first.key));
+  return repeatsAt === -1 ? included : included.slice(0, repeatsAt);
 }
 
 /** The earliest included holiday that hasn't passed. Undefined means the tab needs more rows. */
@@ -323,6 +324,23 @@ export async function hideFamily(mine: string, theirs: string): Promise<void> {
     'remove',
     new Date().toISOString(),
   ]);
+}
+
+/** Undo a hide. Only my side changes — theirs never stopped. */
+export async function showFamily(mine: string, theirs: string): Promise<void> {
+  await appendRow(TABS.connections, HEADERS.connections, [
+    mine,
+    theirs,
+    'add',
+    new Date().toISOString(),
+  ]);
+}
+
+/** Families I hid — so hiding is a choice I can take back, not a dead end. */
+export async function hiddenFrom(householdId: string): Promise<Household[]> {
+  const sheet = await loadSheet();
+  const state = connectionState(sheet.connections, householdId);
+  return sheet.households.filter((h) => state.get(h.id) === 'remove');
 }
 
 export async function createInvite(

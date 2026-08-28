@@ -115,6 +115,49 @@ const brotherStillSees = rows('Connections').filter(
 );
 check('but they still see you', brotherStillSees.at(-1)?.[2] === 'add');
 
+// ── hiding can be taken back ─────────────────────────────────────────────────
+await dad.goto(`${BASE}/families`);
+check('hidden families are listed separately', await dad.isVisible('text=מוסתרות'));
+await dad.locator('section:has-text("מוסתרות") li', { hasText: 'אח ואשתו' }).locator('text=החזרה').click();
+await dad.waitForTimeout(1200);
+await dad.goto(`${BASE}/families`);
+const backInList = await dad.locator('section').first().innerText();
+check('bringing one back returns it to the list', backInList.includes('אח ואשתו'));
+
+// ── picking families out of the address book ─────────────────────────────────
+// Chromium has no Contact Picker, so we hand the page one. What is being tested
+// is what the app does with the contacts, not the browser's picker.
+const UNKNOWN = '054-000-1122';
+await dad.context().addInitScript(
+  ([known, unknown]) => {
+    Object.defineProperty(navigator, 'contacts', {
+      value: {
+        select: async () => [
+          { name: ['דנה'], tel: [known] },
+          { name: ['שכנים'], tel: [unknown] },
+        ],
+      },
+      configurable: true,
+    });
+  },
+  [NEWCOMER, UNKNOWN],
+);
+
+await dad.goto(`${BASE}/families`);
+const danaRow = dad.locator('li', { hasText: 'דנה ויוסי' });
+await danaRow.locator('text=הסתרה').click();
+await dad.waitForTimeout(1200);
+
+await dad.goto(`${BASE}/families`);
+check('the picker appears when the browser has one', await dad.isVisible('text=בחירה מאנשי הקשר'));
+await dad.click('text=בחירה מאנשי הקשר');
+await dad.waitForSelector('text=נוספו:');
+check('a contact already in the app is connected', await dad.isVisible('text=נוספו: דנה ויוסי'));
+check('a contact who is not gets an invite', await dad.isVisible('text=שכנים'));
+const inviteHref = await dad.getAttribute('li:has-text("שכנים") >> a', 'href');
+check(`the invite is addressed to their number (${inviteHref?.slice(0, 24)}…)`,
+  Boolean(inviteHref?.startsWith('https://wa.me/972540001122?text=')));
+
 // ── stepping between holidays still works ────────────────────────────────────
 await dad.goto(BASE);
 const firstHoliday = (await dad.innerText('.font-display')).trim();

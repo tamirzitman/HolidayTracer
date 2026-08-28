@@ -16,6 +16,7 @@ import {
   isConnected,
   readInvite,
   rewriteConflicts,
+  showFamily,
 } from '@/lib/data';
 import { normalizePhone } from '@/lib/phone';
 import { clearSession, getSessionPhone, setSessionPhone } from '@/lib/session';
@@ -75,6 +76,53 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
   redirect('/');
 }
 
+/**
+ * Contacts picked out of the phone's address book. Numbers that already belong
+ * to a household are connected on the spot; the rest are handed back so they can
+ * be invited. Nothing from the address book is stored.
+ */
+export type ContactResult = {
+  connected: string[];
+  already: string[];
+  missing: { name: string; phone: string }[];
+  error?: string;
+};
+
+export async function connectContacts(
+  contacts: { name: string; phone: string }[],
+): Promise<ContactResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return { connected: [], already: [], missing: [], error: me.error };
+
+  const connected: string[] = [];
+  const already: string[] = [];
+  const missing: { name: string; phone: string }[] = [];
+
+  for (const contact of contacts) {
+    const phone = normalizePhone(contact.phone);
+    if (!phone) continue;
+
+    const person = await findPerson(phone);
+    if (!person || person.householdId === me.householdId) {
+      if (!person) missing.push({ name: contact.name, phone });
+      continue;
+    }
+
+    const household = await getHousehold(person.householdId);
+    const label = household?.name ?? contact.name;
+    if (await isConnected(me.householdId, person.householdId)) {
+      already.push(label);
+    } else {
+      await connect(me.householdId, person.householdId);
+      connected.push(label);
+    }
+  }
+
+  revalidatePath('/families');
+  revalidatePath('/');
+  return { connected, already, missing };
+}
+
 /** One-sided: they keep seeing you, so nobody is cut off without knowing. */
 export async function hide(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const me = await currentHousehold();
@@ -84,6 +132,19 @@ export async function hide(_prev: ActionResult, formData: FormData): Promise<Act
   if (!theirs) return { error: 'לא הבנתי איזו משפחה' };
 
   await hideFamily(me.householdId, theirs);
+  revalidatePath('/families');
+  revalidatePath('/');
+  return {};
+}
+
+export async function unhide(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const theirs = String(formData.get('householdId') ?? '').trim();
+  if (!theirs) return { error: 'לא הבנתי איזו משפחה' };
+
+  await showFamily(me.householdId, theirs);
   revalidatePath('/families');
   revalidatePath('/');
   return {};
