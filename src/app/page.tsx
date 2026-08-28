@@ -2,7 +2,15 @@ import { AnswerForm } from '@/components/AnswerForm';
 import { RegisterForm } from '@/components/RegisterForm';
 import { SignInForm } from '@/components/SignInForm';
 import { Title, card } from '@/components/ui';
-import { findPerson, getHouseholds, getLatestAnswer, getNextHoliday, todayInIsrael } from '@/lib/data';
+import {
+  findConflict,
+  findPerson,
+  getHouseholds,
+  getLatestAnswer,
+  getNextHoliday,
+  guestsComingTo,
+  todayInIsrael,
+} from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -32,12 +40,21 @@ export default async function Page() {
     );
   }
 
+  const [households, current, guests, conflict] = await Promise.all([
+    getHouseholds(),
+    getLatestAnswer(holiday.key, person.householdId),
+    guestsComingTo(holiday.key, person.householdId),
+    findConflict(holiday.key, person.householdId),
+  ]);
+
   return (
     <AnswerForm
       holiday={holiday}
-      households={await getHouseholds()}
-      current={await getLatestAnswer(holiday.key, person.householdId)}
+      households={households}
+      current={current}
       daysAway={daysUntil(holiday.date)}
+      guests={guests.map((g) => ({ householdId: g.householdId, householdName: g.householdName }))}
+      hostDisagrees={Boolean(conflict)}
     />
   );
 }

@@ -28,7 +28,19 @@ sheet.People = [
   ['phone', 'name', 'household_id'],
   ['+972501234567', 'אבא', 'hh_parents'],
 ];
-delete sheet.Answers;
+// One holiday already in the past, with an answer, so the history screen has
+// something to show without waiting a year.
+const PAST = ['erev_pesach_5786', 'ערב פסח', 'ערב חג', '2026-04-01', 'י״ד ניסן תשפ״ו', '5786', 'TRUE'];
+sheet.Holidays ??= [['holiday_key', 'name_he', 'type', 'date', 'hebrew_date', 'hebrew_year', 'include']];
+if (!sheet.Holidays.some((r) => r[0] === PAST[0])) sheet.Holidays.push(PAST);
+
+sheet.Answers = [
+  ['timestamp', 'hebrew_year', 'holiday_key', 'holiday_name', 'by_phone', 'household_id',
+   'household_name', 'kind', 'host_household_id', 'host_household_name'],
+  ['2026-04-01T15:00:00.000Z', '5786', 'erev_pesach_5786', 'ערב פסח', '+972501234567',
+   'hh_parents', 'אבא ואמא', 'guest', 'hh_tamir', 'תמיר ורעיה'],
+];
+delete sheet.Conflicts;
 
 writeFileSync(FILE, `${JSON.stringify(sheet, null, 2)}\n`, 'utf8');
 console.log(`reset Households and People in ${FILE}`);

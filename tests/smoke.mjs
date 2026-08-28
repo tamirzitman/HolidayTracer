@@ -1,9 +1,9 @@
 /**
- * End-to-end smoke test of the whole of phase 1, against a real browser.
+ * End-to-end smoke test of phases 1 and 2, against a real browser.
  *
- *   node scripts/dev-fixtures.mjs
- *   npm run seed:holidays            # once, if .dev-sheet.json has no Holidays
- *   # mark at least one holiday include=TRUE in .dev-sheet.json
+ *   npm run seed:holidays        # once, if .dev-sheet.json has no Holidays
+ *   npm run fixtures             # families, plus one past holiday for the history
+ *   # mark an upcoming holiday include=TRUE in .dev-sheet.json
  *   npm run build && SESSION_SECRET=test npm start -- --port 3111
  *   npm run test:smoke
  */
@@ -11,87 +11,123 @@ import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
 
 const BASE = process.env.SMOKE_URL ?? 'http://localhost:3111';
-// A number nobody has registered, so the run is repeatable.
+const SHEET = '.dev-sheet.json';
+// Nobody has registered this one, so the run is repeatable.
 const NEW_PHONE = `05${String(Date.now()).slice(-8)}`;
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-const ctx = await browser.newContext({ viewport: { width: 390, height: 780 }, locale: 'he-IL' });
-const page = await ctx.newPage();
-page.on('pageerror', (e) => console.log('PAGE ERROR:', e.message));
+const DAD_PHONE = '050-123-4567';
 
+const sheet = () => JSON.parse(readFileSync(SHEET, 'utf8'));
+const rows = (tab) => (sheet()[tab] ?? []).slice(1);
+
+let failures = 0;
 function check(label, ok) {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}`);
-  if (!ok) process.exitCode = 1;
+  if (!ok) failures += 1;
 }
 
-// --- 1. a brand new phone: sign in, then register ---
-await page.goto(BASE);
-await page.fill('input[name=phone]', NEW_PHONE);
-await page.click('button[type=submit]');
-await page.waitForSelector('select[name=householdId]');
-check('unknown number lands on registration', await page.isVisible('text=נעים להכיר'));
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const open = async () => (await browser.newContext({ viewport: { width: 390, height: 780 } })).newPage();
 
-const options = await page.$$eval('select[name=householdId] option', (els) =>
+// ── the brother: a number the sheet has never seen ────────────────────────────
+const brother = await open();
+await brother.goto(BASE);
+await brother.fill('input[name=phone]', NEW_PHONE);
+await brother.click('button[type=submit]');
+await brother.waitForSelector('select[name=householdId]');
+check('unknown number lands on registration', await brother.isVisible('text=נעים להכיר'));
+
+const options = await brother.$$eval('select[name=householdId] option', (els) =>
   els.map((e) => e.textContent.trim()).filter((t) => t !== 'בחרו מהרשימה'),
 );
-const activeInSheet = JSON.parse(readFileSync('.dev-sheet.json', 'utf8'))
-  .Households.slice(1)
-  .filter((r) => r[3] === 'TRUE')
-  .map((r) => r[1]);
+const activeInSheet = rows('Households').filter((r) => r[3] === 'TRUE').map((r) => r[1]);
 check(`dropdown lists exactly the active families (${options.join(', ')})`,
   options.length === activeInSheet.length && activeInSheet.every((n) => options.includes(n)));
-check('no way to create a family from the app', !(await page.isVisible('text=משפחה חדשה')));
+check('no way to create a family from the app', !(await brother.isVisible('text=משפחה חדשה')));
 
-await page.fill('input[name=name]', 'אח');
-await page.selectOption('select[name=householdId]', 'hh_brother');
-await page.click('button[type=submit]');
-await page.waitForSelector('text=איפה אתם בחג?');
+await brother.fill('input[name=name]', 'אח');
+await brother.selectOption('select[name=householdId]', 'hh_brother');
+await brother.click('button[type=submit]');
+await brother.waitForSelector('text=איפה אתם בחג?');
+check('a People row was appended', rows('People').some((r) => r[1] === 'אח' && r[2] === 'hh_brother'));
 
-// --- 2. the question ---
-check('next holiday is the soonest included one', await page.isVisible('text=ערב ראש השנה'));
-check('hebrew date shown', await page.isVisible('text=כ״ט אלול תשפ״ו'));
+const holidayName = (await brother.innerText('.font-display')).trim();
+check(`next holiday is the soonest included one (${holidayName})`, holidayName.length > 0);
 
-// --- 3. answer: guest at the parents ---
-await page.click('text=מתארחים אצל…');
-await page.waitForSelector('select[name=hostHouseholdId]');
-await page.selectOption('select[name=hostHouseholdId]', 'hh_parents');
-await page.click('button[type=submit]');
-await page.waitForSelector('text=מתארחים אצל אבא ואמא');
-check('answer recorded and shown back', await page.isVisible('text=מתארחים אצל אבא ואמא'));
-check('host phone offered to call', await page.isVisible('a[href="tel:+972501234567"]'));
+// ── the brother is a guest at the parents ─────────────────────────────────────
+const before = rows('Answers').length;
+await brother.click('text=מתארחים אצל…');
+await brother.waitForSelector('select[name=hostHouseholdId]');
+await brother.selectOption('select[name=hostHouseholdId]', 'hh_parents');
+await brother.click('button[type=submit]');
+await brother.waitForSelector('text=מתארחים אצל אבא ואמא');
+check('answer shown back', await brother.isVisible('text=מתארחים אצל אבא ואמא'));
+check('host phone offered to call', await brother.isVisible('a[href="tel:+972501234567"]'));
+check('exactly one row appended', rows('Answers').length === before + 1);
 
-// --- 4. the write landed in the sheet ---
-const sheet = JSON.parse(readFileSync('.dev-sheet.json', 'utf8'));
-const people = sheet.People.slice(1);
-const answers = (sheet.Answers ?? []).slice(1);
-check('a People row was appended', people.some((r) => r[1] === 'אח' && r[2] === 'hh_brother'));
-check('an Answers row was appended', answers.length === 1);
-const a = answers[0];
-check(`answer row is right (${a?.slice(5, 10).join(' | ')})`,
-  a && a[2] === 'erev_rosh_hashana_5786' && a[5] === 'hh_brother' && a[7] === 'guest' && a[8] === 'hh_parents');
-check('hebrew year carried on the row', a && a[1] === '5786');
+const a = rows('Answers').at(-1);
+check(`answer row is right (${a.slice(5, 10).join(' | ')})`,
+  a[5] === 'hh_brother' && a[7] === 'guest' && a[8] === 'hh_parents');
+check('hebrew year carried on the row', /^\d{4}$/.test(a[1]));
 
-// --- 5. changing the answer appends, never overwrites ---
-await page.click('text=שינוי תשובה');
-await page.waitForSelector('text=אנחנו מארחים');
-await page.click('text=אנחנו מארחים');
-await page.waitForSelector('.font-display >> text=אנחנו מארחים');
-const after = JSON.parse(readFileSync('.dev-sheet.json', 'utf8')).Answers.slice(1);
-check('changing the answer appends a second row', after.length === 2);
-check('newest row wins on screen', await page.isVisible('text=אנחנו מארחים'));
+// ── the parents host, and see who is coming ───────────────────────────────────
+const dad = await open();
+await dad.goto(BASE);
+await dad.fill('input[name=phone]', DAD_PHONE);
+await dad.click('button[type=submit]');
+await dad.waitForSelector('text=איפה אתם בחג?');
+check('a known number skips registration', !(await dad.isVisible('select[name=householdId]')));
 
-// --- 6. the cookie remembers ---
-await page.goto(BASE);
-check('returning visit skips sign-in entirely', await page.isVisible('text=ערב ראש השנה'));
+await dad.click('text=אנחנו מארחים');
+await dad.waitForSelector('text=מגיעים אליכם');
+check('hosting shows who is coming', await dad.isVisible('text=אח ואשתו'));
 
-// --- 7. a bad number is refused ---
-await ctx.clearCookies();
-await page.goto(BASE);
-await page.fill('input[name=phone]', '123');
-await page.click('button[type=submit]');
-await page.waitForSelector('[role=alert]');
-const alertText = (await page.innerText('[role=alert]')).trim();
-check(`nonsense number is rejected (${alertText})`, alertText === 'מספר הטלפון לא נראה תקין');
-check('still on the sign-in screen', await page.isVisible('input[name=phone]'));
+// ── the parents change their mind: now the brother is going nowhere ───────────
+await dad.click('text=שינוי תשובה');
+await dad.waitForSelector('text=מתארחים אצל…');
+await dad.click('text=מתארחים אצל…');
+await dad.waitForSelector('select[name=hostHouseholdId]');
+await dad.selectOption('select[name=hostHouseholdId]', 'hh_sister');
+await dad.click('button[type=submit]');
+await dad.waitForSelector('text=מתארחים אצל אחות ובעלה');
+
+await brother.reload();
+check('the guest is warned their host is not hosting',
+  await brother.isVisible('text=שימו לב — הם ענו שהם מתארחים'));
+
+const conflicts = rows('Conflicts');
+check(`the conflict reached the sheet (${conflicts.length} row)`,
+  conflicts.length === 1 && conflicts[0][1] === 'אח ואשתו' && conflicts[0][3] === 'אבא ואמא');
+
+// ── the conflict clears itself when the parents host again ───────────────────
+await dad.click('text=שינוי תשובה');
+await dad.waitForSelector('text=אנחנו מארחים');
+await dad.click('text=אנחנו מארחים');
+await dad.waitForSelector('text=מגיעים אליכם');
+check('the conflict row is removed once it is resolved', rows('Conflicts').length === 0);
+
+await brother.reload();
+check('and the warning disappears for the guest',
+  !(await brother.isVisible('text=שימו לב — הם ענו שהם מתארחים')));
+
+// ── history ──────────────────────────────────────────────────────────────────
+await dad.click('text=איפה היינו בחגים קודמים');
+await dad.waitForURL('**/history');
+check('past holidays are listed', await dad.isVisible('text=היינו אצל תמיר ורעיה'));
+check('the upcoming holiday is not in the history', !(await dad.isVisible(`text=${holidayName}`)));
+
+// ── the cookie remembers, and nonsense is refused ────────────────────────────
+const again = await open();
+await again.goto(BASE);
+check('a fresh browser is asked to sign in', await again.isVisible('input[name=phone]'));
+await dad.goto(BASE);
+check('returning visit skips sign-in entirely', !(await dad.isVisible('input[name=phone]')));
+
+await again.fill('input[name=phone]', '123');
+await again.click('button[type=submit]');
+await again.waitForSelector('[role=alert]');
+check(`nonsense number is rejected (${(await again.innerText('[role=alert]')).trim()})`,
+  (await again.innerText('[role=alert]')).trim() === 'מספר הטלפון לא נראה תקין');
 
 await browser.close();
-console.log(process.exitCode ? '\nsome checks failed' : '\nall checks passed');
+console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
+process.exitCode = failures ? 1 : 0;

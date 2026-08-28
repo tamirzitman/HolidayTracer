@@ -1,7 +1,15 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { addPerson, appendAnswer, findPerson, getHousehold, getHouseholds, getNextHoliday } from '@/lib/data';
+import {
+  addPerson,
+  appendAnswer,
+  findPerson,
+  getHousehold,
+  getHouseholds,
+  getNextHoliday,
+  rewriteConflicts,
+} from '@/lib/data';
 import { normalizePhone } from '@/lib/phone';
 import { clearSession, getSessionPhone, setSessionPhone } from '@/lib/session';
 import type { AnswerKind } from '@/lib/types';
@@ -76,7 +84,16 @@ export async function answer(_prev: ActionResult, formData: FormData): Promise<A
     hostHouseholdName: host.name,
   });
 
+  // Derived from every answer, so it is recomputed after each one. The answer is
+  // already safely recorded; a failure here must not lose it.
+  try {
+    await rewriteConflicts();
+  } catch (error) {
+    console.error('could not rewrite the Conflicts tab', error);
+  }
+
   revalidatePath('/');
+  revalidatePath('/history');
   return {};
 }
 

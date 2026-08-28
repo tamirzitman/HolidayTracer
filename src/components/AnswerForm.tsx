@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useEffect, useState } from 'react';
 import { answer, type ActionResult } from '@/app/actions';
 import { formatPhone } from '@/lib/phone';
@@ -11,6 +12,10 @@ type Props = {
   households: Household[];
   current: Answer | undefined;
   daysAway: number;
+  /** Households that said they are coming to us. Only meaningful when hosting. */
+  guests: { householdId: string; householdName: string }[];
+  /** Set when our host answered that they are not hosting. */
+  hostDisagrees: boolean;
 };
 
 function whenLabel(daysAway: number): string {
@@ -19,7 +24,14 @@ function whenLabel(daysAway: number): string {
   return `בעוד ${daysAway} ימים`;
 }
 
-export function AnswerForm({ holiday, households, current, daysAway }: Props) {
+export function AnswerForm({
+  holiday,
+  households,
+  current,
+  daysAway,
+  guests,
+  hostDisagrees,
+}: Props) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(answer, {});
   const [choosingHost, setChoosingHost] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -52,6 +64,9 @@ export function AnswerForm({ holiday, households, current, daysAway }: Props) {
                 מתארחים אצל {current.hostHouseholdName}
               </p>
               <HostPhone households={households} hostId={current.hostHouseholdId} />
+              {hostDisagrees && (
+                <p className="text-sm text-muted">שימו לב — הם ענו שהם מתארחים</p>
+              )}
             </>
           )}
           <button
@@ -64,6 +79,8 @@ export function AnswerForm({ holiday, households, current, daysAway }: Props) {
           >
             שינוי תשובה
           </button>
+
+          {current.kind === 'hosting' && <Guests guests={guests} />}
         </div>
       ) : (
         <form action={formAction} className={`${card} flex flex-col gap-3`}>
@@ -112,6 +129,32 @@ export function AnswerForm({ holiday, households, current, daysAway }: Props) {
 
           <ErrorNote>{state.error}</ErrorNote>
         </form>
+      )}
+
+      <Link href="/history" className={`${quietButton} text-center`}>
+        איפה היינו בחגים קודמים
+      </Link>
+    </div>
+  );
+}
+
+/** Who said they are coming to us — the whole reward for answering "we're hosting". */
+function Guests({ guests }: { guests: { householdId: string; householdName: string }[] }) {
+  return (
+    <div className="mt-2 w-full border-t border-line pt-4">
+      {guests.length === 0 ? (
+        <p className="text-sm text-muted">עדיין אף אחד לא אמר שהוא מגיע</p>
+      ) : (
+        <>
+          <p className="mb-2 text-sm font-semibold text-muted">מגיעים אליכם</p>
+          <ul className="flex flex-col gap-1">
+            {guests.map((g) => (
+              <li key={g.householdId} className="text-ink">
+                {g.householdName}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );
