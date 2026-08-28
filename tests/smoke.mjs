@@ -8,7 +8,12 @@
  *   npm run test:smoke
  */
 import { chromium } from 'playwright';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+
+// Start from known fixtures: a half-finished earlier run would otherwise leave
+// answers behind and the first assertion would fail for the wrong reason.
+execFileSync(process.execPath, ['scripts/dev-fixtures.mjs'], { stdio: 'ignore' });
 
 const BASE = process.env.SMOKE_URL ?? 'http://localhost:3111';
 const SHEET = '.dev-sheet.json';
@@ -111,6 +116,56 @@ check('the conflict row is removed once it is resolved', rows('Conflicts').lengt
 await brother.reload();
 check('and the warning disappears for the guest',
   !(await brother.isVisible('text=שימו לב — הם ענו שהם מתארחים')));
+
+// ── stepping to a later holiday ──────────────────────────────────────────────
+await brother.goto(BASE);
+const firstHoliday = (await brother.innerText('.font-display')).trim();
+const before2 = rows('Answers').length;
+await brother.click('[aria-label="החג הבא"]');
+await brother.waitForURL(/\?h=rosh_hashana_ii_2026/);
+const secondHoliday = (await brother.innerText('.font-display')).trim();
+check(`the arrow moves to the next holiday (${firstHoliday} → ${secondHoliday})`,
+  secondHoliday !== firstHoliday);
+check('and that holiday has no answer yet', await brother.isVisible('text=איפה אתם בחג?'));
+
+await brother.click('text=אנחנו מארחים');
+await brother.waitForSelector('text=שינוי תשובה');
+const stepped = rows('Answers').at(-1);
+check(`answering ahead records the other holiday (${stepped[1]})`,
+  rows('Answers').length === before2 + 1 && stepped[1] !== 'erev_rosh_hashana_2026');
+
+await brother.click('[aria-label="החג הקודם"]');
+await brother.waitForURL(/\?h=erev_rosh_hashana_2026/);
+check('stepping back returns to the first holiday',
+  (await brother.innerText('.font-display')).trim() === firstHoliday);
+check('and its own answer is still there', await brother.isVisible('text=מתארחים אצל אבא ואמא'));
+
+// ── both families say they are going to each other ───────────────────────────
+// Tamir marks "we're at Ofer's" while Ofer marks "we're at Tamir's": nobody is
+// hosting, and both of them should be told.
+await dad.goto(BASE);
+await dad.click('text=שינוי תשובה');
+await dad.waitForSelector('text=מתארחים אצל…');
+await dad.click('text=מתארחים אצל…');
+await dad.waitForSelector('select[name=hostHouseholdId]');
+await dad.selectOption('select[name=hostHouseholdId]', 'hh_brother');
+await dad.click('button[type=submit]');
+await dad.waitForSelector('text=מתארחים אצל אח ואשתו');
+
+await brother.goto(BASE);
+await brother.click('text=שינוי תשובה');
+await brother.waitForSelector('text=מתארחים אצל…');
+await brother.click('text=מתארחים אצל…');
+await brother.waitForSelector('select[name=hostHouseholdId]');
+await brother.selectOption('select[name=hostHouseholdId]', 'hh_parents');
+await brother.click('button[type=submit]');
+await brother.waitForSelector('text=מתארחים אצל אבא ואמא');
+
+check('the family going to them is warned', await brother.isVisible('text=שימו לב — הם ענו שהם מתארחים'));
+await dad.reload();
+check('and so is the family they are going to', await dad.isVisible('text=שימו לב — הם ענו שהם מתארחים'));
+const mutual = rows('Conflicts').filter((r) => r[0] === 'erev_rosh_hashana_2026');
+check(`both directions reach the sheet (${mutual.length} rows)`, mutual.length === 2);
 
 // ── history ──────────────────────────────────────────────────────────────────
 await dad.click('text=איפה היינו בחגים קודמים');

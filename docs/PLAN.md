@@ -151,7 +151,8 @@ Two, plus one field for your phone number.
    *<span dir="rtl">"סוכות תשפ״ו — היינו אצל אבא ואמא"</span>*. Read straight from the log.
 
 **Which holiday is "next"** is simply the earliest row in `Holidays` with `include = TRUE` and a
-date not yet passed. If the tab runs out of future rows, the app says so plainly rather than
+date not yet passed. The arrows walk the same list up to a month out — and the answer carries the
+holiday it was given for, so answering ahead can never overwrite the nearest one. If the tab runs out of future rows, the app says so plainly rather than
 guessing — that's your cue to seed more years.
 
 ---

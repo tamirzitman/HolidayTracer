@@ -144,12 +144,29 @@ export async function householdPhone(householdId: string): Promise<string> {
   return (await loadSheet()).people.find((p) => p.householdId === householdId)?.phone ?? '';
 }
 
+/**
+ * The holidays worth answering for right now: everything included from today up
+ * to a month out. Nobody plans Passover eighteen months ahead, and a short list
+ * keeps the arrows meaningful.
+ */
+export async function getUpcomingHolidays(withinDays = 31): Promise<Holiday[]> {
+  const today = todayInIsrael();
+  const until = new Date(Date.parse(`${today}T00:00:00Z`) + withinDays * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+
+  const included = (await loadSheet()).holidays
+    .filter((h) => h.include && h.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Always offer at least the nearest one, even if it is further out than the window.
+  const withinWindow = included.filter((h) => h.date <= until);
+  return withinWindow.length > 0 ? withinWindow : included.slice(0, 1);
+}
+
 /** The earliest included holiday that hasn't passed. Undefined means the tab needs more rows. */
 export async function getNextHoliday(): Promise<Holiday | undefined> {
-  const today = todayInIsrael();
-  return (await loadSheet()).holidays
-    .filter((h) => h.include && h.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  return (await getUpcomingHolidays())[0];
 }
 
 /** The log is append-only, so a household's answer is its last row for that holiday. */

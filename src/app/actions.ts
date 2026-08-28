@@ -7,7 +7,7 @@ import {
   findPerson,
   getHousehold,
   getHouseholds,
-  getNextHoliday,
+  getUpcomingHolidays,
   rewriteConflicts,
 } from '@/lib/data';
 import { normalizePhone } from '@/lib/phone';
@@ -54,8 +54,12 @@ export async function answer(_prev: ActionResult, formData: FormData): Promise<A
   const household = await getHousehold(person.householdId);
   if (!household) return { error: 'המשפחה שלכם כבר לא ברשימה' };
 
-  const holiday = await getNextHoliday();
-  if (!holiday) return { error: 'אין חג קרוב ברשימה' };
+  // Which holiday is being answered comes from the form, because the screen may
+  // have been stepped forward. Only holidays inside the window are accepted.
+  const holidayKey = String(formData.get('holidayKey') ?? '').trim();
+  const upcoming = await getUpcomingHolidays();
+  const holiday = upcoming.find((h) => h.key === holidayKey) ?? (holidayKey ? undefined : upcoming[0]);
+  if (!holiday) return { error: 'החג הזה כבר לא פתוח לתשובות' };
 
   const kind = String(formData.get('kind') ?? '') as AnswerKind;
   if (kind !== 'hosting' && kind !== 'guest') return { error: 'לא הבנתי את התשובה' };

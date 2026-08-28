@@ -7,7 +7,7 @@ import {
   findPerson,
   getHouseholds,
   getLatestAnswer,
-  getNextHoliday,
+  getUpcomingHolidays,
   guestsComingTo,
   householdPhone,
   todayInIsrael,
@@ -22,7 +22,11 @@ function daysUntil(date: string): number {
   return Math.round((to - from) / 86_400_000);
 }
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ h?: string }>;
+}) {
   const phone = await getSessionPhone();
   if (!phone) return <SignInForm />;
 
@@ -31,8 +35,8 @@ export default async function Page() {
     return <RegisterForm phone={phone} households={await getHouseholds()} />;
   }
 
-  const holiday = await getNextHoliday();
-  if (!holiday) {
+  const upcoming = await getUpcomingHolidays();
+  if (upcoming.length === 0) {
     return (
       <div className={`${card} flex flex-col gap-2 text-center`}>
         <Title>אין חג קרוב ברשימה</Title>
@@ -41,6 +45,12 @@ export default async function Page() {
     );
   }
 
+  // Which holiday is on screen comes from the URL, so the arrows are plain links
+  // and a half-finished answer can't be lost to a stray tap.
+  const requested = (await searchParams).h;
+  const at = Math.max(0, upcoming.findIndex((h) => h.key === requested));
+  const holiday = upcoming[at];
+
   const [households, current, guests, conflict] = await Promise.all([
     getHouseholds(),
     getLatestAnswer(holiday.key, person.householdId),
@@ -48,7 +58,7 @@ export default async function Page() {
     findConflict(holiday.key, person.householdId),
   ]);
 
-  // Names and numbers are resolved here so the log itself can stay ids-only.
+  // Names and numbers are resolved here so the log itself can stay keys-only.
   const host = current?.hostHouseholdId
     ? {
         name: households.find((h) => h.id === current.hostHouseholdId)?.name ?? current.hostHouseholdId,
@@ -56,18 +66,19 @@ export default async function Page() {
       }
     : undefined;
 
-  const myHousehold = households.find((h) => h.id === person.householdId);
-
   return (
     <AnswerForm
+      key={holiday.key}
       holiday={holiday}
       households={households}
-      householdName={myHousehold?.name ?? ''}
+      householdName={households.find((h) => h.id === person.householdId)?.name ?? ''}
       current={current}
       host={host}
       daysAway={daysUntil(holiday.date)}
       guests={guests.map((g) => ({ id: g.id, name: g.name }))}
       hostDisagrees={Boolean(conflict)}
+      earlierKey={at > 0 ? upcoming[at - 1].key : undefined}
+      laterKey={at < upcoming.length - 1 ? upcoming[at + 1].key : undefined}
     />
   );
 }

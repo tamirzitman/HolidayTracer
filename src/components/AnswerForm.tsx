@@ -20,6 +20,9 @@ type Props = {
   guests: { id: string; name: string }[];
   /** Set when our host answered that they are not hosting. */
   hostDisagrees: boolean;
+  /** Neighbouring holidays inside the month-ahead window, if there are any. */
+  earlierKey: string | undefined;
+  laterKey: string | undefined;
 };
 
 function whenLabel(daysAway: number): string {
@@ -43,6 +46,8 @@ export function AnswerForm({
   daysAway,
   guests,
   hostDisagrees,
+  earlierKey,
+  laterKey,
 }: Props) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(answer, {});
   const [choosingHost, setChoosingHost] = useState(false);
@@ -75,7 +80,13 @@ export function AnswerForm({
             {householdName}
           </span>
         )}
-        <p className="font-display text-4xl leading-tight font-bold text-ink">{holiday.nameHe}</p>
+        <div className="flex w-full items-center justify-center gap-1">
+          <Step to={earlierKey} label="החג הקודם" glyph="›" />
+          <p className="font-display grow text-4xl leading-tight font-bold text-balance text-ink">
+            {holiday.nameHe}
+          </p>
+          <Step to={laterKey} label="החג הבא" glyph="‹" />
+        </div>
         <p className="text-sm text-muted">
           {formatDate(holiday.date)} · {whenLabel(daysAway)}
         </p>
@@ -121,6 +132,7 @@ export function AnswerForm({
         </div>
       ) : (
         <form action={formAction} className={`${card} flex flex-col gap-3`}>
+          <input type="hidden" name="holidayKey" value={holiday.key} />
           <Title>איפה אתם בחג?</Title>
 
           {!choosingHost ? (
@@ -172,6 +184,20 @@ export function AnswerForm({
         איפה היינו בחגים קודמים
       </Link>
     </div>
+  );
+}
+
+/**
+ * One step through the holidays inside the window. A link rather than a button,
+ * so the chosen holiday lives in the URL and survives a refresh.
+ */
+function Step({ to, label, glyph }: { to: string | undefined; label: string; glyph: string }) {
+  const shape = 'grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl';
+  if (!to) return <span aria-hidden="true" className={`${shape} text-transparent`} />;
+  return (
+    <Link href={`/?h=${encodeURIComponent(to)}`} aria-label={label} className={`${shape} text-brand`}>
+      {glyph}
+    </Link>
   );
 }
 
