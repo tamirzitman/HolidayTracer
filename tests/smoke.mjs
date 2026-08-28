@@ -207,6 +207,30 @@ await dad.waitForURL(/\?h=rosh_hashana_ii_2026/);
 check(`the arrow moves to the next holiday (${firstHoliday} → ${(await dad.innerText('.font-display')).trim()})`,
   (await dad.innerText('.font-display')).trim() !== firstHoliday);
 
+// ── history: counts, and correcting the record ───────────────────────────────
+await dad.click('nav >> text=היסטוריה');
+await dad.waitForURL('**/history');
+check('past holidays are listed', await dad.isVisible('text=ערב פסח'));
+
+const stats = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.textContent.trim()));
+check(`three counts, and they add up (${stats.join(' / ')})`,
+  stats.length === 3 && Number(stats[0]) + Number(stats[1]) === Number(stats[2]));
+
+const beforeEdit = rows('Answers').length;
+const pastRow = dad.locator('li', { hasText: 'ערב פסח' });
+await pastRow.getByText('עריכה').click();
+// It opens on the answer that is already there — a guest — so switch first.
+await pastRow.getByRole('button', { name: 'בעצם אירחנו' }).click();
+await pastRow.getByRole('button', { name: 'אירחנו', exact: true }).click();
+await dad.waitForTimeout(1500);
+check('editing a past holiday appends rather than overwrites',
+  rows('Answers').length === beforeEdit + 1);
+
+await dad.goto(`${BASE}/history`);
+const corrected = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.textContent.trim()));
+check(`the counts follow the correction (${stats.join('/')} → ${corrected.join('/')})`,
+  Number(corrected[0]) === Number(stats[0]) + 1);
+
 // ── the log stays keys-only ──────────────────────────────────────────────────
 const a = rows('Answers').at(-1);
 check(`the log holds five columns and no names (${a.join(' | ')})`,

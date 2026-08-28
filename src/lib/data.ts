@@ -258,23 +258,31 @@ export async function circleAnswers(
   });
 }
 
-/** Past holidays this household answered for, newest first. */
-export async function historyFor(householdId: string): Promise<{ holiday: Holiday; answer: Answer }[]> {
+/**
+ * Every holiday that has passed, newest first, with what this household said —
+ * including the ones it never answered, so a gap can be filled in later.
+ */
+export async function historyFor(
+  householdId: string,
+): Promise<{ holiday: Holiday; answer: Answer | undefined }[]> {
   const sheet = await loadSheet();
   const today = todayInIsrael();
-  const holidays = new Map(sheet.holidays.map((h) => [h.key, h]));
-  const seen = new Map<string, Answer>();
 
+  const mine = new Map<string, Answer>();
   for (const a of sheet.answers) {
-    if (a.householdId !== householdId) continue;
-    const holiday = holidays.get(a.holidayKey);
-    if (!holiday || holiday.date >= today) continue;
-    seen.set(a.holidayKey, a);
+    if (a.householdId === householdId) mine.set(a.holidayKey, a);
   }
 
-  return [...seen.values()]
-    .map((answer) => ({ answer, holiday: holidays.get(answer.holidayKey)! }))
-    .sort((a, b) => b.holiday.date.localeCompare(a.holiday.date));
+  return sheet.holidays
+    .filter((h) => h.include && h.date < today)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .map((holiday) => ({ holiday, answer: mine.get(holiday.key) }));
+}
+
+/** A holiday that has already passed, for correcting the record after the fact. */
+export async function getPastHoliday(key: string): Promise<Holiday | undefined> {
+  const today = todayInIsrael();
+  return (await loadSheet()).holidays.find((h) => h.key === key && h.date < today);
 }
 
 // ── writing ───────────────────────────────────────────────────────────────────

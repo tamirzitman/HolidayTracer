@@ -137,5 +137,13 @@ on the spot, and the rest come back as a WhatsApp invite addressed to that perso
 address book is stored. **Chrome on Android only** — the Contact Picker API does not exist in
 Safari on iOS or on desktop, so the button is behind a feature check.
 
-Still to come: hosting stats, the reminder before a holiday, push, and deleting the `Conflicts`
-tab in favour of computing conflicts on read.
+### History: counts, and correcting it
+The history screen shows three counts — hosted, visited, total — plus who you ended up with most
+often. Three numbers are not a chart: no axes, no colour encoding, text tokens only.
+
+Every past holiday is listed, **including ones nobody answered**, so a gap can be filled in later.
+Editing appends a newer row rather than overwriting: the same mechanism as changing today's answer,
+pointed at a date that has passed, so nothing is ever lost and the counts follow the correction.
+
+Still to come: the reminder before a holiday, push, and deleting the `Conflicts` tab in favour of
+computing conflicts on read.

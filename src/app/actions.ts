@@ -11,6 +11,7 @@ import {
   createInvite,
   findPerson,
   getHousehold,
+  getPastHoliday,
   getUpcomingHolidays,
   hideFamily,
   isConnected,
@@ -173,6 +174,49 @@ export async function addFamilyNow(
 
   revalidatePath('/');
   revalidatePath('/families');
+  return {};
+}
+
+/**
+ * Correcting the record after the fact. The log is append-only, so an edit is
+ * simply a newer row for that holiday — the same mechanism as changing today's
+ * answer, pointed at a date that has passed.
+ */
+export async function editHistory(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const phone = await getSessionPhone();
+  if (!phone) return { error: 'הכניסה פגה, נסו שוב' };
+  const person = await findPerson(phone);
+  if (!person) return { error: 'עוד לא סיימתם להירשם' };
+
+  const holiday = await getPastHoliday(String(formData.get('holidayKey') ?? '').trim());
+  if (!holiday) return { error: 'החג הזה לא נמצא' };
+
+  const kind = String(formData.get('kind') ?? '') as AnswerKind;
+  if (kind !== 'hosting' && kind !== 'guest') return { error: 'לא הבנתי את התשובה' };
+
+  let hostHouseholdId = '';
+  if (kind === 'guest') {
+    const hostId = String(formData.get('hostHouseholdId') ?? '').trim();
+    if (!hostId) return { error: 'צריך לבחור אצל מי הייתם' };
+    if (hostId === person.householdId) return { error: 'אי אפשר להתארח אצל עצמכם' };
+    if (!(await isConnected(person.householdId, hostId))) {
+      return { error: 'המשפחה הזו לא במעגל שלכם' };
+    }
+    hostHouseholdId = hostId;
+  }
+
+  await appendAnswer({
+    timestamp: new Date().toISOString(),
+    holidayKey: holiday.key,
+    kind,
+    hostHouseholdId,
+    byPhone: person.phone,
+  });
+
+  revalidatePath('/history');
   return {};
 }
 
