@@ -1,11 +1,13 @@
 # HolidayTracer
 
-A mobile-friendly web app for an extended family to track holiday meals: **who hosts, who comes,
-and who was at another family this year** — and to remember all of it next year.
+A dead-simple web app for a family. One question each holiday:
 
-Hebrew (RTL) interface, Jewish holidays on the Israeli schedule.
+> **<span dir="rtl">איפה אתם בחג?</span>** — <span dir="rtl">אני מארח</span>, or
+> <span dir="rtl">מתארח אצל</span> + a phone number.
+
+Phone numbers are households. Hebrew (RTL) interface, Jewish holidays on the Israeli schedule.
 
 > **Status: planning.** No code yet.
 
-- [docs/PLAN.md](docs/PLAN.md) — product and technical plan
+- [docs/PLAN.md](docs/PLAN.md) — the plan
 - [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) — what still needs deciding

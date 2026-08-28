@@ -1,92 +1,63 @@
 # Open questions
 
-Things that are **not decided** and that I did not want to invent. Ordered by how much they
-change the build. Q1 is the only one that could reshape the plan; the rest can be answered as we
-reach the phase that needs them.
+Not decided, and not guessed. Short list — the app is small now.
 
 ---
 
-### Q1. Does this cover **Shabbat dinners**, or only holidays? 🔴 *blocks phase 1*
-"Holiday" so far means yom tov. But Friday-night dinner is the same question every single week —
-who hosts, who's at the other side of the family. If Shabbat is in scope, the app needs a
-recurring weekly gathering and a very low-friction RSVP (one tap, and probably a "same as usual"
-default), which is a different rhythm from 6 holidays a year. It's a small change now and a large
-one later.
+### Q1. Which holidays does the app ask about? 🔴 *blocks phase 1*
+The Hebrew calendar has many days; the family gathers on a few. My starting guess, to be corrected:
 
-**Options:** holidays only · holidays + Shabbat · holidays now, Shabbat in phase 2.
+<div dir="rtl">
 
----
+ראש השנה · ערב יום כיפור · סוכות · שמחת תורה · ליל הסדר · שביעי של פסח · שבועות
 
-### Q2. Which holidays exactly get a meal auto-created? 🔴 *blocks phase 1*
-The Hebrew calendar gives many days; the family probably gathers for a few. My starting guess,
-to be corrected:
+</div>
 
-- ראש השנה (ערב) · ערב יום כיפור (סעודה מפסקת) · סוכות (ערב) · שמחת תורה · **ליל הסדר** · שביעי של פסח · שבועות
-
-Unclear whether these belong: חנוכה, פורים (סעודת פורים), ל"ג בעומר, יום העצמאות (מנגל), ט"ו בשבט,
-family birthdays / yahrzeits.
+Unclear: חנוכה, פורים, יום העצמאות, ל״ג בעומר.
 
 ---
 
-### Q3. How do people sign in?
-Google sign-in is easiest to build; **phone + SMS code** is what an Israeli parent will find
-easiest to use, but SMS costs money per message and needs a provider. Email magic-link is free and
-in the middle. Which matters more — build simplicity or your parents getting in without help?
+### Q2. Friday-night Shabbat too, or holidays only? 🔴 *blocks phase 1*
+The question — *"where are you this time"* — fits Shabbat perfectly, and it's the same question 52
+times a year instead of 7. The app is now simple enough that this is a genuinely small addition,
+but it changes the main screen from "the next holiday" to "this coming Shabbat, and the next
+holiday". Cheap now, annoying to retrofit.
 
 ---
 
-### Q4. Who is allowed to create a gathering and set the host?
-Only circle admins, or any adult in the circle? A family may not want a formal hierarchy at all —
-but with no restriction, two people can set two different hosts for the same meal.
-**Suggested default:** anyone can *propose*, an admin *confirms*. Confirm or override.
+### Q3. Who names a household, and what's it called?
+When Dad signs up first, his household needs a name for others to recognise in the "who's coming"
+list. Options: he types one at sign-up (<span dir="rtl">"הורים"</span>), or it defaults to his own
+name and can be edited later. **Currently assumed: defaults to the first member's name, editable.**
 
 ---
 
-### Q5. How do reminders reach people?
-The family lives on WhatsApp, but the WhatsApp Business API is not free and not simple for a
-family app. Realistic options:
-1. **A "copy summary to WhatsApp" button** — the app writes the message, a human pastes it into
-   the family group. Free, works today, zero infrastructure. *My recommendation.*
-2. Email reminders — free, but people don't read email.
-3. Web push — free, works on installed PWAs (Android, and iOS 16.4+ once added to the home
-   screen), but everyone must install the app and grant permission.
+### Q4. Two people in one household give different answers.
+Mom says *"we're hosting"*, Dad says *"we're at Tamir's"*. The plan says **last answer wins**, and
+shows who answered it. Is that right, or should the app warn the second person that their household
+already answered?
 
 ---
 
-### Q6. Do children get accounts?
-Right now the plan says adults log in, children are counted via their household. At what age does
-a child become a member with a login — or do teenagers just use their parents' household entry?
+### Q5. Should the app flag a contradiction?
+You say you're at your parents'; your parents say they're at your brother's. The app knows both
+facts and could show you one line: <span dir="rtl">"שים לב — הם ענו שהם מתארחים"</span>. It's the
+one thing that stops the app from being quietly wrong — but it is also a feature beyond the single
+question. **In or out?**
 
 ---
 
-### Q7. What is the actual scale?
-Roughly how many households and people in the first circle, and how many circles do you expect
-overall? It doesn't change the stack (any of these is small), but it changes whether the
-attendance screen is a simple list or needs grouping and search.
+### Q6. One holiday at a time, or a list?
+Does the main screen show only the next holiday, or the next few so people can answer early?
+**Currently assumed: the next one only.**
 
 ---
 
-### Q8. Is this only ever for your family?
-If it stays private, we can hard-code Israel/Hebrew and skip a lot of configuration. If there's
-any chance other families use it one day, a few things (locale, Israel-vs-Diaspora schedule,
-sign-up flow) should be settings from the start rather than retrofitted. The plan currently
-assumes **private, one family**.
+### Q7. Can an answer be changed after the holiday has passed?
+For fixing history. **Currently assumed: yes, freely — it's a family app, not an audit log.**
 
 ---
 
-### Q9. "Nobody hosts" — how should that look?
-E.g. the whole family goes to a hotel for Passover, or a restaurant. The plan supports it via a
-location override with no host household — but should a hotel year count against anyone's hosting
-rotation? Currently it counts as *nobody hosted*.
-
----
-
-### Q10. Editing history
-Once a holiday has passed, who can correct the record — anyone, or admins only? And should there
-be a visible "edited by" note?
-
----
-
-### Q11. Hebrew dates in the UI
-Show Hebrew dates alongside Gregorian everywhere (י״ד בניסן תשפ״ז), only on holiday titles, or not
-at all? The plan currently shows both on the holiday card.
+### Q8. Non-Israeli phone numbers?
+Normalization assumes Israeli numbers (a leading `0` becomes `+972`). Is anyone in the family
+abroad, or is Israel-only safe to hard-code?
