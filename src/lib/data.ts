@@ -72,7 +72,6 @@ async function fetchSheet(): Promise<Sheet> {
         nameHe: cell(row, holidaysTab.headers, 'name_he'),
         type: cell(row, holidaysTab.headers, 'type'),
         date: cell(row, holidaysTab.headers, 'date'),
-        hebrewDate: cell(row, holidaysTab.headers, 'hebrew_date'),
         year: cell(row, holidaysTab.headers, 'year'),
         include: isTrue(cell(row, holidaysTab.headers, 'include')),
       }))
@@ -82,19 +81,17 @@ async function fetchSheet(): Promise<Sheet> {
       .map((row) => ({
         id: cell(row, householdsTab.headers, 'household_id'),
         name: cell(row, householdsTab.headers, 'name'),
-        contactPersonId: cell(row, householdsTab.headers, 'contact_person_id'),
         active: isTrue(cell(row, householdsTab.headers, 'active')),
       }))
       .filter((h) => h.id && h.name && h.active),
 
     people: peopleTab.body
       .map((row) => ({
-        id: cell(row, peopleTab.headers, 'person_id'),
         phone: cell(row, peopleTab.headers, 'phone'),
         name: cell(row, peopleTab.headers, 'name'),
         householdId: cell(row, peopleTab.headers, 'household_id'),
       }))
-      .filter((p) => p.id && p.phone),
+      .filter((p) => p.phone),
 
     answers: answersTab.body
       .map((row) => ({
@@ -104,7 +101,7 @@ async function fetchSheet(): Promise<Sheet> {
         householdId: cell(row, answersTab.headers, 'household_id'),
         kind: cell(row, answersTab.headers, 'kind') as AnswerKind,
         hostHouseholdId: cell(row, answersTab.headers, 'host_household_id'),
-        byPersonId: cell(row, answersTab.headers, 'by_person_id'),
+        byPhone: cell(row, answersTab.headers, 'by_phone'),
       }))
       .filter((a) => a.holidayKey && a.householdId),
 
@@ -131,12 +128,9 @@ export async function findPerson(phone: string): Promise<Person | undefined> {
   return (await loadSheet()).people.find((p) => p.phone === phone && p.householdId);
 }
 
-/** The number to call for a family: its contact person's, from People. */
+/** The number to call for a family: whoever from it is registered. No extra column needed. */
 export async function householdPhone(householdId: string): Promise<string> {
-  const sheet = await loadSheet();
-  const household = sheet.households.find((h) => h.id === householdId);
-  if (!household?.contactPersonId) return '';
-  return sheet.people.find((p) => p.id === household.contactPersonId)?.phone ?? '';
+  return (await loadSheet()).people.find((p) => p.householdId === householdId)?.phone ?? '';
 }
 
 /** The earliest included holiday that hasn't passed. Undefined means the tab needs more rows. */
@@ -264,14 +258,6 @@ export async function rewriteConflicts(): Promise<void> {
 
 // ── writes ────────────────────────────────────────────────────────────────────
 
-/** Ids are p_1, p_2 … allocated from whatever the sheet already holds. */
-export async function nextPersonId(): Promise<string> {
-  const used = (await loadSheet()).people
-    .map((p) => Number(/^p_(\d+)$/.exec(p.id)?.[1] ?? 0))
-    .filter((n) => Number.isFinite(n));
-  return `p_${Math.max(0, ...used) + 1}`;
-}
-
 async function appendRow(tab: string, headers: readonly string[], row: string[]): Promise<void> {
   const store = sheetStore();
   // A tab whose first row is data would have that row read back as the header
@@ -282,12 +268,7 @@ async function appendRow(tab: string, headers: readonly string[], row: string[])
 }
 
 export async function addPerson(person: Person): Promise<void> {
-  await appendRow(TABS.people, HEADERS.people, [
-    person.id,
-    person.phone,
-    person.name,
-    person.householdId,
-  ]);
+  await appendRow(TABS.people, HEADERS.people, [person.phone, person.name, person.householdId]);
 }
 
 export async function appendAnswer(answer: Answer): Promise<void> {
@@ -298,6 +279,6 @@ export async function appendAnswer(answer: Answer): Promise<void> {
     answer.householdId,
     answer.kind,
     answer.hostHouseholdId,
-    answer.byPersonId,
+    answer.byPhone,
   ]);
 }

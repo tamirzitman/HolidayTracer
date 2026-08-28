@@ -49,58 +49,61 @@ The app is deliberately dumb: it reads the sheet, shows a question, and appends 
 
 ## 2. The spreadsheet
 
-Five tabs. **Every fact is stored once.** Names live in `Households`, phone numbers live in
-`People`, and everything else references them by id — so correcting a name or a number is one edit,
-not a hunt through the log. Years are **Gregorian**: 2026, not 5786.
+Five tabs, and nothing in them that isn't needed. Names live in `Households`, phone numbers live in
+`People`, and everything else references them by key. Years are **Gregorian**: 2026, not 5786.
 
 ### `Holidays` — only what you gather for
-| holiday_key | name_he | type | date | hebrew_date | year | include |
-|---|---|---|---|---|---|---|
-| `erev_rosh_hashana_2026` | <span dir="rtl">ערב ראש השנה</span> | <span dir="rtl">ערב חג</span> | 2026-09-11 | <span dir="rtl">כ״ט אלול תשפ״ו</span> | 2026 | TRUE |
+| holiday_key | name_he | type | date | year | include |
+|---|---|---|---|---|---|
+| `erev_rosh_hashana_2026` | <span dir="rtl">ערב ראש השנה</span> | <span dir="rtl">ערב חג</span> | 2026-09-11 | 2026 | TRUE |
 
-The seed writes **only the kinds of holiday your family actually gathers for** — seven kinds over
-ten years is seventy rows, not two hundred. `npm run seed:holidays -- --list-kinds` shows what can
-be asked for; `--kinds` changes the set. `include` stays as an off-switch for a single occurrence.
+The seed writes **only the kinds of holiday your family gathers for** — seven kinds over ten years
+is seventy rows, not two hundred. `npm run seed:holidays -- --list-kinds` shows what can be asked
+for; `--kinds` changes the set; `npm run mark -- --on purim` switches one on across every year.
 
 The app has **no calendar logic**. `@hebcal/core` runs in the seed script only.
 
 ### `Households` — the dropdown
-| household_id | name | contact_person_id | active |
-|---|---|---|---|
-| `hh_parents` | <span dir="rtl">אבא ואמא</span> | `p_1` | TRUE |
+| household_id | name | active |
+|---|---|---|
+| `hh_parents` | <span dir="rtl">אבא ואמא</span> | TRUE |
 
-No phone column: the number to call comes from the contact person's row in `People`.
-**Only you add rows here** — the app cannot create a family, so duplicates are impossible.
+No phone column. The number to call for a family is simply the number of whoever from it is
+registered in `People` — a lookup, not a column to keep in step.
 
-### `People` — a phone number, stored once
-| person_id | phone | name | household_id |
-|---|---|---|---|
-| `p_1` | +972501234567 | <span dir="rtl">אבא</span> | `hh_parents` |
+**Only you add rows here.** The app cannot create a family, so duplicates are impossible.
 
-Several people in one household point at the same `household_id`. Ids are `p_1`, `p_2`, … and the
-app allocates the next one when somebody registers.
+### `People` — the phone number is the key
+| phone | name | household_id |
+|---|---|---|
+| +972501234567 | <span dir="rtl">אבא</span> | `hh_parents` |
+
+No second id: the number already identifies the person. Several people in one household point at
+the same `household_id`.
 
 ### `Answers` — the log, one tab forever
-| timestamp | year | holiday_key | household_id | kind | host_household_id | by_person_id |
+| timestamp | year | holiday_key | household_id | kind | host_household_id | by_phone |
 |---|---|---|---|---|---|---|
-| 2026-08-28T16:21:39Z | 2026 | `erev_rosh_hashana_2026` | `hh_tamir` | `guest` | `hh_ofer` | `p_1` |
+| 2026-08-28T16:21:39Z | 2026 | `erev_rosh_hashana_2026` | `hh_tamir` | `guest` | `hh_ofer` | +972584844848 |
 
-Ids only — no names, no phone numbers. **Append-only:** changing an answer writes a new row and the
-newest row for a holiday + household wins, so a mis-tap can't destroy history.
+Keys only — no names copied out of other tabs. `by_phone` points at a row in `People`, the same way
+`household_id` points at `Households`.
+
+**Append-only:** changing an answer writes a new row and the newest row for a holiday + household
+wins, so a mis-tap can't destroy history.
 
 ### `Conflicts` — written by the app
 | holiday_key | household_id | host_household_id | host_kind | host_host_household_id | detected_at |
 |---|---|---|---|---|---|
 
 Somebody is a guest at a family whose own newest answer isn't `hosting`. Derived, not a log: the
-app rewrites it whenever it would change, so **never edit it by hand**.
-
-A host who simply hasn't answered yet is not a conflict — that's an unanswered question.
+app rewrites it whenever it would change, so **never edit it by hand**. A host who simply hasn't
+answered yet is not a conflict — that's an unanswered question.
 
 ### Speed
 The whole spreadsheet is fetched in **one batched request** and held in memory for twenty seconds,
-cleared by any write. Five separate round trips to Google was most of the wait after pressing a
-button: a page load went from seconds to about 25ms once warm.
+cleared by any write. A page load is about a second cold and 25ms warm; it used to make five
+separate round trips to Google every time.
 
 ## 3. Signing in
 

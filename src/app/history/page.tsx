@@ -30,7 +30,7 @@ export default async function HistoryPage() {
               <span className="text-muted">
                 {answer.kind === 'hosting' ? 'אירחנו' : `היינו אצל ${nameOf(answer.hostHouseholdId)}`}
               </span>
-              <span className="text-sm text-muted">{holiday.hebrewDate}</span>
+              <span className="text-sm text-muted">{holiday.date.split('-').reverse().map(Number).join('.')}</span>
             </li>
           ))}
         </ul>

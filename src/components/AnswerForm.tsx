@@ -26,6 +26,12 @@ function whenLabel(daysAway: number): string {
   return `בעוד ${daysAway} ימים`;
 }
 
+/** 2026-09-11 → 11.9.2026 */
+function formatDate(date: string): string {
+  const [y, m, d] = date.split('-');
+  return `${Number(d)}.${Number(m)}.${y}`;
+}
+
 export function AnswerForm({
   holiday,
   households,
@@ -53,7 +59,7 @@ export function AnswerForm({
       <header className="flex flex-col items-center gap-1 text-center">
         <p className="font-display text-4xl leading-tight font-bold text-ink">{holiday.nameHe}</p>
         <p className="text-sm text-muted">
-          {holiday.hebrewDate} · {whenLabel(daysAway)}
+          {formatDate(holiday.date)} · {whenLabel(daysAway)}
         </p>
       </header>
 

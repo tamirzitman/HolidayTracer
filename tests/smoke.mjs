@@ -39,7 +39,7 @@ check('unknown number lands on registration', await brother.isVisible('text=נע
 const options = await brother.$$eval('select[name=householdId] option', (els) =>
   els.map((e) => e.textContent.trim()).filter((t) => t !== 'בחרו מהרשימה'),
 );
-const activeInSheet = rows('Households').filter((r) => r[3] === 'TRUE').map((r) => r[1]);
+const activeInSheet = rows('Households').filter((r) => r[2] === 'TRUE').map((r) => r[1]);
 check(`dropdown lists exactly the active families (${options.join(', ')})`,
   options.length === activeInSheet.length && activeInSheet.every((n) => options.includes(n)));
 check('no way to create a family from the app', !(await brother.isVisible('text=משפחה חדשה')));
@@ -48,7 +48,7 @@ await brother.fill('input[name=name]', 'אח');
 await brother.selectOption('select[name=householdId]', 'hh_brother');
 await brother.click('button[type=submit]');
 await brother.waitForSelector('text=איפה אתם בחג?');
-check('a People row was appended', rows('People').some((r) => r[2] === 'אח' && r[3] === 'hh_brother'));
+check('a People row was appended', rows('People').some((r) => r[1] === 'אח' && r[2] === 'hh_brother'));
 
 const holidayName = (await brother.innerText('.font-display')).trim();
 check(`next holiday is the soonest included one (${holidayName})`, holidayName.length > 0);
@@ -68,9 +68,8 @@ const a = rows('Answers').at(-1);
 check(`answer row is right (${a.slice(2).join(' | ')})`,
   a[3] === 'hh_brother' && a[4] === 'guest' && a[5] === 'hh_parents');
 check(`the year is Gregorian, not Hebrew (${a[1]})`, /^20\d{2}$/.test(a[1]));
-check('the log stores no names or phone numbers',
-  !a.some((v) => /[\u0590-\u05FF]/.test(v) || /^\+?\d{9,}$/.test(v)));
-check('the answer references a person by id', /^p_\d+$/.test(a[6]));
+check('the log stores no names', !a.some((v) => /[\u0590-\u05FF]/.test(v)));
+check('the answer records who answered, by phone', /^\+\d{9,}$/.test(a[6]));
 
 // ── the parents host, and see who is coming ───────────────────────────────────
 const dad = await open();

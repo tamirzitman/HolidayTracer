@@ -95,7 +95,6 @@ const all = HebrewCalendar.calendar({ start, end, il: true, sedrot: false, candl
         stripYear(ev.render('he-x-NoNikud')),
         type,
         date.toISOString().slice(0, 10),
-        ev.getDate().renderGematriya(true),
         year,
         'TRUE',
       ],

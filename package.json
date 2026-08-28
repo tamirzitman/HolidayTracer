@@ -12,7 +12,7 @@
     "test:smoke": "node tests/smoke.mjs",
     "setup": "tsx scripts/setup.mts",
     "mark": "tsx scripts/mark-holidays.mts",
-    "migrate": "tsx scripts/migrate-to-ids.mts"
+    "migrate": "tsx scripts/migrate.mts"
   },
   "dependencies": {
     "googleapis": "^176.0.0",
