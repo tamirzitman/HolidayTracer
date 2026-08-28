@@ -33,6 +33,9 @@ type Props = {
   position: { index: number; total: number };
 };
 
+/** The same height whether the holiday has been answered or not. */
+const cardFloor = 'min-h-[17.5rem]';
+
 function whenLabel(daysAway: number): string {
   if (daysAway <= 0) return 'היום';
   if (daysAway === 1) return 'מחר';
@@ -220,11 +223,13 @@ export function AnswerForm({
 
       {celebrating && <Celebration kind={shown?.kind} />}
 
-      {/* Answered and unanswered cards are different sizes; without a floor the
-          page jumps as you swipe through a year that is half filled in. */}
-      <div className="flex min-h-[17.5rem] flex-col justify-start">
+      {/* Answered and unanswered holidays fill a card to different heights, and
+          swiping through a half-filled year made the page grow and shrink under
+          the finger. Both cards keep the same floor, so the space sits inside
+          the card where it looks intended rather than as a hole beneath it. */}
+      <div className="flex flex-col">
         {answered ? (
-          <div className={`${card} celebrate-card flex flex-col items-center gap-3 text-center`}>
+          <div className={`${card} ${cardFloor} celebrate-card flex flex-col items-center justify-center gap-3 text-center`}>
             {shown.kind === 'hosting' ? (
               <p className="font-display text-3xl font-bold text-brand">אנחנו מארחים</p>
             ) : shown.kind === 'away' ? (
@@ -280,7 +285,7 @@ export function AnswerForm({
               });
               formAction(data);
             }}
-            className={`${card} flex flex-col gap-3`}
+            className={`${card} ${cardFloor} flex flex-col justify-center gap-3`}
           >
             <input type="hidden" name="holidayKey" value={holiday.key} />
             <Title>איפה אתם בחג?</Title>
