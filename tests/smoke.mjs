@@ -666,9 +666,12 @@ check(`removal is a row, not a deletion (include=${gone[5]})`,
   gone[0] === occasionKey && gone[5] === 'FALSE');
 
 // ── the log stays keys-only ──────────────────────────────────────────────────
+// Counted against the header rather than a fixed number: the point is that the
+// log holds keys and no names, not that it has exactly so many columns.
+const answerHeader = sheet().Answers[0];
 const a = rows('Answers').at(-1);
-check(`the log holds five columns and no names (${a.join(' | ')})`,
-  a.length === 5 && !a.some((v) => /[֐-׿]/.test(v)));
+check(`the log holds ${answerHeader.length} keyed columns and no names (${a.join(' | ')})`,
+  a.length === answerHeader.length && !a.some((v) => /[֐-׿]/.test(v)));
 
 await browser.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
