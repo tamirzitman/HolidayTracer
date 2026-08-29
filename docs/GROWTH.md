@@ -132,8 +132,35 @@ listed and leaving the screen to invite them is not going to happen.
 - **With a name only:** the household works and can be answered for, but nobody from it can ever
   join. It is shown as **טרם הצטרפו** until a number is attached.
 - **A number already known never creates a second household** — it connects to the existing one.
-- **Nothing is inherited.** Only the person who added them is connected; anyone else adds them
-  themselves, and using the same number lands on the same household.
+- **Nothing is inherited automatically.** Adding a family connects only you. Other people reach
+  them by ticking them at the join screen or taking up the suggestion below — both are somebody's
+  decision, never a side effect of yours.
+
+### Circles overlap, so joining starts from the inviter's
+
+Circles are not independent lists: a brother's is most of yours, a parent's can be all of it, an
+uncle's about half. Arriving on an invite with only the family that invited you means arriving with
+nothing to answer about — but copying their whole circle across would put the uncle's wife's family
+on your list, which is exactly what circles exist to prevent.
+
+So the choice is the newcomer's, on the screen they are already standing on. The join screen lists
+the inviter's circle as a checklist, **ticked to begin with**, with one button to clear it:
+
+- **A parent inviting a child (all of it overlaps):** touch nothing, press סיום.
+- **A brother (most of it):** untick two or three.
+- **An uncle (about half):** press בטלו הכל, then tick the half that matters.
+
+It costs the inviter nothing — the same link they already send — and every name is checked against
+the inviter's circle when the form is submitted, so a hand-made request cannot connect a household
+to a family nobody offered it.
+
+### Families your families know, and you don't
+
+The checklist covers the first minute; it does not cover the drift afterwards, when your uncle adds
+two families and nothing tells you. The families screen carries a quiet **מוצע להוספה** list:
+households that sit in the circles of families you are connected to but not in yours, ordered by
+how many of your families know each one. That count *is* the overlap, measured rather than asked
+for, and it is read straight off `Connections` — nobody does anything to keep it current.
 
 ### Contacts
 Families can be picked out of the phone's address book: numbers already in the app are connected
@@ -142,8 +169,8 @@ address book is stored. **Chrome on Android only** — the Contact Picker API do
 Safari on iOS or on desktop, so the button is behind a feature check.
 
 ### History: counts, and correcting it
-The history screen shows three counts — hosted, visited, total — plus who you ended up with most
-often. Three numbers are not a chart: no axes, no colour encoding, text tokens only.
+The history screen shows three counts — hosted, visited, total. Three numbers are not a chart: no
+axes, no colour encoding, text tokens only.
 
 Every past holiday is listed, **including ones nobody answered**, so a gap can be filled in later.
 Editing appends a newer row rather than overwriting: the same mechanism as changing today's answer,

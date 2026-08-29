@@ -39,18 +39,29 @@ export function AddFamilyInline() {
         </button>
       )}
 
-      <label className="flex flex-col gap-2">
-        <span className="text-sm font-semibold text-muted">איך הם ייקראו אצלכם?</span>
-        <input
-          name="familyName"
-          type="text"
-          required
-          defaultValue={picked?.name ?? ''}
-          key={picked?.phone ?? 'empty'}
-          placeholder="משפחת כהן"
-          className={field}
-        />
-      </label>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 text-sm font-semibold text-muted">איך הם ייקראו אצלכם?</legend>
+        {/* Split the same way as registering a family, so names made here and
+            names made there come out looking alike. A picked contact goes into
+            the first names, since that is what an address book usually holds. */}
+        <div className="flex gap-2" key={picked?.phone ?? 'empty'}>
+          <input
+            name="familyFirstNames"
+            type="text"
+            defaultValue={picked?.name ?? ''}
+            placeholder="שמות פרטיים"
+            aria-label="שמות פרטיים"
+            className={`${field} grow`}
+          />
+          <input
+            name="familySurname"
+            type="text"
+            placeholder="שם משפחה"
+            aria-label="שם משפחה"
+            className={`${field} grow`}
+          />
+        </div>
+      </fieldset>
 
       <input type="hidden" name="familyPhone" value={picked?.phone ?? ''} />
 

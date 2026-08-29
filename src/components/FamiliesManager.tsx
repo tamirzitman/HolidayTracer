@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { newInviteLink } from '@/app/actions';
+import { addSuggested, newInviteLink } from '@/app/actions';
 import { ContactPicker } from './ContactPicker';
 import { FamilyWhatsApp, WhatsAppMark, type Member } from './WhatsApp';
 import { inviteText } from '@/lib/whatsapp';
-import { Title, card, primaryButton, quietButton, secondaryButton } from './ui';
+import { Title, card, chipButton, primaryButton, quietButton, secondaryButton } from './ui';
 
 type Family = { id: string; name: string; members: Member[] };
 
@@ -13,15 +13,19 @@ export function FamiliesManager({
   householdName,
   families,
   inviteUrl,
+  suggested,
 }: {
   householdName: string;
   families: Family[];
   /** This family's standing join link, for the families nobody has joined yet. */
   inviteUrl: string;
+  /** Families your families know and you don't, with how many of them know each. */
+  suggested: { id: string; name: string; seenBy: number }[];
 }) {
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<'family' | 'household' | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
 
   async function makeLink(kind: 'family' | 'household') {
     setBusy(kind);
@@ -79,6 +83,44 @@ export function FamiliesManager({
           </ul>
         )}
       </section>
+      {/* Circles drift apart as people add families of their own. Rather than ask
+          anyone to keep the lists in step, this reads the overlap off the
+          connections that already exist. */}
+      {suggested.length > 0 && (
+        <section className={`${card} flex flex-col gap-1 p-0`}>
+          <h2 className="px-5 pt-4 pb-1 text-sm font-bold text-muted">מוצע להוספה</h2>
+          <ul className="divide-y divide-line">
+            {suggested.map((family) => (
+              <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">
+                <div className="min-w-0 grow">
+                  <p className="truncate font-semibold text-ink">{family.name}</p>
+                  <p className="text-sm text-muted">
+                    {family.seenBy === 1
+                      ? 'משפחה אחת שלכם רואה אותם'
+                      : `${family.seenBy} מהמשפחות שלכם רואות אותם`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={adding === family.id}
+                  onClick={async () => {
+                    setAdding(family.id);
+                    try {
+                      await addSuggested(family.id);
+                    } finally {
+                      setAdding(null);
+                    }
+                  }}
+                  className={chipButton}
+                >
+                  {adding === family.id ? 'רגע…' : 'הוספה'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <div className={`${card} flex flex-col gap-3`}>
         <h2 className="font-display text-xl font-bold text-ink">הזמנה</h2>
         <p className="text-sm text-muted">

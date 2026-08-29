@@ -15,6 +15,7 @@ export function JoinForm({
   invitedBy,
   kind,
   claimable,
+  circle,
 }: {
   phone: string;
   token: string;
@@ -22,9 +23,15 @@ export function JoinForm({
   kind: 'family' | 'household';
   /** Families already on the inviter's list, which this newcomer may belong to. */
   claimable: { id: string; name: string }[];
+  /** The inviter's own circle, offered to the newcomer to start from. */
+  circle: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(register, {});
   const [claim, setClaim] = useState('');
+  // Ticked to begin with: most invitations go to people whose list would look
+  // almost exactly like the inviter's — a parent's can be all of it. Trimming a
+  // few is less work than picking a dozen, and there is one tap for the rest.
+  const [share, setShare] = useState<string[]>(() => circle.map((h) => h.id));
 
   return (
     <form action={formAction} className={`${card} flex flex-col gap-5`}>
@@ -75,18 +82,84 @@ export function JoinForm({
           )}
 
           {!claim && (
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-muted">
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-2 text-sm font-semibold text-muted">
                 איך המשפחה שלכם תופיע לאחרים?
+              </legend>
+              <div className="flex gap-2">
+                <input
+                  name="firstNames"
+                  type="text"
+                  required
+                  placeholder="שמות פרטיים"
+                  aria-label="שמות פרטיים"
+                  className={`${field} grow`}
+                />
+                <input
+                  name="surname"
+                  type="text"
+                  required
+                  placeholder="שם משפחה"
+                  aria-label="שם משפחה"
+                  className={`${field} grow`}
+                />
+              </div>
+              <span className="text-xs text-muted">
+                יופיע כשם אחד — למשל «נעמה ויובל לייבוביץ׳».
               </span>
-              <input
-                name="householdName"
-                type="text"
-                required
-                placeholder="דנה ויוסי"
-                className={field}
-              />
-            </label>
+            </fieldset>
+          )}
+
+          {/* The whole point of arriving on somebody's invite: their list is
+              probably most of yours. Deciding here costs the inviter nothing
+              and saves the newcomer from an app with one family in it. */}
+          {circle.length > 0 && (
+            <fieldset className="flex flex-col gap-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <legend className="text-sm font-semibold text-muted">
+                  {invitedBy} רואים גם את אלה. מי מהן רלוונטית לכם?
+                </legend>
+                <button
+                  type="button"
+                  onClick={() => setShare(share.length === 0 ? circle.map((h) => h.id) : [])}
+                  className="shrink-0 text-xs font-bold text-brand underline underline-offset-4"
+                >
+                  {share.length === 0 ? 'סמנו הכל' : 'בטלו הכל'}
+                </button>
+              </div>
+              <ul className="grid grid-cols-2 gap-1.5">
+                {circle.map((family) => {
+                  const on = share.includes(family.id);
+                  return (
+                    <li key={family.id}>
+                      <label
+                        className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                          on
+                            ? 'border-brand/40 bg-brand-wash text-brand'
+                            : 'border-line bg-surface text-muted'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          name="share"
+                          value={family.id}
+                          checked={on}
+                          onChange={() =>
+                            setShare((was) =>
+                              was.includes(family.id)
+                                ? was.filter((id) => id !== family.id)
+                                : [...was, family.id],
+                            )
+                          }
+                          className="h-4 w-4 shrink-0 accent-brand"
+                        />
+                        <span className="truncate">{family.name}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </fieldset>
           )}
         </>
       )}

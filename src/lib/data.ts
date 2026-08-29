@@ -435,6 +435,37 @@ export async function claimableIn(householdId: string): Promise<Household[]> {
   return [...all.filter((h) => !joined.has(h.id)), ...all.filter((h) => joined.has(h.id))];
 }
 
+/**
+ * Families that the families you know all know, and you don't.
+ *
+ * Circles overlap heavily — a brother's list is most of yours, a parent's may
+ * be all of it — but the overlap drifts as people add families of their own.
+ * Rather than ask anyone to keep the lists in step, this reads the overlap off
+ * the connections that already exist: a household in several of your families'
+ * circles but not in yours is almost certainly one of yours too. The count is
+ * the evidence, and it is what the list is ordered by.
+ */
+export async function suggestionsFor(
+  householdId: string,
+): Promise<{ household: Household; seenBy: number }[]> {
+  const sheet = await loadSheet();
+  const mine = await circleOf(householdId);
+  const known = new Set([householdId, ...mine.map((h) => h.id)]);
+
+  const seenBy = new Map<string, number>();
+  for (const family of mine) {
+    for (const theirs of await circleOf(family.id)) {
+      if (known.has(theirs.id)) continue;
+      seenBy.set(theirs.id, (seenBy.get(theirs.id) ?? 0) + 1);
+    }
+  }
+
+  return [...seenBy.entries()]
+    .map(([id, count]) => ({ household: sheet.households.find((h) => h.id === id), seenBy: count }))
+    .filter((s): s is { household: Household; seenBy: number } => s.household !== undefined)
+    .sort((a, b) => b.seenBy - a.seenBy || a.household.name.localeCompare(b.household.name, 'he'));
+}
+
 export async function isConnected(a: string, b: string): Promise<boolean> {
   return connectionState((await loadSheet()).connections, a).get(b) === 'add';
 }

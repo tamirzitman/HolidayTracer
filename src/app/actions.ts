@@ -18,8 +18,10 @@ import {
   isConnected,
   readInvite,
   recordConflicts,
+  suggestionsFor,
   claimableIn,
 } from '@/lib/data';
+import { familyName } from '@/lib/names';
 import { normalizePhone } from '@/lib/phone';
 import { clearSession, getSessionPhone, setSessionPhone } from '@/lib/session';
 import type { AnswerKind } from '@/lib/types';
@@ -76,14 +78,29 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
       }
       householdId = claiming;
     } else {
-      const householdName = String(formData.get('householdName') ?? '').trim();
-      if (!householdName) return { error: 'צריך שם למשפחה' };
-      householdId = await addHousehold(householdName);
+      const named = familyName(
+        String(formData.get('firstNames') ?? ''),
+        String(formData.get('surname') ?? ''),
+      );
+      if (!named) return { error: 'צריך שם למשפחה' };
+      householdId = await addHousehold(named);
     }
   }
 
   await addPerson({ phone, name, householdId });
   if (householdId !== invite.household.id) await connect(householdId, invite.household.id);
+
+  // The families the newcomer ticked off the inviter's circle. Circles overlap
+  // heavily — a parent's list can be all of yours — so arriving with only the
+  // one family that invited you means arriving with nothing to answer about.
+  // The choice is theirs and it costs the inviter nothing; every name is
+  // checked against the inviter's circle so a hand-made form cannot connect
+  // this household to a family nobody offered it.
+  const offered = new Set((await circleOf(invite.household.id)).map((h) => h.id));
+  for (const id of formData.getAll('share').map(String)) {
+    if (!offered.has(id) || id === householdId) continue;
+    if (!(await isConnected(householdId, id))) await connect(householdId, id);
+  }
 
   // Straight to the question: that is what they came for.
   revalidatePath('/');
@@ -153,7 +170,10 @@ export async function addFamilyNow(
   const me = await currentHousehold();
   if ('error' in me) return me;
 
-  const name = String(formData.get('familyName') ?? '').trim();
+  const name = familyName(
+    String(formData.get('familyFirstNames') ?? ''),
+    String(formData.get('familySurname') ?? ''),
+  );
   const phone = normalizePhone(String(formData.get('familyPhone') ?? ''));
   if (!name && !phone) return { error: 'צריך שם למשפחה' };
 
@@ -255,6 +275,26 @@ export async function deleteOccasion(
   revalidatePath('/occasions');
   revalidatePath('/history');
   return { savedAt: new Date().toISOString() };
+}
+
+/**
+ * Taking up one of the families suggested on the families screen. Only a
+ * household that is actually being suggested can be added, so this cannot be
+ * used to reach into the sheet and connect to an arbitrary id.
+ */
+export async function addSuggested(householdId: string): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const suggested = await suggestionsFor(me.householdId);
+  if (!suggested.some((s) => s.household.id === householdId)) {
+    return { error: 'המשפחה הזו לא בהצעות שלכם' };
+  }
+
+  await connect(me.householdId, householdId);
+  revalidatePath('/families');
+  revalidatePath('/');
+  return {};
 }
 
 export async function newInviteLink(kind: 'family' | 'household'): Promise<string> {

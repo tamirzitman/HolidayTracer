@@ -69,23 +69,41 @@ const newcomer = await open();
 await newcomer.goto(`${BASE}/join/${token}`);
 await newcomer.fill('input[name=phone]', NEWCOMER);
 await newcomer.click('button[type=submit]');
-await newcomer.waitForSelector('input[name=householdName]');
+await newcomer.waitForSelector('input[name=firstNames]');
 check('the invite names who invited them', await newcomer.isVisible('text=אבא ואמא'));
 check('and asks for no phone number', !(await newcomer.isVisible('input[name=joinPhone]')));
+check('the family name is asked for in two parts',
+  (await newcomer.$$('input[name=firstNames], input[name=surname]')).length === 2);
+
+// ── the inviter's circle is offered, ticked, and can be trimmed ──────────────
+const offeredAtJoin = await newcomer.$$eval('input[name=share]', (els) =>
+  els.map((e) => ({ id: e.value, on: e.checked })),
+);
+check(`the inviter's circle is offered (${offeredAtJoin.length} families)`,
+  offeredAtJoin.length >= 2);
+check('all of it ticked to begin with', offeredAtJoin.every((f) => f.on));
+await newcomer.uncheck('input[name=share][value=hh_sister]');
+check('and one can be dropped',
+  !(await newcomer.isChecked('input[name=share][value=hh_sister]')));
+
 await newcomer.fill('input[name=name]', 'דנה');
-await newcomer.fill('input[name=householdName]', 'דנה ויוסי');
+await newcomer.fill('input[name=firstNames]', 'דנה ויוסי');
+await newcomer.fill('input[name=surname]', 'לוי');
 await newcomer.click('button[type=submit]');
 await newcomer.waitForSelector('text=איפה אתם בחג?');
-check('the newcomer is in', rows('Households').some((r) => r[1] === 'דנה ויוסי'));
+check('the newcomer is in', rows('Households').some((r) => r[1] === 'דנה ויוסי לוי'));
+check('the family name is the two fields joined',
+  rows('Households').some((r) => r[1] === 'דנה ויוסי לוי'));
 
-// ── connections are not inherited ────────────────────────────────────────────
+// ── they arrive with the families they ticked, and only those ────────────────
 await newcomer.click('text=מתארחים אצל…');
 await newcomer.waitForSelector('select[name=hostHouseholdId]');
 const options = await newcomer.$$eval('select[name=hostHouseholdId] option', (els) =>
   els.map((e) => e.textContent.trim()).filter((t) => t !== 'בחרו משפחה'),
 );
-check(`the newcomer sees only who invited them (${options.join(', ') || 'none'})`,
-  options.length === 1 && options[0] === 'אבא ואמא');
+check(`the newcomer starts with more than the one family (${options.join(', ') || 'none'})`,
+  options.length > 1 && options.includes('אבא ואמא'));
+check('and without the one they unticked', !options.includes('אחות ובעלה'));
 
 await newcomer.selectOption('select[name=hostHouseholdId]', { label: 'אבא ואמא' });
 await newcomer.click('button[type=submit]');
@@ -94,7 +112,7 @@ check('the newcomer can answer for the family that invited them',
   await newcomer.isVisible('text=מתארחים אצל אבא ואמא'));
 
 await dad.goto(BASE);
-check('and they show up as coming', await dad.isVisible('text=דנה ויוסי'));
+check('and they show up as coming', await dad.isVisible('text=דנה ויוסי לוי'));
 
 // ── both say they are at the other, and the sheet records it ─────────────────
 // The Conflicts tab is an event log now: rows are appended, never rewritten, so
@@ -110,9 +128,9 @@ await dad.click('text=שינוי תשובה');
 await dad.waitForSelector('text=מתארחים אצל…');
 await dad.click('text=מתארחים אצל…');
 await dad.waitForSelector('select[name=hostHouseholdId]');
-await dad.selectOption('select[name=hostHouseholdId]', { label: 'דנה ויוסי' });
+await dad.selectOption('select[name=hostHouseholdId]', { label: 'דנה ויוסי לוי' });
 await dad.click('button[type=submit]');
-await dad.waitForSelector('text=מתארחים אצל דנה ויוסי');
+await dad.waitForSelector('text=מתארחים אצל דנה ויוסי לוי');
 
 await newcomer.reload();
 check('the guest is warned their host is not hosting',
@@ -145,7 +163,7 @@ await dad.click('text=שינוי תשובה');
 await dad.waitForSelector('text=מתארחים אצל…');
 await dad.click('text=מתארחים אצל…');
 await dad.click('text=לא מוצאים? הוסיפו משפחה');
-await dad.fill('input[name=familyName]', 'משפחת כהן');
+await dad.fill('input[name=familySurname]', 'כהן');
 await dad.click('text=הוספה');
 await dad.waitForTimeout(1500);
 check('a family can be added while answering', rows('Households').length === beforeAdd + 1);
@@ -158,11 +176,11 @@ await dad.waitForSelector('select[name=hostHouseholdId]');
 const withCohen = await dad.$$eval('select[name=hostHouseholdId] option', (els) =>
   els.map((e) => e.textContent.trim()),
 );
-check('and is immediately pickable', withCohen.includes('משפחת כהן'));
-await dad.selectOption('select[name=hostHouseholdId]', { label: 'משפחת כהן' });
+check('and is immediately pickable', withCohen.includes('כהן'));
+await dad.selectOption('select[name=hostHouseholdId]', { label: 'כהן' });
 await dad.click('button[type=submit]');
-await dad.waitForSelector('text=מתארחים אצל משפחת כהן');
-check('answering at them works', await dad.isVisible('text=מתארחים אצל משפחת כהן'));
+await dad.waitForSelector('text=מתארחים אצל כהן');
+check('answering at them works', await dad.isVisible('text=מתארחים אצל כהן'));
 
 await dad.goto(`${BASE}/families`);
 check('a family nobody has joined is marked', await dad.isVisible('text=טרם הצטרפו'));
@@ -176,7 +194,7 @@ await newcomer.waitForSelector('select[name=hostHouseholdId]');
 const newcomerSees = await newcomer.$$eval('select[name=hostHouseholdId] option', (els) =>
   els.map((e) => e.textContent.trim()),
 );
-check('and nobody else inherits them', !newcomerSees.includes('משפחת כהן'));
+check('and nobody else inherits them', !newcomerSees.includes('כהן'));
 
 // ── picking families out of the address book ─────────────────────────────────
 // Chromium has no Contact Picker, so we hand the page one. What is being tested
@@ -202,7 +220,7 @@ check('the picker appears when the browser has one', await dad.isVisible('text=�
 await dad.click('text=בחירה מאנשי הקשר');
 await dad.waitForSelector('text=/נוספו:|כבר ברשימה:/');
 check('a contact already in the app is reported as already there',
-  await dad.isVisible('text=כבר ברשימה: דנה ויוסי'));
+  await dad.isVisible('text=כבר ברשימה: דנה ויוסי לוי'));
 check('a contact who is not gets an invite', await dad.isVisible('text=שכנים'));
 const inviteHref = await dad.getAttribute('li:has-text("שכנים") >> a', 'href');
 check(`the invite is addressed to their number (${inviteHref?.slice(0, 24)}…)`,
@@ -253,6 +271,33 @@ const corrected = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.te
 check(`the counts follow the correction (${stats.join('/')} → ${corrected.join('/')})`,
   Number(corrected[0]) === Number(stats[0]) + 1);
 
+// ── families your families know, and you don't ───────────────────────────────
+// Dad dropped nobody, so he sees everything already. The newcomer unticked
+// אחות ובעלה at the join, and every family that did keep them is now evidence
+// that they belong on the newcomer's list too.
+await newcomer.goto(`${BASE}/families`);
+const suggestions = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) =>
+  els.map((e) => e.innerText.replace(/\n+/g, ' | ').trim()),
+);
+check(`the overlap is offered back (${suggestions[0] ?? 'none'})`,
+  suggestions.some((t) => t.includes('אחות ובעלה')));
+check('with how many of your families know them',
+  suggestions.some((t) => /\d+ מהמשפחות שלכם רואות אותם|משפחה אחת שלכם רואה אותם/.test(t)));
+
+const beforeSuggest = rows('Connections').length;
+await newcomer.click('li:has-text("אחות ובעלה") >> text=הוספה');
+await newcomer.waitForTimeout(1500);
+check('taking one up connects the two families',
+  rows('Connections').length === beforeSuggest + 2);
+await newcomer.goto(BASE);
+await newcomer.click('text=שינוי תשובה');
+await newcomer.click('text=מתארחים אצל…');
+await newcomer.waitForSelector('select[name=hostHouseholdId]');
+const nowSees = await newcomer.$$eval('select[name=hostHouseholdId] option', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check('and they are pickable straight away', nowSees.includes('אחות ובעלה'));
+
 // ── everything goes out through WhatsApp ─────────────────────────────────────
 await dad.goto(BASE);
 if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
@@ -301,12 +346,13 @@ await dad.goto(BASE);
 if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
 await dad.click('text=מתארחים אצל…');
 await dad.click('text=לא מוצאים? הוסיפו משפחה');
-await dad.fill('input[name=familyName]', 'נעמה ויובל');
-await dad.click('form:has(input[name=familyName]) button[type=submit]');
+await dad.fill('input[name=familyFirstNames]', 'נעמה ויובל');
+await dad.fill('input[name=familySurname]', 'לייבוביץ');
+await dad.click('form:has(input[name=familyFirstNames]) button[type=submit]');
 await dad.waitForTimeout(1500);
 check('a family added by name is one new household',
   rows('Households').length === beforeJoin + 1);
-const leibowitz = rows('Households').find((r) => r[1] === 'נעמה ויובל')[0];
+const leibowitz = rows('Households').find((r) => r[1] === 'נעמה ויובל לייבוביץ')[0];
 
 await dad.goto(`${BASE}/families`);
 await dad.click('text=הזמנת משפחה');
@@ -322,9 +368,9 @@ const offered = await naama.$$eval('select[name=claimHouseholdId] option', (els)
   els.map((e) => e.textContent.trim()),
 );
 check(`a newcomer is offered the families already on the list (${offered.length})`,
-  offered.includes('נעמה ויובל'));
+  offered.includes('נעמה ויובל לייבוביץ'));
 await naama.fill('input[name=name]', 'נעמה');
-await naama.selectOption('select[name=claimHouseholdId]', { label: 'נעמה ויובל' });
+await naama.selectOption('select[name=claimHouseholdId]', { label: 'נעמה ויובל לייבוביץ' });
 check('and claiming one replaces being asked to name a new family',
   !(await naama.isVisible('input[name=householdName]')));
 await naama.click('button[type=submit]');
@@ -341,9 +387,9 @@ const stillOffered = await yuval.$$eval('select[name=claimHouseholdId] option', 
   els.map((e) => e.textContent.trim()),
 );
 check('a family somebody already joined is still offered to the next one',
-  stillOffered.includes('נעמה ויובל'));
+  stillOffered.includes('נעמה ויובל לייבוביץ'));
 await yuval.fill('input[name=name]', 'יובל');
-await yuval.selectOption('select[name=claimHouseholdId]', { label: 'נעמה ויובל' });
+await yuval.selectOption('select[name=claimHouseholdId]', { label: 'נעמה ויובל לייבוביץ' });
 await yuval.click('button[type=submit]');
 await yuval.waitForTimeout(1500);
 
@@ -352,7 +398,7 @@ check('a second number in the family opens no household either',
 check('both numbers sit in the one household',
   rows('People').filter((r) => r[2] === leibowitz).length === 2);
 check('so the family is one row, not two',
-  rows('Households').filter((r) => r[1] === 'נעמה ויובל').length === 1);
+  rows('Households').filter((r) => r[1] === 'נעמה ויובל לייבוביץ').length === 1);
 await naama.close();
 await yuval.close();
 
