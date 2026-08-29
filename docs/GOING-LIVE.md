@@ -110,6 +110,20 @@ sheet is already up to date.
 
 You get a URL like `holidaytracer.vercel.app`. Open it, sign in with your own number, and answer.
 
+### A preview deployment pointed at a scratch sheet
+
+Vercel scopes each variable to the environments you tick, and **two variables with the same name
+cannot share one**. So splitting `SHEET_ID` is a two-step edit, in this order:
+
+1. Edit the existing `SHEET_ID` and untick everything but **Production**. Save.
+2. Add a second `SHEET_ID`, the scratch sheet's id, ticked for **Preview** only.
+3. Add `PLAYGROUND=1`, **Preview** only — it puts a standing
+   <span dir="rtl">סביבת ניסיון</span> strip across the top.
+
+Leave `SESSION_SECRET` and the two Google values on every environment; the preview needs them too.
+Doing step 1 without step 2 leaves preview deployments with no sheet at all, which the app refuses
+to start on rather than coming up looking empty.
+
 ### Then send the family the link
 Ask everyone to open it on their phone and use **Add to Home Screen** — it then behaves like an app
 and they never sign in again.

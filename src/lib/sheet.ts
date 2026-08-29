@@ -111,6 +111,16 @@ let store: SheetStore | undefined;
 export function sheetStore(): SheetStore {
   if (!store) {
     const id = process.env.SHEET_ID;
+    // Falling back to a local file is right on a laptop and wrong on a
+    // deployment: the filesystem there is empty and read-only, so the app would
+    // come up looking merely empty rather than misconfigured. Missing SHEET_ID
+    // on Vercel is a mistake, and it should say so.
+    if (!id && process.env.VERCEL) {
+      throw new Error(
+        'SHEET_ID is not set for this deployment. Vercel scopes variables per ' +
+          'environment — check that Preview has one of its own.',
+      );
+    }
     store = id ? googleStore(id) : localStore();
   }
   return store;
