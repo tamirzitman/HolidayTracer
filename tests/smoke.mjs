@@ -143,10 +143,13 @@ await dad.click('nav >> text=המעגלים');
 await dad.waitForURL('**/families');
 check('the tab bar reaches the circles screen', await dad.isVisible('text=המעגלים שלי'));
 const beforeInvite = rows('Invites').length;
+await dad.fill('input[list=circle-names]', 'המשפחה של אבא');
 await dad.click('text=הזמנת משפחה');
 await dad.waitForSelector('text=שליחה בוואטסאפ');
 check('an invite link is created', rows('Invites').length === beforeInvite + 1);
 check('the invite is a family invite', rows('Invites').at(-1)[2] === 'family');
+check(`and it names the circle it joins (${rows('Invites').at(-1)[4]})`,
+  rows('Invites').at(-1)[4] === 'המשפחה של אבא');
 const token = rows('Invites').at(-1)[0];
 
 const newcomer = await open();
@@ -401,6 +404,7 @@ await friend.click('button[type=submit]');
 await friend.waitForSelector('input[name=firstName]');
 await friend.fill('input[name=firstName]', 'חבר');
 await friend.fill('input[name=surname]', 'סקרן');
+await friend.fill('input[name=householdName]', 'חבר סקרן');
 await friend.click('text=/^להירשם בלי להתחבר/');
 await friend.waitForSelector('text=איפה אתם בחג?');
 await friend.waitForTimeout(1500);
@@ -422,6 +426,50 @@ await late.waitForSelector('input[name=phone]');
 check('an expired link falls back to signing in, not to a dead end',
   await late.isVisible('text=כבר לא בתוקף'));
 await late.close();
+
+// ── two sides of a family are two circles ────────────────────────────────────
+// They never sit together and do not share a group chat, so an invite to one is
+// not an invite to the other. The link is what makes the circle.
+await dad.goto(`${BASE}/families`);
+await dad.waitForSelector('text=המעגלים שלי');
+if (await dad.isVisible('text=קישור אחר')) await dad.click('text=קישור אחר');
+await dad.fill('input[list=circle-names]', 'המשפחה של אמא');
+await dad.click('text=הזמנת משפחה');
+await dad.waitForSelector('text=שליחה בוואטסאפ');
+const otherSide = rows('Invites').at(-1)[0];
+
+const cousin = await open();
+await cousin.goto(`${BASE}/join/${otherSide}`);
+await cousin.fill('input[name=phone]', '058-300-4001');
+await cousin.click('button[type=submit]');
+await cousin.waitForSelector('input[name=firstName]');
+await cousin.fill('input[name=firstName]', 'דודה');
+await cousin.fill('input[name=surname]', 'לוי');
+await cousin.fill('input[name=householdName]', 'דודה ואבי לוי');
+await cousin.click('text=/^סיום/');
+await cousin.waitForSelector('text=איפה אתם בחג?');
+await cousin.waitForTimeout(1500);
+await cousin.close();
+
+check('joining through a link files it under that link\'s circle',
+  rows('Connections').some((r) => r[4] === 'המשפחה של אמא'));
+
+await dad.goto(`${BASE}/families`);
+await dad.waitForSelector('text=המעגלים שלי');
+const headings = await dad.$$eval('section h2', (els) => els.map((e) => e.textContent.trim()));
+check(`the circles screen keeps them apart (${headings.join(' · ')})`,
+  headings.includes('המשפחה של אבא') && headings.includes('המשפחה של אמא'));
+
+await dad.goto(BASE);
+await dad.waitForSelector('nav');
+if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
+await dad.click('text=מתארחים אצל…');
+await dad.waitForSelector('select[name=hostHouseholdId]');
+const grouped = await dad.$$eval('select[name=hostHouseholdId] optgroup', (els) =>
+  els.map((g) => g.label),
+);
+check(`and the dropdown is grouped the same way (${grouped.join(' · ')})`,
+  grouped.includes('המשפחה של אבא') && grouped.includes('המשפחה של אמא'));
 
 // ── everything goes out through WhatsApp ─────────────────────────────────────
 await dad.goto(BASE);
