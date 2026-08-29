@@ -3,7 +3,7 @@ import { signOut } from '@/app/actions';
 import { AnswerForm } from '@/components/AnswerForm';
 import { JoinForm } from '@/components/JoinForm';
 import { SignInForm } from '@/components/SignInForm';
-import { Title, card, quietButton, secondaryButton } from '@/components/ui';
+import { Title, card, secondaryButton } from '@/components/ui';
 import {
   circleAnswers,
   circleOf,
@@ -67,14 +67,7 @@ export default async function Page({
     // No invite needed. Signing up leaves you with nobody on your list, and the
     // families you add bring the families they know along as suggestions.
     return (
-      <div className="flex flex-col gap-4">
-        <JoinForm phone={phone} token="" invitedBy="" kind="family" claimable={[]} />
-        <form action={signOut} className="text-center">
-          <button type="submit" className={quietButton}>
-            זה לא המספר שלי
-          </button>
-        </form>
-      </div>
+      <JoinForm phone={phone} token="" invitedBy="" kind="family" claimable={[]} onLeave={signOut} />
     );
   }
 

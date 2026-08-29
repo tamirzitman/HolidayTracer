@@ -3,8 +3,7 @@
 import { useActionState, useState } from 'react';
 import { register, type ActionResult } from '@/app/actions';
 import { formatPhone } from '@/lib/phone';
-import { familyName } from '@/lib/names';
-import { ErrorNote, Title, card, field, primaryButton, quietButton } from './ui';
+import { ErrorNote, Title, card, field, primaryButton, quietButton, secondaryButton } from './ui';
 
 /**
  * Signing up — with an invite or without one. An invite is only a shortcut: it
@@ -17,6 +16,7 @@ export function JoinForm({
   invitedBy,
   kind,
   claimable,
+  onLeave,
 }: {
   phone: string;
   token: string;
@@ -24,17 +24,18 @@ export function JoinForm({
   kind: 'family' | 'household';
   /** Families already on the inviter's list, which this newcomer may belong to. */
   claimable: { id: string; name: string }[];
+  /**
+   * Leaving half-way. Refreshing keeps the cookie, so without this a number
+   * typed one digit wrong is a screen there is no way off.
+   */
+  onLeave: () => void;
 }) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(register, {});
   const [claim, setClaim] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [surname, setSurname] = useState('');
-  // Follows the two name fields until it is edited, and then stops following.
-  const [touched, setTouched] = useState(false);
-  const suggested = familyName(firstName, surname);
-  const [typed, setHouseholdRaw] = useState('');
-  const household = touched ? typed : suggested;
-  const setHousehold = (value: string) => setHouseholdRaw(value);
+  // The family name is not built from yours. A household is usually a couple —
+  // "עמוס וליאת כהן" — so filling it in from one person's name is wrong more
+  // often than right, and a wrong answer already in the box is worse than an
+  // empty one: people accept it. An example in grey says the shape instead.
   // Claiming an existing family is the rarer path, so it waits behind a line of
   // text rather than sitting in the way of everyone who is genuinely new.
   const [claiming, setClaiming] = useState(false);
@@ -55,6 +56,13 @@ export function JoinForm({
         <p className="text-muted">
           נרשמים עם המספר <span dir="ltr">{formatPhone(phone)}</span>
         </p>
+        <button
+          type="button"
+          onClick={() => onLeave()}
+          className="text-sm font-semibold text-muted underline underline-offset-4"
+        >
+          זה לא המספר שלי — יציאה
+        </button>
       </div>
 
       {/* Two questions that look like one. The names are about *you*; the
@@ -70,8 +78,6 @@ export function JoinForm({
             type="text"
             autoComplete="given-name"
             required
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
             className={field}
           />
         </label>
@@ -82,8 +88,6 @@ export function JoinForm({
             type="text"
             autoComplete="family-name"
             required
-            value={surname}
-            onChange={(e) => setSurname(e.target.value)}
             className={field}
           />
         </label>
@@ -104,17 +108,9 @@ export function JoinForm({
                 name="householdName"
                 type="text"
                 required
-                value={household}
-                onChange={(e) => {
-                  setTouched(true);
-                  setHousehold(e.target.value);
-                }}
-                placeholder="דנה ויוסי כהן"
+                placeholder="עמוס וליאת כהן"
                 className={field}
               />
-              <span className="text-xs text-muted">
-                אפשר לשנות — למשל להוסיף את בן או בת הזוג.
-              </span>
             </label>
           )}
 
@@ -146,9 +142,20 @@ export function JoinForm({
               <button
                 type="button"
                 onClick={() => setClaiming(true)}
-                className="text-start text-sm font-semibold text-brand underline underline-offset-4"
+                className="flex w-full items-center gap-3 rounded-2xl border border-brand/40 bg-brand-wash px-4 py-3.5 text-start transition active:scale-[0.99]"
               >
-                המשפחה שלנו כבר ברשימה
+                <span className="text-xl" aria-hidden="true">👪</span>
+                <span className="grow">
+                  <span className="block text-sm font-bold text-brand">
+                    המשפחה שלנו כבר ברשימה
+                  </span>
+                  <span className="block text-xs text-muted">
+                    מישהו כבר הוסיף אתכם? בחרו בשם שלכם במקום לפתוח משפחה חדשה.
+                  </span>
+                </span>
+                <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-brand" fill="none" aria-hidden="true">
+                  <path d="M15 5 L8 12 L15 19" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
             ))}
 
@@ -175,9 +182,9 @@ export function JoinForm({
             name="connect"
             value="no"
             disabled={pending}
-            className={quietButton}
+            className={secondaryButton}
           >
-            רק להירשם, בלי להתחבר לאף אחד
+            להירשם בלי להתחבר ל{invitedBy}
           </button>
         </>
       ) : (

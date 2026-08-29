@@ -167,6 +167,10 @@ const asked = await newcomer.$$eval('input:not([type=hidden]), select', (els) =>
   els.map((e) => e.name || e.type),
 );
 check(`joining asks three things and no more (${asked.join(', ')})`, asked.length === 3);
+check('the family name is not guessed from your own',
+  (await newcomer.inputValue('input[name=householdName]')) === '');
+check('a way out exists for a number typed wrong',
+  await newcomer.isVisible('text=זה לא המספר שלי — יציאה'));
 check('and judges nobody else on the way in',
   (await newcomer.$$('input[name=share]')).length === 0);
 
@@ -178,8 +182,6 @@ check('claiming an existing family is a line away, not in the way',
 
 await newcomer.fill('input[name=firstName]', 'דנה');
 await newcomer.fill('input[name=surname]', 'לוי');
-check('the family name is filled in from them',
-  (await newcomer.inputValue('input[name=householdName]')) === 'דנה לוי');
 await newcomer.fill('input[name=householdName]', 'דנה ויוסי לוי');
 const joinButtons = await newcomer.$$eval('form button[type=submit]', (els) =>
   els.map((e) => e.textContent.trim()),
