@@ -12,6 +12,8 @@ export type SheetStore = {
   /** Every tab in one request. Five round trips to Google is the difference between fast and slow. */
   readMany(tabs: string[]): Promise<Record<string, string[][]>>;
   append(tab: string, row: string[]): Promise<void>;
+  /** Several rows in one request. Ten families moved is one round trip, not ten. */
+  appendMany(tab: string, rows: string[][]): Promise<void>;
   replace(tab: string, rows: string[][]): Promise<void>;
 };
 
@@ -48,12 +50,16 @@ function googleStore(spreadsheetId: string): SheetStore {
       return out;
     },
     async append(tab, row) {
+      await this.appendMany(tab, [row]);
+    },
+    async appendMany(tab, rows) {
+      if (rows.length === 0) return;
       await sheets.spreadsheets.values.append({
         spreadsheetId,
         range: `${tab}!A:Z`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: [row] },
+        requestBody: { values: rows },
       });
     },
     async replace(tab, rows) {
@@ -94,8 +100,12 @@ function localStore(): SheetStore {
       return Object.fromEntries(tabs.map((tab) => [tab, data[tab] ?? []]));
     },
     async append(tab, row) {
+      await this.appendMany(tab, [row]);
+    },
+    async appendMany(tab, rows) {
+      if (rows.length === 0) return;
       const data = await load();
-      (data[tab] ??= []).push(row);
+      (data[tab] ??= []).push(...rows);
       await save(data);
     },
     async replace(tab, rows) {

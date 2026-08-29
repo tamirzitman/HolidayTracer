@@ -2,19 +2,30 @@
 
 import { useState } from 'react';
 import {
+  addAllSuggested,
   addSuggested,
   dismissSuggested,
+  dropCircle,
+  editCircleMembers,
   makeCircle,
   nameCircle,
   newInviteLink,
-  setCircleMember,
   type ActionResult,
 } from '@/app/actions';
 import { useActionState } from 'react';
 import { ContactPicker } from './ContactPicker';
 import { WhatsAppMark, type Member } from './WhatsApp';
 import { inviteText } from '@/lib/whatsapp';
-import { Title, card, chipButton, field, primaryButton, quietButton, secondaryButton } from './ui';
+import {
+  ErrorNote,
+  Title,
+  card,
+  chipButton,
+  field,
+  primaryButton,
+  quietButton,
+  secondaryButton,
+} from './ui';
 
 type Family = { id: string; name: string; members: Member[] };
 
@@ -71,7 +82,12 @@ export function FamiliesManager({
         </section>
       ) : (
         circles.map((circle) => (
-          <CircleCard key={circle.id} circle={circle} everyone={everyone} />
+          <CircleCard
+            key={circle.id}
+            circle={circle}
+            circles={circles.map((c) => ({ id: c.id, name: c.name }))}
+            everyone={everyone}
+          />
         ))
       )}
 
@@ -104,7 +120,7 @@ export function FamiliesManager({
                 onClick={async () => {
                   setAdding('all');
                   try {
-                    for (const family of suggested) await addSuggested(family.id);
+                    await addAllSuggested();
                   } finally {
                     setAdding(null);
                   }
@@ -254,25 +270,60 @@ export function FamiliesManager({
   );
 }
 
-/** One circle: its name, who is in it, and taking families in and out. */
+/**
+ * One circle: its name, who is in it, and everything you do to it.
+ *
+ * Ticking is the whole interaction — the checkboxes are client state, so they
+ * answer instantly, and one press at the end writes the lot in a single block.
+ * Removing eight families used to be eight round trips through the sheet.
+ */
 function CircleCard({
   circle,
+  circles,
   everyone,
 }: {
   circle: { id: string; name: string; families: Family[] };
+  /** Every circle we are in, so a family can be moved to one of the others. */
+  circles: { id: string; name: string }[];
   everyone: { id: string; name: string }[];
 }) {
   const [, renameAction] = useActionState<ActionResult, FormData>(nameCircle, {});
-  const [, memberAction] = useActionState<ActionResult, FormData>(setCircleMember, {});
+  const [membersState, membersAction] = useActionState<ActionResult, FormData>(
+    editCircleMembers,
+    {},
+  );
+  const [dropState, dropAction] = useActionState<ActionResult, FormData>(dropCircle, {});
   const [editing, setEditing] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [adding, setAdding] = useState<string[]>([]);
+  const [confirming, setConfirming] = useState(false);
 
   const outside = everyone.filter((h) => !circle.families.some((f) => f.id === h.id));
+  const elsewhere = circles.filter((c) => c.id !== circle.id);
+
+  const toggle = (list: string[], id: string) =>
+    list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+
+  // A tick left standing after the families have changed underneath it would
+  // act on somebody nobody chose.
+  function done() {
+    setPicked([]);
+    setAdding([]);
+    setConfirming(false);
+  }
 
   return (
     <section className={`${card} flex flex-col gap-1 p-0`}>
       <div className="flex items-center gap-2 px-5 pt-4 pb-1">
         <h2 className="grow text-sm font-bold text-muted">{circle.name}</h2>
-        <button type="button" onClick={() => setEditing(!editing)} className={chipButton}>
+        <button
+          type="button"
+          onClick={() => {
+            setEditing(!editing);
+            done();
+          }}
+          className={chipButton}
+        >
           {editing ? 'סיום' : 'עריכה'}
         </button>
       </div>
@@ -295,6 +346,15 @@ function CircleCard({
       <ul className="divide-y divide-line">
         {circle.families.map((family) => (
           <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">
+            {editing && (
+              <input
+                type="checkbox"
+                checked={picked.includes(family.id)}
+                onChange={() => setPicked(toggle(picked, family.id))}
+                aria-label={`בחירת ${family.name}`}
+                className="h-5 w-5 shrink-0 accent-brand"
+              />
+            )}
             <div className="min-w-0 grow">
               <p className="truncate font-semibold text-ink">{family.name}</p>
               <span className="text-sm text-muted">
@@ -303,35 +363,121 @@ function CircleCard({
                   : family.members.map((m) => m.name).join(', ')}
               </span>
             </div>
-            {editing && (
-              <form action={memberAction}>
-                <input type="hidden" name="circleId" value={circle.id} />
-                <input type="hidden" name="householdId" value={family.id} />
-                <input type="hidden" name="member" value="no" />
-                <button type="submit" className={quietButton}>
-                  הסרה
-                </button>
-              </form>
-            )}
           </li>
         ))}
       </ul>
 
+      {/* Everything that acts on a tick sits in one place, and only while
+          something is ticked. */}
+      {editing && picked.length > 0 && (
+        <div className="flex flex-col gap-2 border-t border-line bg-brand-wash px-5 py-3">
+          <p className="text-xs font-bold text-muted">{picked.length} נבחרו</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <form action={membersAction} onSubmit={done}>
+              <input type="hidden" name="circleId" value={circle.id} />
+              <input type="hidden" name="op" value="remove" />
+              {picked.map((id) => (
+                <input key={id} type="hidden" name="householdId" value={id} />
+              ))}
+              <button type="submit" className={quietButton}>
+                הסרה מהמעגל
+              </button>
+            </form>
+
+            {elsewhere.length > 0 && (
+              <form action={membersAction} onSubmit={done} className="flex grow gap-2">
+                <input type="hidden" name="circleId" value={circle.id} />
+                <input type="hidden" name="op" value="move" />
+                {picked.map((id) => (
+                  <input key={id} type="hidden" name="householdId" value={id} />
+                ))}
+                <select
+                  name="toCircleId"
+                  defaultValue={elsewhere[0].id}
+                  aria-label="העברה למעגל"
+                  className={`${field} grow`}
+                >
+                  {elsewhere.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <button type="submit" className={chipButton}>
+                  העברה
+                </button>
+              </form>
+            )}
+          </div>
+          <ErrorNote>{membersState.error}</ErrorNote>
+        </div>
+      )}
+
+      {/* Adding is the same interaction the other way round: tick, then press
+          once, however many you ticked. */}
       {editing && outside.length > 0 && (
-        <form action={memberAction} className="flex gap-2 border-t border-line px-5 py-3">
+        <form
+          action={membersAction}
+          onSubmit={done}
+          className="flex flex-col gap-2 border-t border-line px-5 py-3"
+        >
           <input type="hidden" name="circleId" value={circle.id} />
-          <input type="hidden" name="member" value="yes" />
-          <select name="householdId" className={`${field} grow`} aria-label="להוסיף למעגל">
+          <input type="hidden" name="op" value="add" />
+          <p className="text-xs font-bold text-muted">הוספה למעגל</p>
+          <ul className="flex max-h-52 flex-col gap-1 overflow-y-auto">
             {outside.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.name}
-              </option>
+              <li key={h.id}>
+                <label className="flex items-center gap-3 py-1">
+                  <input
+                    type="checkbox"
+                    name="householdId"
+                    value={h.id}
+                    checked={adding.includes(h.id)}
+                    onChange={() => setAdding(toggle(adding, h.id))}
+                    className="h-5 w-5 shrink-0 accent-brand"
+                  />
+                  <span className="min-w-0 truncate text-sm text-ink">{h.name}</span>
+                </label>
+              </li>
             ))}
-          </select>
-          <button type="submit" className={chipButton}>
-            הוספה
+          </ul>
+          <button type="submit" disabled={adding.length === 0} className={chipButton}>
+            {adding.length > 1 ? `הוספת ${adding.length} משפחות` : 'הוספה'}
           </button>
         </form>
+      )}
+
+      {/* Last, and asked about: a circle is deleted for everyone in it, not
+          only for us. */}
+      {editing && (
+        <div className="border-t border-line px-5 py-3">
+          {confirming ? (
+            <form action={dropAction} onSubmit={done} className="flex flex-col gap-2">
+              <input type="hidden" name="circleId" value={circle.id} />
+              <p className="text-sm text-ink">
+                למחוק את «{circle.name}»? המעגל ייעלם אצל כל מי שבו. המשפחות עצמן
+                נשארות, וגם בכל מעגל אחר שהן בו.
+              </p>
+              <div className="flex gap-2">
+                <button type="submit" className={quietButton}>
+                  כן, למחוק
+                </button>
+                <button type="button" onClick={() => setConfirming(false)} className={chipButton}>
+                  ביטול
+                </button>
+              </div>
+              <ErrorNote>{dropState.error}</ErrorNote>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className="text-xs font-bold text-muted underline underline-offset-4"
+            >
+              מחיקת המעגל
+            </button>
+          )}
+        </div>
       )}
     </section>
   );

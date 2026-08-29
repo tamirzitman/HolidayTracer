@@ -455,11 +455,31 @@ export async function removeOccasion(householdId: string, key: string): Promise<
 // ── writing ───────────────────────────────────────────────────────────────────
 
 async function appendRow(tab: string, headers: readonly string[], row: string[]): Promise<void> {
+  await appendRows(tab, headers, [row]);
+}
+
+/**
+ * Tabs known to have a header row already. The check below costs a round trip,
+ * and a tab that has one can never lose it — everything here only appends — so
+ * it is worth asking once per process rather than once per write.
+ */
+const headed = new Set<string>();
+
+/** The same, in one request. Moving eight families should cost one round trip. */
+async function appendRows(
+  tab: string,
+  headers: readonly string[],
+  rows: string[][],
+): Promise<void> {
+  if (rows.length === 0) return;
   const store = sheetStore();
   // A tab whose first row is data would have that row read back as the header
   // and silently swallowed, so write headers when the tab is empty.
-  if ((await store.read(tab)).length === 0) await store.append(tab, [...headers]);
-  await store.append(tab, row);
+  if (!headed.has(tab)) {
+    if ((await store.read(tab)).length === 0) await store.append(tab, [...headers]);
+    headed.add(tab);
+  }
+  await store.appendMany(tab, rows);
   invalidateSheet();
 }
 
@@ -600,6 +620,63 @@ export async function leaveCircle(
   holidayKey = '',
 ): Promise<void> {
   await setMembership(circleId, householdId, 'remove', holidayKey);
+}
+
+/**
+ * Several households in or out of a circle at once, and the only way any of the
+ * bulk edits reach the sheet: one appended block, so ticking eight families and
+ * pressing once costs what one family used to.
+ */
+export async function setMemberships(
+  circleId: string,
+  householdIds: string[],
+  action: Membership['action'],
+  holidayKey = '',
+): Promise<void> {
+  const at = new Date().toISOString();
+  await appendRows(
+    TABS.members,
+    HEADERS.members,
+    householdIds.map((householdId) => [circleId, householdId, action, at, holidayKey]),
+  );
+}
+
+/** Arbitrary membership rows in one block, for edits that span several circles. */
+export async function appendMemberships(
+  rows: { circleId: string; householdId: string; action: Membership['action']; at: string; holidayKey?: string }[],
+): Promise<void> {
+  await appendRows(
+    TABS.members,
+    HEADERS.members,
+    rows.map((r) => [r.circleId, r.householdId, r.action, r.at, r.holidayKey ?? '']),
+  );
+}
+
+/**
+ * A family out of one circle and into another, in a single block. Both halves
+ * land in the same tab, so the move cannot half-happen and leave somebody in
+ * neither circle.
+ */
+export async function moveMemberships(
+  from: string,
+  to: string,
+  householdIds: string[],
+): Promise<void> {
+  const at = new Date().toISOString();
+  await appendRows(TABS.members, HEADERS.members, [
+    ...householdIds.map((id) => [from, id, 'remove', at, '']),
+    ...householdIds.map((id) => [to, id, 'add', at, '']),
+  ]);
+}
+
+/**
+ * Deleting a circle. Nothing is erased — everyone is taken out of it, and a
+ * circle nobody is in is a circle nobody can see, so it leaves every screen at
+ * once while the rows that made it stay readable in the sheet.
+ */
+export async function emptyCircle(circleId: string): Promise<void> {
+  const sheet = await loadSheet();
+  await setMemberships(circleId, [...membersIn(sheet, circleId)], 'remove');
 }
 
 async function setMembership(

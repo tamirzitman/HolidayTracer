@@ -10,9 +10,13 @@ import {
   circleOf,
   createCircle,
   circleIdsOf,
+  appendMemberships,
   circlesOf,
+  emptyCircle,
   joinCircle,
   leaveCircle,
+  moveMemberships,
+  setMemberships,
   declineCircle,
   renameCircle,
   createInvite,
@@ -393,6 +397,28 @@ export async function addSuggested(circleId: string): Promise<ActionResult> {
   return {};
 }
 
+/**
+ * All of them at once — the parent-invites-child case, where their circles are
+ * all yours. One appended block rather than a round trip per circle: this is the
+ * button people press first, and it used to get slower the more it had to do.
+ */
+export async function addAllSuggested(): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const suggested = await suggestionsFor(me.householdId);
+  if (suggested.length === 0) return {};
+
+  const at = new Date().toISOString();
+  await appendMemberships(
+    suggested.map((s) => ({ circleId: s.circle.id, householdId: me.householdId, action: 'add' as const, at })),
+  );
+
+  revalidatePath('/families');
+  revalidatePath('/');
+  return { savedAt: at };
+}
+
 /** Turning down a suggested circle, so it stops being offered. */
 export async function dismissSuggested(circleId: string): Promise<ActionResult> {
   const me = await currentHousehold();
@@ -439,10 +465,14 @@ export async function nameCircle(_prev: ActionResult, formData: FormData): Promi
 }
 
 /**
- * Taking a family out of a circle. With a holiday key it is out for that
- * holiday only — being away from one seder is not leaving the family.
+ * The bulk edits on the circles screen: several families in, several out, or
+ * several moved to another circle. One tick each and one press, rather than a
+ * form submit and a page of work per family.
+ *
+ * `op` says which. A move needs somewhere to go, and refuses to leave anyone in
+ * neither circle.
  */
-export async function setCircleMember(
+export async function editCircleMembers(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
@@ -450,16 +480,45 @@ export async function setCircleMember(
   if ('error' in me) return me;
 
   const circleId = String(formData.get('circleId') ?? '').trim();
-  const householdId = String(formData.get('householdId') ?? '').trim();
-  const holidayKey = String(formData.get('holidayKey') ?? '').trim();
-  const isIn = String(formData.get('member') ?? '') === 'yes';
+  const op = String(formData.get('op') ?? '');
+  const households = formData
+    .getAll('householdId')
+    .map((v) => String(v).trim())
+    .filter(Boolean);
+
+  const mine = await circleIdsOf(me.householdId);
+  if (!mine.includes(circleId)) return { error: 'אתם לא במעגל הזה' };
+  if (households.length === 0) return { error: 'לא נבחרה אף משפחה' };
+
+  if (op === 'move') {
+    const to = String(formData.get('toCircleId') ?? '').trim();
+    if (!to) return { error: 'צריך לבחור מעגל' };
+    if (to === circleId) return { error: 'זה אותו מעגל' };
+    if (!mine.includes(to)) return { error: 'אתם לא במעגל הזה' };
+    await moveMemberships(circleId, to, households);
+  } else {
+    await setMemberships(circleId, households, op === 'add' ? 'add' : 'remove');
+  }
+
+  revalidatePath('/families');
+  revalidatePath('/');
+  return { savedAt: new Date().toISOString() };
+}
+
+/**
+ * Deleting a circle. It goes for everyone in it, not only for us — a circle
+ * half the family can still see is not deleted — so the screen asks first.
+ */
+export async function dropCircle(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const circleId = String(formData.get('circleId') ?? '').trim();
   if (!(await circleIdsOf(me.householdId)).includes(circleId)) {
     return { error: 'אתם לא במעגל הזה' };
   }
 
-  if (isIn) await joinCircle(circleId, householdId, holidayKey);
-  else await leaveCircle(circleId, householdId, holidayKey);
-
+  await emptyCircle(circleId);
   revalidatePath('/families');
   revalidatePath('/');
   return { savedAt: new Date().toISOString() };

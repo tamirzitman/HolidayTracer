@@ -470,6 +470,71 @@ check('an expired link falls back to signing in, not to a dead end',
   await late.isVisible('text=כבר לא בתוקף'));
 await late.close();
 
+// ── editing a circle: tick several, act once ─────────────────────────────────
+// The three things that were missing, and the reason they are worth having: a
+// family per form submit is a page of work for a circle of ten.
+await dad.goto(`${BASE}/families`);
+await dad.waitForSelector('text=המעגלים שלי');
+await dad.click('section:has-text("רק אצלנו") >> text=עריכה');
+
+// Adding several at once, rather than one dropdown at a time.
+const toAdd = await dad.$$eval(
+  'section:has-text("רק אצלנו") form:has-text("הוספה למעגל") input[type=checkbox]',
+  (els) => els.slice(0, 2).map((e) => e.value),
+);
+for (const id of toAdd) {
+  await dad.check(`section:has-text("רק אצלנו") form:has-text("הוספה למעגל") input[value="${id}"]`);
+}
+const beforeBulk = rows('Members').length;
+await dad.click('text=/^הוספת 2 משפחות$/');
+await dad.waitForTimeout(1800);
+check(`two families go in on one press (${rows('Members').length - beforeBulk} rows)`,
+  rows('Members').length === beforeBulk + 2);
+
+// Ticking several and moving them somewhere else.
+await dad.reload();
+await dad.waitForSelector('text=המעגלים שלי');
+await dad.click('section:has-text("רק אצלנו") >> text=עריכה');
+const inCircle = await dad.$$eval(
+  'section:has-text("רק אצלנו") > ul > li input[type=checkbox]',
+  (els) => els.map((e) => e.getAttribute('aria-label')),
+);
+check(`every family in the circle can be ticked (${inCircle.length})`, inCircle.length >= 2);
+await dad.click(`section:has-text("רק אצלנו") >> [aria-label="${inCircle[0]}"]`);
+await dad.click(`section:has-text("רק אצלנו") >> [aria-label="${inCircle[1]}"]`);
+check('and the bar counts them', await dad.isVisible('text=2 נבחרו'));
+
+await dad.selectOption('select[aria-label="העברה למעגל"]', { label: 'המשפחה של אבא' });
+await dad.click('text=/^העברה$/');
+await dad.waitForTimeout(1800);
+const moved = inCircle.map((label) => label.replace('בחירת ', ''));
+const dadsCircleFamilies = await dad.$$eval(
+  'section:has-text("המשפחה של אבא") > ul > li p',
+  (els) => els.map((e) => e.textContent.trim()),
+);
+check(`a move lands them in the other circle (${moved.join(' · ')})`,
+  moved.every((name) => dadsCircleFamilies.includes(name)));
+const stillHere = await dad.$$eval(
+  'section:has-text("רק אצלנו") > ul > li p',
+  (els) => els.map((e) => e.textContent.trim()),
+);
+check('and takes them out of this one', moved.every((name) => !stillHere.includes(name)));
+
+// Deleting the circle itself. It asks first, and erases nothing.
+const beforeDrop = rows('Members').length;
+await dad.click('section:has-text("רק אצלנו") >> text=מחיקת המעגל');
+check('deleting a circle asks first', await dad.isVisible('text=/^למחוק את/'));
+await dad.click('text=כן, למחוק');
+await dad.waitForTimeout(1800);
+await dad.reload();
+await dad.waitForSelector('text=המעגלים שלי');
+const remaining = await dad.$$eval('section h2', (els) => els.map((e) => e.textContent.trim()));
+check(`a deleted circle leaves the screen (${remaining.join(' · ')})`,
+  !remaining.includes('רק אצלנו'));
+check('and nothing was erased to do it — the Members tab only grew',
+  rows('Members').length > beforeDrop);
+check('the circles it was beside are untouched', remaining.includes('המשפחה של אבא'));
+
 // ── two sides of a family are two circles ────────────────────────────────────
 // They never sit together and do not share a group chat, so an invite to one is
 // not an invite to the other. The link is what makes the circle.
