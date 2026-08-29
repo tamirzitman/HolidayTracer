@@ -54,6 +54,31 @@ npm run test:smoke
 
 ---
 
+## A place to try things
+
+Sign-in is a phone number and nothing else, so trying a scenario end to end means
+being several people — and doing it against the real record would put invented
+families into it. Both are config, not code:
+
+**A scratch sheet.** Make a second Google Sheet, share it with the same service
+account, then `npm run setup` and `npm run seed:holidays -- --years 2` against it.
+On Vercel, set `SHEET_ID` to that sheet for the **Preview** environment only, and
+`PLAYGROUND=1` alongside it. Production keeps the real sheet. The preview URL then
+carries a standing red strip — <span dir="rtl">סביבת ניסיון</span> — so the two can
+never be confused, and being a different origin it keeps its own cookie.
+
+**Several people at once, on one phone.** Every browser has its own cookie jar, so
+Chrome, a Chrome incognito tab, Safari and Firefox are four households side by
+side. Within one browser, **יציאה** on the families screen switches who you are.
+Numbers are never verified, so `050-000-0001` and friends work as well as real ones.
+
+**Back to the start.** `PLAYGROUND=1 npm run reset` restores the scratch sheet to a
+fixed cast — a family with two people, one with a single person, one nobody has
+joined, and a suggestion waiting to be taken up — and prints the numbers to sign in
+with. It refuses to run without `PLAYGROUND=1`, so it cannot empty the real sheet.
+
+---
+
 ## Setting up the real thing
 
 ### 1. The spreadsheet

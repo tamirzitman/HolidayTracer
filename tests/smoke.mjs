@@ -298,6 +298,18 @@ const nowSees = await newcomer.$$eval('select[name=hostHouseholdId] option', (el
 );
 check('and they are pickable straight away', nowSees.includes('אחות ובעלה'));
 
+// ── being somebody else, without another phone ───────────────────────────────
+await dad.goto(`${BASE}/families`);
+check('signing out is offered, and says who you are',
+  await dad.isVisible('text=/יציאה \\(אבא ואמא\\)/'));
+await dad.click('text=/^יציאה/');
+await dad.waitForSelector('input[name=phone]');
+check('and it lands back on the sign-in', await dad.isVisible('input[name=phone]'));
+await dad.fill('input[name=phone]', DAD);
+await dad.click('button[type=submit]');
+await dad.waitForSelector('nav');
+check('signing back in takes one number and no code', await dad.isVisible('nav'));
+
 // ── everything goes out through WhatsApp ─────────────────────────────────────
 await dad.goto(BASE);
 if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');

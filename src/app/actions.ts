@@ -370,6 +370,7 @@ export async function answer(_prev: ActionResult, formData: FormData): Promise<A
 export async function signOut(): Promise<void> {
   await clearSession();
   revalidatePath('/');
+  redirect('/');
 }
 
 /** Used by the answer screen: only families this household is connected to. */

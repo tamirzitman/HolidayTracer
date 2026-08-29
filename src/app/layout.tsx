@@ -31,6 +31,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="min-h-dvh">
+        {/* Set PLAYGROUND on a deployment pointed at a scratch sheet. Knowing
+            which one you are looking at cannot depend on remembering which tab
+            is which. */}
+        {process.env.PLAYGROUND && (
+          <p className="sticky top-0 z-50 bg-brand px-4 py-1.5 text-center text-xs font-bold text-white">
+            סביבת ניסיון · הנתונים כאן לא אמיתיים
+          </p>
+        )}
         <main
           className={`mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 pt-10 ${
             signedIn ? 'pb-28' : 'pb-10'
