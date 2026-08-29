@@ -83,10 +83,10 @@ export function ContactPicker() {
                         target="_blank"
                         rel="noreferrer"
                         aria-label={`הזמנת ${contact.name || 'איש קשר'} לאפליקציה בוואטסאפ`}
-                        title="הזמנה לאפליקציה"
-                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-whatsapp transition active:scale-95"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-sm font-bold text-whatsapp transition active:scale-95"
                       >
-                        <WhatsAppMark invite />
+                        <WhatsAppMark />
+                        הזמנה
                       </a>
                     )}
                   </li>

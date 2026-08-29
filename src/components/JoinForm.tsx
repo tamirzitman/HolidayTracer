@@ -111,7 +111,7 @@ export function JoinForm({
                 />
               </div>
               <span className="text-xs text-muted">
-                יופיע כשם אחד — למשל «נעמה ויובל לייבוביץ׳».
+                יופיע כשם אחד — למשל «דנה ויוסי כהן».
               </span>
             </fieldset>
           )}

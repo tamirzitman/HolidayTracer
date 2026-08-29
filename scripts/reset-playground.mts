@@ -46,16 +46,16 @@ const store = sheetStore();
 // one family with two people in it, one with a single person, and one that
 // nobody has joined — which is the family the invite buttons are for.
 const households = [
-  ['hh_a', 'טמיר ואפיק כהן', 'TRUE'],
-  ['hh_b', 'אבא ואמא כהן', 'TRUE'],
-  ['hh_c', 'נעמה ויובל לוי', 'TRUE'],
+  ['hh_a', 'דנה ויוסי כהן', 'TRUE'],
+  ['hh_b', 'הורים כהן', 'TRUE'],
+  ['hh_c', 'רות ואורי לוי', 'TRUE'],
   ['hh_d', 'משפחה שטרם הצטרפה', 'TRUE'],
 ];
 const people = [
-  ['+972500000001', 'טמיר', 'hh_a'],
-  ['+972500000002', 'אפיק', 'hh_a'],
-  ['+972500000003', 'אבא', 'hh_b'],
-  ['+972500000004', 'נעמה', 'hh_c'],
+  ['+972500000001', 'דנה', 'hh_a'],
+  ['+972500000002', 'יוסי', 'hh_a'],
+  ['+972500000003', 'הורה', 'hh_b'],
+  ['+972500000004', 'רות', 'hh_c'],
 ];
 
 // Everyone sees everyone except the family nobody has joined, which only hh_a

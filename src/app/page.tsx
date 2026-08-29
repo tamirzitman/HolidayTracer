@@ -120,10 +120,13 @@ export default async function Page({
       }
     : undefined;
 
-  // Who in our own family answered, so nobody has to guess whether it was them.
+  // Who answered, so nobody has to guess whether it was them. An answer recorded
+  // by a guest saying they are coming is credited to that guest, who is not in
+  // this household — so it is looked up across everyone, and marked as implied.
   const answeredBy = current
-    ? (members.get(person.householdId) ?? []).find((m) => m.phone === current.byPhone)?.name ?? ''
+    ? [...members.values()].flat().find((m) => m.phone === current.byPhone)?.name ?? ''
     : '';
+  const impliedByGuest = Boolean(current?.forHouseholdId);
 
   return (
     <AnswerForm
@@ -134,6 +137,7 @@ export default async function Page({
       host={host}
       daysAway={daysUntil(holiday.date)}
       answeredBy={answeredBy}
+      impliedByGuest={impliedByGuest}
       inviteUrl={inviteUrl}
       guests={guests.map((g) => ({ id: g.id, name: g.name, members: whoIsIn(g.id) }))}
       circleStatus={circleStatus.map((c) => ({

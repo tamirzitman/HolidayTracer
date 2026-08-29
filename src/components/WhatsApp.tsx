@@ -10,30 +10,22 @@ export type Member = { name: string; phone: string };
  * up in the same app; an invite carries a small ＋ so the two never blur into
  * each other. Nothing else in the app is allowed to invent a third mark.
  */
-export function WhatsAppMark({ invite = false }: { invite?: boolean }) {
+/**
+ * The WhatsApp glyph, and nothing else. It means one thing everywhere: this
+ * opens WhatsApp. Whether it opens a chat or carries an invite is said in
+ * words beside it, never in the mark.
+ *
+ * There used to be a variant with a ＋ badge for invites, drawn as the glyph
+ * colour with the plus cut out in the page colour. That only worked on a
+ * surface-coloured background: on the primary button, whose text is
+ * `text-ground`, the badge and the plus came out the same near-black in dark
+ * mode and the same near-white in light, and the plus disappeared.
+ */
+export function WhatsAppMark() {
   return (
-    <span className="relative inline-flex">
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
-        <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2Zm5.8 14.16c-.24.68-1.4 1.3-1.95 1.38-.5.07-1.13.1-1.82-.11a16.6 16.6 0 0 1-1.65-.61c-2.9-1.25-4.8-4.17-4.94-4.36-.15-.19-1.19-1.58-1.19-3.02 0-1.44.75-2.14 1.02-2.44.27-.29.59-.37.78-.37h.56c.18 0 .42-.07.66.5.24.58.82 2.02.9 2.16.07.15.12.32.02.51-.1.19-.15.31-.29.48-.15.17-.31.38-.44.51-.15.14-.3.3-.13.59.17.29.75 1.24 1.61 2 1.11.99 2.04 1.3 2.33 1.44.29.15.46.12.63-.07.17-.19.73-.85.92-1.15.19-.29.39-.24.65-.14.27.09 1.7.8 1.99.95.29.14.48.22.55.34.07.12.07.7-.17 1.38Z" />
-      </svg>
-      {invite && (
-        /* Drawn, not typed: a "+" character at this size renders as a notch in
-           the glyph rather than as a plus. */
-        <span
-          aria-hidden="true"
-          className="absolute -end-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full bg-current ring-2 ring-surface"
-        >
-          <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none">
-            <path
-              d="M6 2v8M2 6h8"
-              stroke="var(--color-surface)"
-              strokeWidth="2.6"
-              strokeLinecap="round"
-            />
-          </svg>
-        </span>
-      )}
-    </span>
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2Zm5.8 14.16c-.24.68-1.4 1.3-1.95 1.38-.5.07-1.13.1-1.82-.11a16.6 16.6 0 0 1-1.65-.61c-2.9-1.25-4.8-4.17-4.94-4.36-.15-.19-1.19-1.58-1.19-3.02 0-1.44.75-2.14 1.02-2.44.27-.29.59-.37.78-.37h.56c.18 0 .42-.07.66.5.24.58.82 2.02.9 2.16.07.15.12.32.02.51-.1.19-.15.31-.29.48-.15.17-.31.38-.44.51-.15.14-.3.3-.13.59.17.29.75 1.24 1.61 2 1.11.99 2.04 1.3 2.33 1.44.29.15.46.12.63-.07.17-.19.73-.85.92-1.15.19-.29.39-.24.65-.14.27.09 1.7.8 1.99.95.29.14.48.22.55.34.07.12.07.7-.17 1.38Z" />
+    </svg>
   );
 }
 
@@ -80,7 +72,7 @@ export function FamilyWhatsApp({
         title={`הזמנת ${familyName}`}
         className={touch}
       >
-        <WhatsAppMark invite />
+        <WhatsAppMark />
       </a>
     );
   }

@@ -19,7 +19,7 @@ try {
 sheet.Households = [
   ['household_id', 'name', 'active'],
   ['hh_parents', 'אבא ואמא', 'TRUE'],
-  ['hh_tamir', 'טמיר ואפיק', 'TRUE'],
+  ['hh_a', 'דנה ויוסי', 'TRUE'],
   ['hh_brother', 'אח ואשתו', 'TRUE'],
   ['hh_sister', 'אחות ובעלה', 'TRUE'],
   ['hh_gone', 'משפחה שכבר לא איתנו', 'FALSE'],
@@ -29,8 +29,8 @@ sheet.Households = [
 sheet.People = [
   ['phone', 'name', 'household_id'],
   ['+972501234567', 'אבא', 'hh_parents'],
-  ['+972502223333', 'טמיר', 'hh_tamir'],
-  ['+972504445555', 'אפיק', 'hh_tamir'],
+  ['+972502223333', 'דנה', 'hh_a'],
+  ['+972504445555', 'יוסי', 'hh_a'],
 ];
 
 // One holiday already in the past, with an answer, so the history screen has
@@ -54,8 +54,8 @@ for (const row of [PAST, GAP]) {
 }
 
 sheet.Answers = [
-  ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone'],
-  ['2026-04-01T15:00:00.000Z', 'erev_pesach_2026', 'guest', 'hh_tamir', '+972501234567'],
+  ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone', 'for_household_id'],
+  ['2026-04-01T15:00:00.000Z', 'erev_pesach_2026', 'guest', 'hh_a', '+972501234567', ''],
 ];
 // Everyone who was here before circles saw everyone, so link them all.
 const active = sheet.Households.slice(1).filter((r) => r[2] === 'TRUE').map((r) => r[0]);

@@ -10,8 +10,10 @@ import {
   circleOf,
   connect,
   createInvite,
+  dismissSuggestion,
   findPerson,
   getHousehold,
+  getLatestAnswer,
   getPastHoliday,
   getUpcomingHolidays,
   removeOccasion,
@@ -271,6 +273,7 @@ export async function editHistory(
     kind,
     hostHouseholdId,
     byPhone: person.phone,
+    forHouseholdId: '',
   });
 
   revalidatePath('/history');
@@ -361,6 +364,21 @@ export async function addSuggested(householdId: string): Promise<ActionResult> {
   return {};
 }
 
+/** Turning down a suggestion, so it stops being offered. */
+export async function dismissSuggested(householdId: string): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const suggested = await suggestionsFor(me.householdId);
+  if (!suggested.some((s) => s.household.id === householdId)) {
+    return { error: 'המשפחה הזו לא בהצעות שלכם' };
+  }
+
+  await dismissSuggestion(me.householdId, householdId);
+  revalidatePath('/families');
+  return {};
+}
+
 export async function newInviteLink(kind: 'family' | 'household'): Promise<string> {
   const me = await currentHousehold();
   if ('error' in me) throw new Error(me.error);
@@ -416,7 +434,30 @@ export async function answer(_prev: ActionResult, formData: FormData): Promise<A
     kind,
     hostHouseholdId,
     byPhone: person.phone,
+    forHouseholdId: '',
   });
+
+  // Saying you are coming to somebody says they are hosting — the implication
+  // only runs this way, which is why a guest at a third family implies nothing
+  // about anyone else. Recorded only when the host has said nothing yet, so it
+  // can never overwrite their own answer, and credited to the person who
+  // actually said it rather than to somebody in the host's family who did not.
+  if (kind === 'guest' && hostHouseholdId) {
+    try {
+      if (!(await getLatestAnswer(holiday.key, hostHouseholdId))) {
+        await appendAnswer({
+          timestamp: new Date().toISOString(),
+          holidayKey: holiday.key,
+          kind: 'hosting',
+          hostHouseholdId: '',
+          byPhone: person.phone,
+          forHouseholdId: hostHouseholdId,
+        });
+      }
+    } catch (error) {
+      console.error('could not record the implied hosting answer', error);
+    }
+  }
 
   // Appended after every answer. The answer is already safely recorded, so a
   // failure here must not lose it.

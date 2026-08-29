@@ -18,8 +18,10 @@ type Props = {
   /** Resolved from the id on the answer — the log itself stores no names. */
   host: { id: string; name: string; members: Member[] } | undefined;
   daysAway: number;
-  /** Which person in our family gave this answer. */
+  /** Which person gave this answer. */
   answeredBy: string;
+  /** True when it was written because a guest said they were coming here. */
+  impliedByGuest: boolean;
   /** Our family's standing join link, for writing to families nobody has joined. */
   inviteUrl: string;
   /** Households that said they are coming to us. Only meaningful when hosting. */
@@ -65,6 +67,7 @@ export function AnswerForm({
   host,
   daysAway,
   answeredBy,
+  impliedByGuest,
   inviteUrl,
   guests,
   circleStatus,
@@ -301,7 +304,11 @@ export function AnswerForm({
                   )}
                 </>
               )}
-              {answeredBy && <p className="text-sm text-muted">ענו: {answeredBy}</p>}
+              {answeredBy && (
+                <p className="text-sm text-muted">
+                  {impliedByGuest ? `לפי ${answeredBy}, שאמרו שהם מגיעים אליכם` : `ענו: ${answeredBy}`}
+                </p>
+              )}
 
               <button
                 type="button"
@@ -327,6 +334,7 @@ export function AnswerForm({
                   kind,
                   hostHouseholdId: hostId,
                   byPhone: '',
+                  forHouseholdId: '',
                   householdId: '',
                 });
                 formAction(data);

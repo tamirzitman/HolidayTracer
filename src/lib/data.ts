@@ -129,14 +129,19 @@ async function fetchSheet(): Promise<Sheet> {
     answers: answersTab.body
       .map((row) => {
         const byPhone = cell(row, answersTab.headers, 'by_phone');
+        const forHouseholdId = cell(row, answersTab.headers, 'for_household_id');
         return {
           timestamp: cell(row, answersTab.headers, 'timestamp'),
           holidayKey: cell(row, answersTab.headers, 'holiday_key'),
           kind: cell(row, answersTab.headers, 'kind') as AnswerKind,
           hostHouseholdId: cell(row, answersTab.headers, 'host_household_id'),
           byPhone,
-          // Derived, never stored: whose answer this is follows the person.
-          householdId: householdOf.get(byPhone) ?? '',
+          forHouseholdId,
+          // Normally derived, never stored: whose answer this is follows the
+          // person. The exception is an answer recorded for a household by
+          // somebody outside it, which names the household outright so that
+          // by_phone can go on naming who actually said it.
+          householdId: forHouseholdId || householdOf.get(byPhone) || '',
         };
       })
       .filter((a) => a.holidayKey && a.householdId),
@@ -463,11 +468,11 @@ export async function circleOf(householdId: string): Promise<Household[]> {
  * the family that invited them, and everyone that family is connected to.
  *
  * Matching on the phone number is not enough to keep one family from becoming
- * two. The number somebody typed in when they added a family is one person's —
- * Naama's, say — and the one who actually signs up may be Yuval, with a number
- * nobody has ever entered. So the newcomer is shown the families already on the
- * list and can simply say which one is theirs; joining then appends them to
- * that household rather than opening a second row beside it.
+ * two. The number somebody typed in when they added a family belongs to one
+ * person in it, and the one who actually signs up may be their partner, with a
+ * number nobody has ever entered. So the newcomer is shown the families already
+ * on the list and can simply say which one is theirs; joining then appends them
+ * to that household rather than opening a second row beside it.
  *
  * Families that nobody has signed into yet come first: those are the ones added
  * by name alone, and the likeliest thing a newcomer is here to claim.
@@ -495,7 +500,16 @@ export async function suggestionsFor(
 ): Promise<{ household: Household; seenBy: number }[]> {
   const sheet = await loadSheet();
   const mine = await circleOf(householdId);
-  const known = new Set([householdId, ...mine.map((h) => h.id)]);
+  const state = connectionState(sheet.connections, householdId);
+
+  // Turned down before, so don't offer it again. A suggestion that keeps coming
+  // back is worse than no suggestion: the families you have decided against are
+  // exactly the ones your families will keep vouching for.
+  const known = new Set([
+    householdId,
+    ...mine.map((h) => h.id),
+    ...[...state.entries()].filter(([, action]) => action === 'remove').map(([id]) => id),
+  ]);
 
   const seenBy = new Map<string, number>();
   for (const family of mine) {
@@ -513,6 +527,21 @@ export async function suggestionsFor(
 
 export async function isConnected(a: string, b: string): Promise<boolean> {
   return connectionState((await loadSheet()).connections, a).get(b) === 'add';
+}
+
+/**
+ * Turning down a suggestion, for good. One-way on purpose: deciding a family is
+ * not yours says nothing about whether you belong on theirs, and it is not a
+ * deletion — a newer 'add' row, from taking them up later or from a number
+ * typed in, wins over it.
+ */
+export async function dismissSuggestion(householdId: string, other: string): Promise<void> {
+  await appendRow(TABS.connections, HEADERS.connections, [
+    householdId,
+    other,
+    'remove',
+    new Date().toISOString(),
+  ]);
 }
 
 /** Introducing two families is mutual; hiding one is not. */
@@ -683,5 +712,6 @@ export async function appendAnswer(answer: StoredAnswer): Promise<void> {
     answer.kind,
     answer.hostHouseholdId,
     answer.byPhone,
+    answer.forHouseholdId,
   ]);
 }

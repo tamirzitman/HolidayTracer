@@ -34,6 +34,12 @@ export type AnswerKind = 'hosting' | 'guest' | 'away';
 
 /** What actually goes in the sheet. Everything else about an answer is derivable. */
 export type StoredAnswer = {
+  /**
+   * Set only when the answer was recorded for a household by somebody outside
+   * it — a guest saying they are coming implies their host is hosting. Empty on
+   * every ordinary row, where the household follows from the phone.
+   */
+  forHouseholdId: string;
   timestamp: string;
   holidayKey: string;
   kind: AnswerKind;
@@ -93,7 +99,9 @@ export const HEADERS = {
   ],
   households: ['household_id', 'name', 'active'],
   people: ['phone', 'name', 'household_id'],
-  answers: ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone'],
+  answers: [
+    'timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone', 'for_household_id',
+  ],
   conflicts: ['holiday_key', 'household_id', 'host_household_id', 'status', 'at'],
   connections: ['household_id', 'connected_to', 'action', 'at'],
   invites: ['token', 'created_by', 'kind', 'created_at'],

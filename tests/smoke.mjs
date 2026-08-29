@@ -84,6 +84,19 @@ const coldSuggested = await stranger.$$eval('section:has-text("מוצע להוס
 );
 check(`one family added brings the rest as suggestions (${coldSuggested.length})`,
   coldSuggested.length >= 2);
+
+// A suggestion turned down should not come back: the families you decided
+// against are exactly the ones your families keep vouching for.
+const dropped = coldSuggested[0];
+await stranger.click(`li:has-text("${dropped}") >> [aria-label^="להסיר את"]`);
+await stranger.waitForTimeout(1500);
+await stranger.reload();
+await stranger.waitForSelector('text=המעגלים שלי');
+const afterDismiss = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
+  els.map((e) => e.innerText.split('\n')[0].trim()),
+);
+check(`a dismissed suggestion stays gone (${dropped} → ${afterDismiss.length} left)`,
+  !afterDismiss.includes(dropped) && afterDismiss.length === coldSuggested.length - 1);
 await stranger.close();
 
 // ── the circle is hidden until you answer ────────────────────────────────────
@@ -100,7 +113,7 @@ check('nobody else is shown before you answer', !(await dad.isVisible('text=אי
 await dad.click('text=אנחנו מארחים');
 await dad.waitForSelector('text=איפה כולם');
 check('answering reveals where everyone is', await dad.isVisible('text=איפה כולם'));
-check('and the circle lists the other families', await dad.isVisible('text=טמיר ואפיק'));
+check('and the circle lists the other families', await dad.isVisible('text=דנה ויוסי'));
 
 // ── invite a family that is not in the app at all ────────────────────────────
 await dad.click('nav >> text=המעגלים');
@@ -388,6 +401,39 @@ await dad.click('button[type=submit]');
 await dad.waitForSelector('nav');
 check('signing back in takes one number and no code', await dad.isVisible('nav'));
 
+// ── saying you are coming says your host is hosting ──────────────────────────
+// The implication only runs one way: a guest at a third family says nothing
+// about anybody else, which is why only the host's answer is written.
+await newcomer.goto(`${BASE}/?h=rosh_hashana_ii_2026`);
+await newcomer.waitForSelector('nav');
+if (await newcomer.isVisible('text=שינוי תשובה')) await newcomer.click('text=שינוי תשובה');
+await newcomer.click('text=מתארחים אצל…');
+await newcomer.selectOption('select[name=hostHouseholdId]', { label: 'אבא ואמא' });
+await newcomer.click('button[type=submit]');
+await newcomer.waitForSelector('text=שינוי תשובה');
+await newcomer.waitForTimeout(1800);
+
+const implied = rows('Answers').at(-1);
+check(`the host is recorded as hosting (${implied[2]}, for ${implied[5]})`,
+  implied[2] === 'hosting' && implied[5] === 'hh_parents');
+check('and it is credited to whoever actually said it',
+  implied[4] !== '' && implied[4] !== DAD.replace(/\D/g, ''));
+
+await dad.goto(`${BASE}/?h=rosh_hashana_ii_2026`);
+await dad.waitForSelector('nav');
+check('so the host opens the app already answered',
+  await dad.isVisible('text=אנחנו מארחים'));
+check('and it says where that came from',
+  /לפי .+, שאמרו שהם מגיעים אליכם/.test(await dad.innerText('main')));
+
+// Their own answer is newer, so correcting it wins.
+await dad.click('text=שינוי תשובה');
+await dad.click('text=לא מגיעים בכלל');
+await dad.waitForSelector('text=שינוי תשובה');
+await dad.waitForTimeout(1500);
+check('and the host can still say otherwise',
+  rows('Answers').at(-1)[2] === 'away' && rows('Answers').at(-1)[5] === '');
+
 // ── an invite link cannot quietly put somebody on your list ──────────────────
 const friend = await open();
 await friend.goto(`${BASE}/join/${token}`);
@@ -423,24 +469,24 @@ await late.close();
 await dad.goto(BASE);
 if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
 await dad.click('text=מתארחים אצל…');
-await dad.selectOption('select[name=hostHouseholdId]', { label: 'טמיר ואפיק' });
+await dad.selectOption('select[name=hostHouseholdId]', { label: 'דנה ויוסי' });
 await dad.click('button[type=submit]');
 await dad.waitForSelector('text=שינוי תשובה');
 await dad.waitForTimeout(1200);
 
 check('no phone number is offered as a call', (await dad.$$('a[href^="tel:"]')).length === 0);
 check('the host carries a way to write to them',
-  await dad.isVisible('[aria-label="הודעה לטמיר ואפיק בוואטסאפ"]'));
+  await dad.isVisible('[aria-label="הודעה לדנה ויוסי בוואטסאפ"]'));
 check('and it says who in our family answered', /ענו: אבא/.test(await dad.innerText('main')));
 
 // A family with two people registered must not guess which of them you meant.
-await dad.click('[aria-label="הודעה לטמיר ואפיק בוואטסאפ"]');
+await dad.click('[aria-label="הודעה לדנה ויוסי בוואטסאפ"]');
 await dad.waitForSelector('a[href="https://wa.me/972502223333"]');
 const chooser = await dad.$$eval('ul li a[href^="https://wa.me/972"]', (els) =>
   els.map((e) => e.textContent.trim()),
 );
 check(`picking between them is offered (${chooser.join(', ')})`,
-  chooser.includes('טמיר') && chooser.includes('אפיק'));
+  chooser.includes('דנה') && chooser.includes('יוסי'));
 
 // Message for a family that is here, invite for one that is not — everywhere.
 await dad.goto(`${BASE}/families`);
@@ -454,72 +500,72 @@ await dad.goto(`${BASE}/history`);
 check('history says who answered', /ענו: אבא/.test(await dad.innerText('main')));
 
 // ── one family stays one family, whatever number signs up ────────────────────
-// Dad adds the Leibowitz family by name so he can answer at them. Naama joins
-// and claims it. Then Yuval joins with a number nobody has ever entered — and
-// must land in that same household rather than opening a second one for it.
-const NAAMA = '054-000-7001';
-const YUVAL = '054-000-7002';
+// Dad adds a family by name so he can answer at them. One of them joins and
+// claims it. Then a second person from that family joins with a number nobody
+// has ever entered — and must land in the same household, not a second one.
+const FIRST_NUMBER = '054-000-7001';
+const SECOND_NUMBER = '054-000-7002';
 const beforeJoin = rows('Households').length;
 
 await dad.goto(BASE);
 if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
 await dad.click('text=מתארחים אצל…');
 await dad.click('text=לא מוצאים? הוסיפו משפחה');
-await dad.fill('input[name=familyFirstNames]', 'נעמה ויובל');
-await dad.fill('input[name=familySurname]', 'לייבוביץ');
+await dad.fill('input[name=familyFirstNames]', 'רות ואורי');
+await dad.fill('input[name=familySurname]', 'לוי');
 await dad.click('form:has(input[name=familyFirstNames]) button[type=submit]');
 await dad.waitForTimeout(1500);
 check('a family added by name is one new household',
   rows('Households').length === beforeJoin + 1);
-const leibowitz = rows('Households').find((r) => r[1] === 'נעמה ויובל לייבוביץ')[0];
+const theirHousehold = rows('Households').find((r) => r[1] === 'רות ואורי לוי')[0];
 
 await dad.goto(`${BASE}/families`);
 await dad.click('text=הזמנת משפחה');
 await dad.waitForSelector('text=העתקת הקישור');
 const shared = rows('Invites').at(-1)[0];
 
-const naama = await open();
-await naama.goto(`${BASE}/join/${shared}`);
-await naama.fill('input[name=phone]', NAAMA);
-await naama.click('button[type=submit]');
-await naama.waitForSelector('select[name=claimHouseholdId]');
-const offered = await naama.$$eval('select[name=claimHouseholdId] option', (els) =>
+const first = await open();
+await first.goto(`${BASE}/join/${shared}`);
+await first.fill('input[name=phone]', FIRST_NUMBER);
+await first.click('button[type=submit]');
+await first.waitForSelector('select[name=claimHouseholdId]');
+const offered = await first.$$eval('select[name=claimHouseholdId] option', (els) =>
   els.map((e) => e.textContent.trim()),
 );
 check(`a newcomer is offered the families already on the list (${offered.length})`,
-  offered.includes('נעמה ויובל לייבוביץ'));
-await naama.fill('input[name=name]', 'נעמה');
-await naama.selectOption('select[name=claimHouseholdId]', { label: 'נעמה ויובל לייבוביץ' });
+  offered.includes('רות ואורי לוי'));
+await first.fill('input[name=name]', 'רות');
+await first.selectOption('select[name=claimHouseholdId]', { label: 'רות ואורי לוי' });
 check('and claiming one replaces being asked to name a new family',
-  !(await naama.isVisible('input[name=householdName]')));
-await naama.click('button[type=submit]');
-await naama.waitForTimeout(1500);
+  !(await first.isVisible('input[name=householdName]')));
+await first.click('text=/^סיום/');
+await first.waitForTimeout(1500);
 check('claiming opens no second household', rows('Households').length === beforeJoin + 1);
 
-// The point of the whole thing: Yuval's number is not the one on file.
-const yuval = await open();
-await yuval.goto(`${BASE}/join/${shared}`);
-await yuval.fill('input[name=phone]', YUVAL);
-await yuval.click('button[type=submit]');
-await yuval.waitForSelector('select[name=claimHouseholdId]');
-const stillOffered = await yuval.$$eval('select[name=claimHouseholdId] option', (els) =>
+// The point of the whole thing: this number is not the one on file.
+const second = await open();
+await second.goto(`${BASE}/join/${shared}`);
+await second.fill('input[name=phone]', SECOND_NUMBER);
+await second.click('button[type=submit]');
+await second.waitForSelector('select[name=claimHouseholdId]');
+const stillOffered = await second.$$eval('select[name=claimHouseholdId] option', (els) =>
   els.map((e) => e.textContent.trim()),
 );
 check('a family somebody already joined is still offered to the next one',
-  stillOffered.includes('נעמה ויובל לייבוביץ'));
-await yuval.fill('input[name=name]', 'יובל');
-await yuval.selectOption('select[name=claimHouseholdId]', { label: 'נעמה ויובל לייבוביץ' });
-await yuval.click('button[type=submit]');
-await yuval.waitForTimeout(1500);
+  stillOffered.includes('רות ואורי לוי'));
+await second.fill('input[name=name]', 'אורי');
+await second.selectOption('select[name=claimHouseholdId]', { label: 'רות ואורי לוי' });
+await second.click('text=/^סיום/');
+await second.waitForTimeout(1500);
 
 check('a second number in the family opens no household either',
   rows('Households').length === beforeJoin + 1);
 check('both numbers sit in the one household',
-  rows('People').filter((r) => r[2] === leibowitz).length === 2);
+  rows('People').filter((r) => r[2] === theirHousehold).length === 2);
 check('so the family is one row, not two',
-  rows('Households').filter((r) => r[1] === 'נעמה ויובל לייבוביץ').length === 1);
-await naama.close();
-await yuval.close();
+  rows('Households').filter((r) => r[1] === 'רות ואורי לוי').length === 1);
+await first.close();
+await second.close();
 
 // ── the year is shown as something you can page through ──────────────────────
 await dad.goto(BASE);
@@ -556,7 +602,7 @@ check('a family can add an occasion of its own', await dad.isVisible('text=יו�
 const added = rows('Holidays').at(-1);
 check('and it is written with the family as its owner', added[6] === 'hh_parents');
 check(`and with who it goes out to (${added[7]})`,
-  added[7].includes('hh_tamir') && !added[7].includes('hh_sister'));
+  added[7].includes('hh_a') && !added[7].includes('hh_sister'));
 const occasionKey = added[0];
 
 await dad.goto(BASE);

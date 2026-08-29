@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { addSuggested, newInviteLink } from '@/app/actions';
+import { addSuggested, dismissSuggested, newInviteLink } from '@/app/actions';
 import { ContactPicker } from './ContactPicker';
 import { WhatsAppMark, type Member } from './WhatsApp';
 import { inviteText } from '@/lib/whatsapp';
@@ -92,21 +92,45 @@ export function FamiliesManager({
                       : `${family.seenBy} מהמשפחות שלכם רואות אותם`}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  disabled={adding === family.id}
-                  onClick={async () => {
-                    setAdding(family.id);
-                    try {
-                      await addSuggested(family.id);
-                    } finally {
-                      setAdding(null);
-                    }
-                  }}
-                  className={chipButton}
-                >
-                  {adding === family.id ? 'רגע…' : 'הוספה'}
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={adding === family.id}
+                    onClick={async () => {
+                      setAdding(family.id);
+                      try {
+                        await addSuggested(family.id);
+                      } finally {
+                        setAdding(null);
+                      }
+                    }}
+                    className={chipButton}
+                  >
+                    {adding === family.id ? 'רגע…' : 'הוספה'}
+                  </button>
+                  {/* Turned down for good. Without this the families you have
+                      decided against are exactly the ones that keep coming
+                      back, because your families keep vouching for them. */}
+                  <button
+                    type="button"
+                    disabled={adding === family.id}
+                    aria-label={`להסיר את ${family.name} מההצעות`}
+                    title="לא להציע שוב"
+                    onClick={async () => {
+                      setAdding(family.id);
+                      try {
+                        await dismissSuggested(family.id);
+                      } finally {
+                        setAdding(null);
+                      }
+                    }}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted transition active:scale-95"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -127,7 +151,7 @@ export function FamiliesManager({
               rel="noreferrer"
               className={`${primaryButton} inline-flex items-center justify-center gap-2`}
             >
-              <WhatsAppMark invite />
+              <WhatsAppMark />
               שליחה בוואטסאפ
             </a>
             <button type="button" onClick={copy} className={secondaryButton}>

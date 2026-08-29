@@ -1,7 +1,7 @@
 # HolidayTracer — Plan
 
 > Status: **phase 1 is built** — see the repository root and [README](../README.md) for how to run
-> it. Phases 2 and 3 are still plan. Reflects decisions confirmed with Tamir on 2026-08-28.
+> it. Phases 2 and 3 are still plan. Reflects decisions confirmed with the owner on 2026-08-28.
 > Remaining items are in [OPEN-QUESTIONS.md](./OPEN-QUESTIONS.md). Unavoidable assumptions are
 > marked **[ASSUMPTION]**.
 >

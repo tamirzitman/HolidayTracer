@@ -1,6 +1,6 @@
 # Growing HolidayTracer
 
-> Plan, not built. Decisions confirmed with Tamir on 2026-08-28. Estimates are marked as such.
+> Plan, not built. Decisions confirmed with the owner on 2026-08-28. Estimates are marked as such.
 
 Today there is **one global list**: everyone who registers sees all eleven families. That is fine
 for eleven and useless for three hundred — nobody should scroll past families they have never met.
@@ -18,15 +18,15 @@ A new tab, `Connections`, holds pairs of households that can see each other.
 One row means one mutual link. The dropdown for household `1` becomes *"every household I have a
 row with"*, instead of *"every household in the sheet"*.
 
-**Tamir's own example:** his uncle's wife's family links to the uncle. The uncle sees both circles;
-Tamir sees only his own. Nobody has to be in a list they don't belong in, and no one has to look
+**The case this exists for:** an uncle's wife's family links to the uncle. The uncle sees both
+circles; you see only your own. Nobody has to be in a list they don't belong in, and no one has to look
 past names that mean nothing to them.
 
 ### Three ways a family reaches your list
 
 | | |
 |---|---|
-| **Invite link** | A shortcut, not a gate — see below. You send a link; opening it creates their household and the connection to you in one step. **This replaces Tamir as the bottleneck** — nobody needs a row added to the sheet by hand |
+| **Invite link** | A shortcut, not a gate — see below. You send a link; opening it creates their household and the connection to you in one step. **This removes the one person who kept the sheet as a bottleneck** — nobody needs a row added to the sheet by hand |
 | **Add by phone** | How you connect to a family *already in the app*. You type a number you would call anyway; if it belongs to a registered household, the two link. No approval, no admin |
 | **Remove** | One tap on the family list. See open question Q1 on whether that is one-sided or mutual |
 
@@ -81,7 +81,7 @@ instance does one batched read, cached 20 seconds. A hundred people answering in
 minutes is comfortable; a thousand is not.
 
 ### 3.4 Privacy, which is not a technical limit
-Hundreds of unrelated families means hundreds of strangers' phone numbers in **one file Tamir
+Hundreds of unrelated families means hundreds of strangers' phone numbers in **one file the owner
 owns**. That is the real reason to move to a database eventually — not row counts.
 
 ### When to move
