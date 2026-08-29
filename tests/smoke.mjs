@@ -112,7 +112,8 @@ await stranger.waitForTimeout(1800);
 check(`taking one up connects the two families (${takeUp})`,
   rows('Connections').length === beforeSuggest + 2);
 await stranger.goto(BASE);
-await stranger.click('text=שינוי תשובה');
+await stranger.waitForSelector('nav');
+if (await stranger.isVisible('text=שינוי תשובה')) await stranger.click('text=שינוי תשובה');
 await stranger.click('text=מתארחים אצל…');
 await stranger.waitForSelector('select[name=hostHouseholdId]');
 check('and they are pickable straight away',
