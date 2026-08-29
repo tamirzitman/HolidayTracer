@@ -456,9 +456,11 @@ check('joining through a link files it under that link\'s circle',
 
 await dad.goto(`${BASE}/families`);
 await dad.waitForSelector('text=המעגלים שלי');
-const headings = await dad.$$eval('section h2', (els) => els.map((e) => e.textContent.trim()));
-check(`the circles screen keeps them apart (${headings.join(' · ')})`,
-  headings.includes('המשפחה של אבא') && headings.includes('המשפחה של אמא'));
+const circleHeadings = await dad.$$eval('section h2', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`the circles screen keeps them apart (${circleHeadings.join(' · ')})`,
+  circleHeadings.includes('המשפחה של אבא') && circleHeadings.includes('המשפחה של אמא'));
 
 await dad.goto(BASE);
 await dad.waitForSelector('nav');
