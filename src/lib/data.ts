@@ -305,7 +305,15 @@ export async function circleAnswers(
   const latest = latestByHousehold(sheet.answers, holidayKey);
   const nameOf = (id: string) => sheet.households.find((h) => h.id === id)?.name ?? id;
 
-  return (await circleOf(householdId)).map((household) => {
+  // Only families this date reaches. On an occasion shared with some of the
+  // circle, the rest would otherwise sit at "עוד לא ענו" forever — reading as
+  // if they had been asked and ignored it, when they were never asked.
+  const holiday = sheet.holidays.find((h) => h.key === holidayKey);
+  const asked = (await circleOf(householdId)).filter(
+    (h) => !holiday || visibleTo(holiday, h.id),
+  );
+
+  return asked.map((household) => {
     const answer = latest.get(household.id);
     return {
       household,

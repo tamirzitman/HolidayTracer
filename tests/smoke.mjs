@@ -485,13 +485,16 @@ await dad.fill('input[name=date]', SOON);
 const preTicked = await dad.$$eval('input[name=share]', (els) => els.map((e) => e.checked));
 check(`the circle is ticked without being asked (${preTicked.length})`,
   preTicked.length > 0 && preTicked.every(Boolean));
+// Leave one out, so the audience is genuinely narrower than the circle.
+await dad.uncheck('input[name=share][value=hh_sister]');
 await dad.click('form button[type=submit]');
 await dad.waitForSelector('text=יום הולדת לסבתא');
 await dad.waitForTimeout(1200);
 check('a family can add an occasion of its own', await dad.isVisible('text=יום הולדת לסבתא'));
 const added = rows('Holidays').at(-1);
 check('and it is written with the family as its owner', added[6] === 'hh_parents');
-check(`and with who it goes out to (${added[7]})`, added[7].includes('hh_tamir'));
+check(`and with who it goes out to (${added[7]})`,
+  added[7].includes('hh_tamir') && !added[7].includes('hh_sister'));
 const occasionKey = added[0];
 
 await dad.goto(BASE);
@@ -503,6 +506,24 @@ await newcomer.goto(`${BASE}/?h=${occasionKey}`);
 await newcomer.waitForSelector('nav');
 check('a family in the circle can open it too',
   (await newcomer.innerText('header')).includes('יום הולדת לסבתא'));
+
+// Nobody who cannot see the date should sit there as "עוד לא ענו".
+await dad.goto(`${BASE}/?h=${occasionKey}`);
+await dad.waitForSelector('nav');
+if (!(await dad.isVisible('text=איפה כולם'))) await dad.click('text=אנחנו מארחים');
+await dad.waitForSelector('text=איפה כולם');
+const onOccasion = await dad.$$eval('section:has-text("איפה כולם") li p.font-semibold', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+await dad.goto(BASE);
+if (!(await dad.isVisible('text=איפה כולם'))) await dad.click('text=אנחנו מארחים');
+await dad.waitForSelector('text=איפה כולם');
+const onHoliday = await dad.$$eval('section:has-text("איפה כולם") li p.font-semibold', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`the occasion lists only who it reaches (${onOccasion.length} of ${onHoliday.length})`,
+  onOccasion.length > 0 && onOccasion.length < onHoliday.length);
+check('while a shared holiday still lists everyone', onHoliday.length > onOccasion.length);
 
 // And narrowing it takes it back off their list.
 await dad.goto(`${BASE}/occasions`);
