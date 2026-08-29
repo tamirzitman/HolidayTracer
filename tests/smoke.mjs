@@ -499,26 +499,36 @@ const inCircle = await dad.$$eval(
   'section:has-text("רק אצלנו") > ul > li input[type=checkbox]',
   (els) => els.map((e) => e.getAttribute('aria-label')),
 );
-check(`every family in the circle can be ticked (${inCircle.length})`, inCircle.length >= 2);
+check(`every family in the circle can be ticked (${inCircle.length})`, inCircle.length >= 3);
+// Two of the three, so the move has to be exact: the one left unticked stays.
 await dad.click(`section:has-text("רק אצלנו") >> [aria-label="${inCircle[0]}"]`);
 await dad.click(`section:has-text("רק אצלנו") >> [aria-label="${inCircle[1]}"]`);
 check('and the bar counts them', await dad.isVisible('text=2 נבחרו'));
 
+const named = (label) => label.replace('בחירת ', '');
+const moved = [named(inCircle[0]), named(inCircle[1])];
+const kept = named(inCircle[2]);
+
 await dad.selectOption('select[aria-label="העברה למעגל"]', { label: 'המשפחה של אבא' });
 await dad.click('text=/^העברה$/');
 await dad.waitForTimeout(1800);
-const moved = inCircle.map((label) => label.replace('בחירת ', ''));
+await dad.reload();
+await dad.waitForSelector('text=המעגלים שלי');
+
 const dadsCircleFamilies = await dad.$$eval(
   'section:has-text("המשפחה של אבא") > ul > li p',
   (els) => els.map((e) => e.textContent.trim()),
 );
-check(`a move lands them in the other circle (${moved.join(' · ')})`,
+check(`a move lands the ticked ones in the other circle (${moved.join(' · ')})`,
   moved.every((name) => dadsCircleFamilies.includes(name)));
 const stillHere = await dad.$$eval(
   'section:has-text("רק אצלנו") > ul > li p',
   (els) => els.map((e) => e.textContent.trim()),
 );
 check('and takes them out of this one', moved.every((name) => !stillHere.includes(name)));
+check(`while the one left unticked stays (${kept})`, stillHere.includes(kept));
+
+await dad.click('section:has-text("רק אצלנו") >> text=עריכה');
 
 // Deleting the circle itself. It asks first, and erases nothing.
 const beforeDrop = rows('Members').length;
