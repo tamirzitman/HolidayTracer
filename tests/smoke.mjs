@@ -484,6 +484,8 @@ const first = await open();
 await first.goto(`${BASE}/join/${shared}`);
 await first.fill('input[name=phone]', FIRST_NUMBER);
 await first.click('button[type=submit]');
+await first.waitForSelector('input[name=firstName]');
+await first.click('text=המשפחה שלנו כבר ברשימה');
 await first.waitForSelector('select[name=claimHouseholdId]');
 const offered = await first.$$eval('select[name=claimHouseholdId] option', (els) =>
   els.map((e) => e.textContent.trim()),
@@ -504,6 +506,8 @@ const second = await open();
 await second.goto(`${BASE}/join/${shared}`);
 await second.fill('input[name=phone]', SECOND_NUMBER);
 await second.click('button[type=submit]');
+await second.waitForSelector('input[name=firstName]');
+await second.click('text=המשפחה שלנו כבר ברשימה');
 await second.waitForSelector('select[name=claimHouseholdId]');
 const stillOffered = await second.$$eval('select[name=claimHouseholdId] option', (els) =>
   els.map((e) => e.textContent.trim()),
