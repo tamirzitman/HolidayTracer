@@ -67,9 +67,12 @@ export function FamiliesManager({
               <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">
                 <div className="min-w-0 grow">
                   <p className="truncate font-semibold text-ink">{family.name}</p>
+                  {/* Say what the state actually is. "טרם הצטרפו" left people
+                      guessing whether the family was missing something, when
+                      all it means is that nobody from it has opened the app. */}
                   <span className="text-sm text-muted">
                     {family.members.length === 0
-                      ? 'טרם הצטרפו'
+                      ? 'עוד לא נרשמו לאפליקציה'
                       : family.members.map((m) => m.name).join(', ')}
                   </span>
                 </div>

@@ -130,7 +130,7 @@ listed and leaving the screen to invite them is not going to happen.
   Nothing is "pending" — when that number later signs in, they are simply already in, in the right
   family, connected to whoever added them. There is no claiming step to build.
 - **With a name only:** the household works and can be answered for, but nobody from it can ever
-  join. It is shown as **טרם הצטרפו** until a number is attached.
+  join. It is shown as **עוד לא נרשמו לאפליקציה** until a number is attached.
 - **A number already known never creates a second household** — it connects to the existing one.
 - **Nothing is inherited automatically.** Adding a family connects only you. Other people reach
   them by ticking them at the join screen or taking up the suggestion below — both are somebody's

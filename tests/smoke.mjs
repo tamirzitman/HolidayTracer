@@ -231,7 +231,8 @@ await dad.waitForSelector('text=מתארחים אצל כהן');
 check('answering at them works', await dad.isVisible('text=מתארחים אצל כהן'));
 
 await dad.goto(`${BASE}/families`);
-check('a family nobody has joined is marked', await dad.isVisible('text=טרם הצטרפו'));
+check('a family nobody has signed up from says so plainly',
+  await dad.isVisible('text=עוד לא נרשמו לאפליקציה'));
 
 // nothing is inherited: the newcomer never sees them
 await newcomer.goto(BASE);
