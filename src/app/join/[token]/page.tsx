@@ -2,7 +2,7 @@ import { JoinForm } from '@/components/JoinForm';
 import { SignInForm } from '@/components/SignInForm';
 import { ConnectPrompt } from '@/components/ConnectPrompt';
 import { Title, card } from '@/components/ui';
-import { circleOf, claimableIn, findPerson, isConnected, readInvite } from '@/lib/data';
+import { claimableIn, findPerson, isConnected, readInvite } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 import { redirect } from 'next/navigation';
 
@@ -35,7 +35,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
     return (
       <div className="flex flex-col gap-4">
         {stale}
-        <JoinForm phone={phone} token="" invitedBy="" kind="family" claimable={[]} circle={[]} />
+        <JoinForm phone={phone} token="" invitedBy="" kind="family" claimable={[]} />
       </div>
     );
   }
@@ -61,7 +61,6 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       invitedBy={invite.household.name}
       kind={invite.kind}
       claimable={(await claimableIn(invite.household.id)).map((h) => ({ id: h.id, name: h.name }))}
-      circle={(await circleOf(invite.household.id)).map((h) => ({ id: h.id, name: h.name }))}
     />
   );
 }

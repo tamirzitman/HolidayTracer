@@ -68,7 +68,7 @@ export default async function Page({
     // families you add bring the families they know along as suggestions.
     return (
       <div className="flex flex-col gap-4">
-        <JoinForm phone={phone} token="" invitedBy="" kind="family" claimable={[]} circle={[]} />
+        <JoinForm phone={phone} token="" invitedBy="" kind="family" claimable={[]} />
         <form action={signOut} className="text-center">
           <button type="submit" className={quietButton}>
             זה לא המספר שלי

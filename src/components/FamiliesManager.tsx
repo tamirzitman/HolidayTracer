@@ -80,7 +80,28 @@ export function FamiliesManager({
           connections that already exist. */}
       {suggested.length > 0 && (
         <section className={`${card} flex flex-col gap-1 p-0`}>
-          <h2 className="px-5 pt-4 pb-1 text-sm font-bold text-muted">מוצע להוספה</h2>
+          <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
+            <h2 className="text-sm font-bold text-muted">מוצע להוספה</h2>
+            {/* The case a parent's invitation makes: their list is all of yours,
+                and taking it one row at a time is work for nothing. */}
+            {suggested.length > 1 && (
+              <button
+                type="button"
+                disabled={adding !== null}
+                onClick={async () => {
+                  setAdding('all');
+                  try {
+                    for (const family of suggested) await addSuggested(family.id);
+                  } finally {
+                    setAdding(null);
+                  }
+                }}
+                className="shrink-0 text-xs font-bold text-brand underline underline-offset-4"
+              >
+                {adding === 'all' ? 'רגע…' : 'הוספת כולן'}
+              </button>
+            )}
+          </div>
           <ul className="divide-y divide-line">
             {suggested.map((family) => (
               <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">

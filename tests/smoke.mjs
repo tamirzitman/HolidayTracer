@@ -142,32 +142,22 @@ check('and asks for no phone number', !(await newcomer.isVisible('input[name=joi
 check('your own name is asked once, in two halves',
   (await newcomer.$$('input[name=firstName], input[name=surname]')).length === 2);
 const headings = await newcomer.$$eval('legend', (els) => els.map((e) => e.textContent.trim()));
-check(`the name and the family are asked as separate questions (${headings.slice(0, 2).join(' / ')})`,
+check(`the name and the family are asked as separate questions (${headings.join(' / ')})`,
   headings.includes('איך קוראים לכם?') && headings.includes('המשפחה שלכם'));
 
-// Saying "that family is us" must not then offer that family to connect to.
-const offeredWhenNew = await newcomer.$$eval('input[name=share]', (els) => els.map((e) => e.value));
-await newcomer.selectOption('select[name=claimHouseholdId]', { index: 1 });
-const claimed = await newcomer.inputValue('select[name=claimHouseholdId]');
-const offeredWhenClaiming = await newcomer.$$eval('input[name=share]', (els) =>
-  els.map((e) => e.value),
+// The screen a link lands on has to be answerable at a glance.
+const asked = await newcomer.$$eval('input:not([type=hidden]), select', (els) =>
+  els.map((e) => e.name || e.type),
 );
-check(`claiming a family takes it out of the circle list (${offeredWhenNew.length} → ${offeredWhenClaiming.length})`,
-  offeredWhenNew.includes(claimed) && !offeredWhenClaiming.includes(claimed));
-check('and stops asking what to call a new one',
-  !(await newcomer.isVisible('input[name=householdName]')));
-await newcomer.selectOption('select[name=claimHouseholdId]', '');
+check(`joining asks three things and no more (${asked.join(', ')})`, asked.length === 3);
+check('and judges nobody else on the way in',
+  (await newcomer.$$('input[name=share]')).length === 0);
 
-// ── the inviter's circle is offered, ticked, and can be trimmed ──────────────
-const offeredAtJoin = await newcomer.$$eval('input[name=share]', (els) =>
-  els.map((e) => ({ id: e.value, on: e.checked })),
-);
-check(`the inviter's circle is offered (${offeredAtJoin.length} families)`,
-  offeredAtJoin.length >= 2);
-check('all of it ticked to begin with', offeredAtJoin.every((f) => f.on));
-await newcomer.uncheck('input[name=share][value=hh_sister]');
-check('and one can be dropped',
-  !(await newcomer.isChecked('input[name=share][value=hh_sister]')));
+// Claiming an existing family is there, one line away, for the rarer case.
+await newcomer.click('text=המשפחה שלנו כבר ברשימה');
+await newcomer.waitForSelector('select[name=claimHouseholdId]');
+check('claiming an existing family is a line away, not in the way',
+  await newcomer.isVisible('select[name=claimHouseholdId]'));
 
 await newcomer.fill('input[name=firstName]', 'דנה');
 await newcomer.fill('input[name=surname]', 'לוי');
@@ -179,6 +169,7 @@ const joinButtons = await newcomer.$$eval('form button[type=submit]', (els) =>
 );
 check(`joining a circle is asked, not assumed (${joinButtons.length} answers)`,
   joinButtons.length === 2 && joinButtons.some((t) => t.includes('בלי להתחבר')));
+await newcomer.selectOption('select[name=claimHouseholdId]', '');
 await newcomer.click('text=/^סיום/');
 await newcomer.waitForSelector('text=איפה אתם בחג?');
 check('the newcomer is in', rows('Households').some((r) => r[1] === 'דנה ויוסי לוי'));
@@ -191,9 +182,22 @@ await newcomer.waitForSelector('select[name=hostHouseholdId]');
 const options = await newcomer.$$eval('select[name=hostHouseholdId] option', (els) =>
   els.map((e) => e.textContent.trim()).filter((t) => t !== 'בחרו משפחה'),
 );
-check(`the newcomer starts with more than the one family (${options.join(', ') || 'none'})`,
-  options.length > 1 && options.includes('אבא ואמא'));
-check('and without the one they unticked', !options.includes('אחות ובעלה'));
+check(`the newcomer starts with the family that invited them (${options.join(', ') || 'none'})`,
+  options.includes('אבא ואמא'));
+
+// And the rest arrives where it can be judged: on the circles screen, named,
+// with one tap for all of it.
+await newcomer.goto(`${BASE}/families`);
+await newcomer.waitForSelector('text=המעגלים שלי');
+const waiting = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) => els.length);
+check(`the inviter's circle arrives as suggestions instead (${waiting})`, waiting >= 2);
+await newcomer.click('text=הוספת כולן');
+await newcomer.waitForTimeout(2500);
+await newcomer.reload();
+await newcomer.waitForSelector('text=המעגלים שלי');
+check('and all of it can be taken in one tap',
+  (await newcomer.$$eval('section:first-of-type li', (els) => els.length)) >= waiting + 1);
+await newcomer.goto(BASE);
 
 await newcomer.selectOption('select[name=hostHouseholdId]', { label: 'אבא ואמא' });
 await newcomer.click('button[type=submit]');

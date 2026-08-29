@@ -153,23 +153,24 @@ making a copy of it.
 The question screen says so directly: with nobody on the list, "מתארחים אצל…" would open an empty
 dropdown, so it reads **הוספת המשפחות שלנו** instead.
 
-### Circles overlap, so joining starts from the inviter's
+### Circles overlap, but the join screen is not where you sort that out
 
 Circles are not independent lists: a brother's is most of yours, a parent's can be all of it, an
-uncle's about half. Arriving on an invite with only the family that invited you means arriving with
-nothing to answer about — but copying their whole circle across would put the uncle's wife's family
-on your list, which is exactly what circles exist to prevent.
+uncle's about half. So arriving connected only to the family that invited you means arriving with
+almost nothing — and the first attempt at fixing that put the inviter's whole circle on the join
+screen as a ticked checklist.
 
-So the choice is the newcomer's, on the screen they are already standing on. The join screen lists
-the inviter's circle as a checklist, **ticked to begin with**, with one button to clear it:
+**That was the wrong screen.** It asked the least-informed person, at the least-informed moment, to
+judge families they had not seen, on a page reached by tapping a link in WhatsApp. Counting the
+rest of the form, joining meant six decisions before seeing anything.
 
-- **A parent inviting a child (all of it overlaps):** touch nothing, press סיום.
-- **A brother (most of it):** untick two or three.
-- **An uncle (about half):** press בטלו הכל, then tick the half that matters.
+The job belongs to the suggestions below, which do it better: in context, after they are in, each
+family named on its own row with the evidence for it. A newcomer's circle is just the inviter, so
+the "two families must vouch" floor drops to one and the inviter's entire circle is waiting there,
+one tap each — or **הוספת כולן** for the parent-invites-child case where all of it applies.
 
-It costs the inviter nothing — the same link they already send — and every name is checked against
-the inviter's circle when the form is submitted, so a hand-made request cannot connect a household
-to a family nobody offered it.
+Joining now asks three things: your name in two halves, and what your family is called. Claiming a
+family somebody already added is one line away, for the rarer case that needs it.
 
 ### A link cannot quietly put somebody on your list
 

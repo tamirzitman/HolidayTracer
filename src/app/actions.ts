@@ -106,20 +106,12 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
 
   // Registering and joining somebody's circle are two things, and the form asks
   // about the second one separately.
+  // Only the family that invited them. Their circle used to be offered here as a
+  // checklist, which asked the least-informed person at the least-informed
+  // moment to judge families they had not seen — and that job is now done, in
+  // context and with evidence, by the suggestions on the circles screen.
   if (invite && String(formData.get('connect') ?? 'yes') === 'yes') {
     if (householdId !== invite.household.id) await connect(householdId, invite.household.id);
-
-    // The families the newcomer ticked off the inviter's circle. Circles overlap
-    // heavily — a parent's list can be all of yours — so arriving with only the
-    // one family that invited you means arriving with nothing to answer about.
-    // The choice is theirs and it costs the inviter nothing; every name is
-    // checked against the inviter's circle so a hand-made form cannot connect
-    // this household to a family nobody offered it.
-    const offered = new Set((await circleOf(invite.household.id)).map((h) => h.id));
-    for (const id of formData.getAll('share').map(String)) {
-      if (!offered.has(id) || id === householdId) continue;
-      if (!(await isConnected(householdId, id))) await connect(householdId, id);
-    }
   }
 
   // Straight to the question: that is what they came for.

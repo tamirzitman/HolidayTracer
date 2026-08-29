@@ -3,7 +3,6 @@
 import { useActionState, useState } from 'react';
 import { register, type ActionResult } from '@/app/actions';
 import { formatPhone } from '@/lib/phone';
-import { CirclePicker } from './CirclePicker';
 import { familyName } from '@/lib/names';
 import { ErrorNote, Title, card, field, primaryButton, quietButton } from './ui';
 
@@ -18,7 +17,6 @@ export function JoinForm({
   invitedBy,
   kind,
   claimable,
-  circle,
 }: {
   phone: string;
   token: string;
@@ -26,8 +24,6 @@ export function JoinForm({
   kind: 'family' | 'household';
   /** Families already on the inviter's list, which this newcomer may belong to. */
   claimable: { id: string; name: string }[];
-  /** The inviter's own circle, offered to the newcomer to start from. */
-  circle: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(register, {});
   const [claim, setClaim] = useState('');
@@ -39,10 +35,9 @@ export function JoinForm({
   const [typed, setHouseholdRaw] = useState('');
   const household = touched ? typed : suggested;
   const setHousehold = (value: string) => setHouseholdRaw(value);
-  // Ticked to begin with: most invitations go to people whose list would look
-  // almost exactly like the inviter's — a parent's can be all of it. Trimming a
-  // few is less work than picking a dozen, and there is one tap for the rest.
-  const [share, setShare] = useState<string[]>(() => circle.map((h) => h.id));
+  // Claiming an existing family is the rarer path, so it waits behind a line of
+  // text rather than sitting in the way of everyone who is genuinely new.
+  const [claiming, setClaiming] = useState(false);
 
   return (
     <form action={formAction} className={`${card} flex flex-col gap-5`}>
@@ -58,7 +53,7 @@ export function JoinForm({
               : `${invitedBy} הזמינו אתכם`}
         </Title>
         <p className="text-muted">
-          המספר <span dir="ltr">{formatPhone(phone)}</span> עוד לא מוכר לנו.
+          נרשמים עם המספר <span dir="ltr">{formatPhone(phone)}</span>
         </p>
       </div>
 
@@ -100,30 +95,6 @@ export function JoinForm({
         <fieldset className="flex flex-col gap-3">
           <legend className="mb-2 text-sm font-semibold text-muted">המשפחה שלכם</legend>
 
-          {claimable.length > 0 && (
-            <label className="flex flex-col gap-2">
-              <select
-                name="claimHouseholdId"
-                value={claim}
-                // The circle list filters the claimed family out, so nothing
-                // needs stripping from the ticks — doing that lost the tick for
-                // anyone who changed their mind and picked "new" again.
-                onChange={(e) => setClaim(e.target.value)}
-                className={field}
-              >
-                <option value="">משפחה חדשה שלנו</option>
-                {claimable.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name}
-                  </option>
-                ))}
-              </select>
-              <span className="text-xs text-muted">
-                אם מישהו כבר הוסיף אתכם — בחרו בשם שלכם, כדי שלא ייווצרו שתי משפחות נפרדות.
-              </span>
-            </label>
-          )}
-
           {!claim && (
             <label className="flex flex-col gap-2">
               <span className="text-sm font-semibold text-muted">
@@ -147,16 +118,40 @@ export function JoinForm({
             </label>
           )}
 
-          {/* The whole point of arriving on somebody's invite: their list is
-              probably most of yours. Deciding here costs the inviter nothing
-              and saves the newcomer from an app with one family in it. */}
-          <CirclePicker
-            name="share"
-            families={circle.filter((h) => h.id !== claim)}
-            chosen={share}
-            onChange={setShare}
-            legend={`${invitedBy} רואים גם את אלה. מי מהן רלוונטית לכם?`}
-          />
+          {/* Most people arriving on a link are new. The ones somebody already
+              added by name are the exception, and an exception should not be a
+              dropdown everybody has to read past. */}
+          {claimable.length > 0 &&
+            (claiming || claim ? (
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-semibold text-muted">בחרו את המשפחה שלכם</span>
+                <select
+                  name="claimHouseholdId"
+                  value={claim}
+                  onChange={(e) => setClaim(e.target.value)}
+                  className={field}
+                >
+                  <option value="">אנחנו משפחה חדשה</option>
+                  {claimable.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-muted">
+                  כך לא ייווצרו שתי רשומות לאותה משפחה.
+                </span>
+              </label>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setClaiming(true)}
+                className="text-start text-sm font-semibold text-brand underline underline-offset-4"
+              >
+                המשפחה שלנו כבר ברשימה
+              </button>
+            ))}
+
         </fieldset>
       )}
 
