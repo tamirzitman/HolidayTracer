@@ -401,7 +401,9 @@ await friend.click('button[type=submit]');
 await friend.waitForSelector('input[name=firstName]');
 await friend.fill('input[name=firstName]', 'חבר');
 await friend.fill('input[name=surname]', 'סקרן');
-await friend.click('text=רק להירשם, בלי להתחבר לאף אחד');
+await friend.fill('input[name=householdName]', 'חבר סקרן');
+// Matched loosely: the button names the family that invited them.
+await friend.click('text=/^להירשם בלי להתחבר/');
 await friend.waitForSelector('text=איפה אתם בחג?');
 await friend.waitForTimeout(1500);
 const friendId = rows('Households').at(-1)[0];
