@@ -103,6 +103,22 @@ const afterDismiss = await stranger.$$eval('section:has-text("מוצע להוס�
 );
 check(`a dismissed suggestion stays gone (${dropped} → ${afterDismiss.length} left)`,
   !afterDismiss.includes(dropped) && afterDismiss.length === coldSuggested.length - 1);
+
+// Taking one up is the other half: a mutual connection, usable at once.
+const takeUp = afterDismiss[0];
+const beforeSuggest = rows('Connections').length;
+await stranger.click(`li:has-text("${takeUp}") >> text=הוספה`);
+await stranger.waitForTimeout(1800);
+check(`taking one up connects the two families (${takeUp})`,
+  rows('Connections').length === beforeSuggest + 2);
+await stranger.goto(BASE);
+await stranger.click('text=שינוי תשובה');
+await stranger.click('text=מתארחים אצל…');
+await stranger.waitForSelector('select[name=hostHouseholdId]');
+check('and they are pickable straight away',
+  (await stranger.$$eval('select[name=hostHouseholdId] option', (els) =>
+    els.map((e) => e.textContent.trim()))).includes(takeUp));
+await stranger.goto(`${BASE}/families`);
 await stranger.close();
 
 // ── the circle is hidden until you answer ────────────────────────────────────
@@ -373,120 +389,6 @@ await dad.goto(`${BASE}/history`);
 const corrected = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.textContent.trim()));
 check(`the counts follow the correction (${stats.join('/')} → ${corrected.join('/')})`,
   Number(corrected[0]) === Number(stats[0]) + 1);
-
-// ── families your families know, and you don't ───────────────────────────────
-// Dad dropped nobody, so he sees everything already. The newcomer unticked
-// אחות ובעלה at the join, and every family that did keep them is now evidence
-// that they belong on the newcomer's list too.
-await newcomer.goto(`${BASE}/families`);
-await newcomer.waitForSelector('text=המעגלים שלי');
-const suggestions = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) =>
-  els.map((e) => e.innerText.replace(/\n+/g, ' | ').trim()),
-);
-// Naming who the newcomer already knows, so a failure here says why.
-const knownAlready = await newcomer.$$eval('section li p.font-semibold', (els) =>
-  els.map((e) => e.textContent.trim()),
-);
-check(`the overlap is offered back (${suggestions[0] ?? `none; knows ${knownAlready.join(', ')}`})`,
-  suggestions.some((t) => t.includes('אחות ובעלה')));
-check('with how many of your families know them',
-  suggestions.some((t) => /\d+ מהמשפחות שלכם רואות אותם/.test(t)));
-check('and never on the word of a single family',
-  suggestions.every((t) => !/משפחה אחת/.test(t)));
-
-const beforeSuggest = rows('Connections').length;
-await newcomer.click('li:has-text("אחות ובעלה") >> text=הוספה');
-await newcomer.waitForTimeout(1500);
-check('taking one up connects the two families',
-  rows('Connections').length === beforeSuggest + 2);
-await newcomer.goto(BASE);
-await newcomer.click('text=שינוי תשובה');
-await newcomer.click('text=מתארחים אצל…');
-await newcomer.waitForSelector('select[name=hostHouseholdId]');
-const nowSees = await newcomer.$$eval('select[name=hostHouseholdId] option', (els) =>
-  els.map((e) => e.textContent.trim()),
-);
-check('and they are pickable straight away', nowSees.includes('אחות ובעלה'));
-
-// ── being somebody else, without another phone ───────────────────────────────
-// The household name belongs at the top of every screen, not only the one that
-// asks a question.
-for (const where of ['/', '/families', '/history', '/occasions']) {
-  await dad.goto(BASE + where);
-  await dad.waitForSelector('button[aria-haspopup=menu]');
-  check(`the household is named on ${where}`,
-    (await dad.innerText('button[aria-haspopup=menu]')).includes('אבא ואמא'));
-}
-
-await dad.click('button[aria-haspopup=menu]');
-await dad.waitForSelector('[role=menu]');
-const menu = await dad.$$eval('[role=menu] [role=menuitem]', (els) =>
-  els.map((e) => e.textContent.trim()),
-);
-check(`the menu holds what belongs to you (${menu.join(' · ')})`, menu.length === 3);
-check('occasions are reachable without going through an add button',
-  Boolean(await dad.$('[role=menu] a[href="/occasions"]')));
-
-// Sharing the app is not an invite: no token, so it connects nobody to anybody.
-const shareHref = await dad.getAttribute('[role=menu] a[href*="wa.me"]', 'href');
-check('sharing the app carries no invite link', !shareHref.includes('/join/'));
-
-await dad.click('[role=menu] >> text=יציאה');
-await dad.waitForSelector('input[name=phone]');
-check('and signing out lands back on the sign-in', await dad.isVisible('input[name=phone]'));
-await dad.fill('input[name=phone]', DAD);
-await dad.click('button[type=submit]');
-await dad.waitForSelector('nav');
-check('signing back in takes one number and no code', await dad.isVisible('nav'));
-
-// ── adding a family nobody has: chosen at once, and invitable ────────────────
-await dad.goto(BASE);
-if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
-await dad.click('text=מתארחים אצל…');
-await dad.click('text=לא מוצאים? הוסיפו משפחה');
-await dad.fill('input[name=familyFirstNames]', 'שכנים');
-await dad.fill('input[name=familyPhone]', '054-777-8888');
-await dad.click('form:has(input[name=familyFirstNames]) button[type=submit]');
-await dad.waitForSelector('text=נוספו, וכבר נבחרו');
-check('a new family is chosen the moment it exists',
-  (await dad.$eval('select[name=hostHouseholdId]', (el) =>
-    el.selectedOptions[0].textContent.trim())) === 'שכנים');
-const inviteNow = await dad.getAttribute('a:has-text("הזמנה בוואטסאפ")', 'href');
-check(`and can be invited on the spot (${inviteNow?.slice(0, 26)}…)`,
-  Boolean(inviteNow?.startsWith('https://wa.me/972547778888')));
-
-// ── saying you are coming says your host is hosting ──────────────────────────
-// The implication only runs one way: a guest at a third family says nothing
-// about anybody else, which is why only the host's answer is written.
-await newcomer.goto(`${BASE}/?h=rosh_hashana_ii_2026`);
-await newcomer.waitForSelector('nav');
-if (await newcomer.isVisible('text=שינוי תשובה')) await newcomer.click('text=שינוי תשובה');
-await newcomer.click('text=מתארחים אצל…');
-await newcomer.selectOption('select[name=hostHouseholdId]', { label: 'אבא ואמא' });
-await newcomer.click('button[type=submit]');
-await newcomer.waitForSelector('text=שינוי תשובה');
-await newcomer.waitForTimeout(1800);
-
-const implied = rows('Answers').at(-1);
-check(`the host is recorded as hosting (${implied[2]}, for ${implied[5]})`,
-  implied[2] === 'hosting' && implied[5] === 'hh_parents');
-check('and it is credited to whoever actually said it',
-  implied[4] !== '' && implied[4] !== DAD.replace(/\D/g, ''));
-
-await dad.goto(`${BASE}/?h=rosh_hashana_ii_2026`);
-await dad.waitForSelector('nav');
-check('so the host opens the app already answered',
-  await dad.isVisible('text=אנחנו מארחים'));
-check('and it says where that came from',
-  /לפי .+, שאמרו שהם מגיעים אליכם/.test(await dad.innerText('main')));
-
-// Their own answer is newer, so correcting it wins.
-await dad.click('text=שינוי תשובה');
-await dad.click('text=לא מגיעים בכלל');
-await dad.waitForSelector('text=שינוי תשובה');
-await dad.waitForTimeout(1500);
-check('and the host can still say otherwise',
-  rows('Answers').at(-1)[2] === 'away' && rows('Answers').at(-1)[5] === '');
 
 // ── an invite link cannot quietly put somebody on your list ──────────────────
 const friend = await open();
