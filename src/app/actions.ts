@@ -46,9 +46,11 @@ export async function signIn(_prev: ActionResult, formData: FormData): Promise<A
 }
 
 /**
- * Joining happens through an invite: either the newcomer's family is already
- * here and they attach to it by a number inside it, or they name a new family.
- * Either way the inviter's household and theirs are introduced.
+ * Signing up. An invite is a shortcut, not a gate: it introduces two families
+ * in one step and offers the inviter's circle to start from. Without one, a
+ * person still registers — they simply arrive with nobody on their list and
+ * add the families they care about, and each family they add brings the
+ * families it knows along as suggestions.
  */
 export async function register(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const phone = await getSessionPhone();
@@ -57,21 +59,21 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
 
   const token = String(formData.get('token') ?? '').trim();
   const invite = token ? await readInvite(token) : undefined;
-  if (!invite) return { error: 'צריך הזמנה ממשפחה שכבר רשומה' };
+  if (token && !invite) return { error: 'הקישור כבר לא תקף — אפשר להירשם בלעדיו' };
 
   const name = String(formData.get('name') ?? '').trim();
   if (!name) return { error: 'צריך שם' };
 
   let householdId: string;
-  if (invite.kind === 'household') {
+  if (invite?.kind === 'household') {
     // Joining the inviter's own household — a spouse, a grown child.
     householdId = invite.household.id;
   } else {
     // Saying "that one is us" about a family already on the list is what keeps
     // one family from becoming two. It works whichever number they sign up
     // with, which matching on the phone alone cannot.
-    const claiming = String(formData.get('claimHouseholdId') ?? '').trim();
-    if (claiming) {
+    const claiming = invite ? String(formData.get('claimHouseholdId') ?? '').trim() : '';
+    if (claiming && invite) {
       const claimable = await claimableIn(invite.household.id);
       if (!claimable.some((h) => h.id === claiming)) {
         return { error: 'המשפחה הזו לא ברשימה של מי שהזמין אתכם' };
@@ -88,18 +90,21 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
   }
 
   await addPerson({ phone, name, householdId });
-  if (householdId !== invite.household.id) await connect(householdId, invite.household.id);
 
-  // The families the newcomer ticked off the inviter's circle. Circles overlap
-  // heavily — a parent's list can be all of yours — so arriving with only the
-  // one family that invited you means arriving with nothing to answer about.
-  // The choice is theirs and it costs the inviter nothing; every name is
-  // checked against the inviter's circle so a hand-made form cannot connect
-  // this household to a family nobody offered it.
-  const offered = new Set((await circleOf(invite.household.id)).map((h) => h.id));
-  for (const id of formData.getAll('share').map(String)) {
-    if (!offered.has(id) || id === householdId) continue;
-    if (!(await isConnected(householdId, id))) await connect(householdId, id);
+  if (invite) {
+    if (householdId !== invite.household.id) await connect(householdId, invite.household.id);
+
+    // The families the newcomer ticked off the inviter's circle. Circles overlap
+    // heavily — a parent's list can be all of yours — so arriving with only the
+    // one family that invited you means arriving with nothing to answer about.
+    // The choice is theirs and it costs the inviter nothing; every name is
+    // checked against the inviter's circle so a hand-made form cannot connect
+    // this household to a family nobody offered it.
+    const offered = new Set((await circleOf(invite.household.id)).map((h) => h.id));
+    for (const id of formData.getAll('share').map(String)) {
+      if (!offered.has(id) || id === householdId) continue;
+      if (!(await isConnected(householdId, id))) await connect(householdId, id);
+    }
   }
 
   // Straight to the question: that is what they came for.

@@ -26,7 +26,7 @@ past names that mean nothing to them.
 
 | | |
 |---|---|
-| **Invite link** | How a *new* family joins at all. You send a link; opening it creates their household and the connection to you in one step. **This replaces Tamir as the bottleneck** — nobody needs a row added to the sheet by hand |
+| **Invite link** | A shortcut, not a gate — see below. You send a link; opening it creates their household and the connection to you in one step. **This replaces Tamir as the bottleneck** — nobody needs a row added to the sheet by hand |
 | **Add by phone** | How you connect to a family *already in the app*. You type a number you would call anyway; if it belongs to a registered household, the two link. No approval, no admin |
 | **Remove** | One tap on the family list. See open question Q1 on whether that is one-sided or mutual |
 
@@ -135,6 +135,23 @@ listed and leaving the screen to invite them is not going to happen.
 - **Nothing is inherited automatically.** Adding a family connects only you. Other people reach
   them by ticking them at the join screen or taking up the suggestion below — both are somebody's
   decision, never a side effect of yours.
+
+### Signing up needs nobody's permission
+
+Registration was invite-only, and being turned away by an app you were trying to use is the wrong
+first impression — the more so when the person turning you away is your own family and the fix is a
+link somebody has to remember to send. So an invite is now a shortcut rather than a gate: it
+introduces two families in one step, offers the inviter's family to claim, and offers their circle
+to start from. Without one you register the same way and arrive with nobody on your list.
+
+An empty list is honest but useless, so the way out of it is the point: **each family you add brings
+the families it knows along as suggestions.** Adding one — by picking a contact, or by typing a
+number, since the contact picker only exists in Chrome on Android — is enough to bootstrap the rest
+through the מוצע להוספה list. A typed number the app already knows joins that family rather than
+making a copy of it.
+
+The question screen says so directly: with nobody on the list, "מתארחים אצל…" would open an empty
+dropdown, so it reads **הוספת המשפחות שלנו** instead.
 
 ### Circles overlap, so joining starts from the inviter's
 

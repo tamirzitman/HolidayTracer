@@ -63,17 +63,28 @@ export function AddFamilyInline() {
         </div>
       </fieldset>
 
-      <input type="hidden" name="familyPhone" value={picked?.phone ?? ''} />
+      {/* Typed as well as picked. The contact picker only exists in Chrome on
+          Android, and half the family is on an iPhone — leaving them no way at
+          all to attach a number would make the picker's absence a dead end. */}
+      <label className="flex flex-col gap-2">
+        <span className="text-sm font-semibold text-muted">מספר טלפון (לא חובה)</span>
+        <input
+          name="familyPhone"
+          type="tel"
+          inputMode="tel"
+          dir="ltr"
+          autoComplete="off"
+          defaultValue={picked?.phone ? formatPhone(picked.phone) : ''}
+          key={picked?.phone ?? 'empty'}
+          placeholder="050-123-4567"
+          className={field}
+        />
+      </label>
 
-      {picked?.phone ? (
-        <p dir="ltr" className="text-center text-sm text-muted">
-          {formatPhone(picked.phone)}
-        </p>
-      ) : (
-        <p className="text-xs text-muted">
-          בלי מספר הם יופיעו כ״טרם הצטרפו״ — אפשר להשלים מספר בהמשך כדי שיוכלו להיכנס בעצמם.
-        </p>
-      )}
+      <p className="text-xs text-muted">
+        עם מספר הם יוכלו להיכנס בעצמם, ואפשר לכתוב להם בוואטסאפ. בלעדיו הם יופיעו
+        כ״טרם הצטרפו״ — אפשר להשלים בהמשך.
+      </p>
 
       <ErrorNote>{state.error}</ErrorNote>
 

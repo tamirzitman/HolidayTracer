@@ -31,19 +31,60 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
 const open = async () => (await browser.newContext({ viewport: { width: 390, height: 820 } })).newPage();
 
 // ── an unknown number cannot let itself in ───────────────────────────────────
+// ── signing up needs nobody's permission ─────────────────────────────────────
 const stranger = await open();
 await stranger.goto(BASE);
-await stranger.fill('input[name=phone]', '050-000-0000');
+await stranger.fill('input[name=phone]', '058-777-1234');
 await stranger.click('button[type=submit]');
-await stranger.waitForSelector('text=צריך הזמנה');
-check('joining without an invite is refused', await stranger.isVisible('text=צריך הזמנה'));
-check('the screen names the number you are signed in as',
-  await stranger.isVisible('text=050-000-0000'));
-// One wrong digit used to leave you on this screen with no way back.
-await stranger.click('text=התחברות עם מספר אחר');
-await stranger.waitForSelector('input[name=phone]');
-check('and offers a way back to the sign-in',
-  await stranger.isVisible('input[name=phone]'));
+await stranger.waitForSelector('input[name=firstNames]');
+check('an unknown number is asked who it is, not turned away',
+  await stranger.isVisible('input[name=firstNames]'));
+check('and is offered a way back if it was a typo',
+  await stranger.isVisible('text=זה לא המספר שלי'));
+
+await stranger.fill('input[name=name]', 'רן');
+await stranger.fill('input[name=firstNames]', 'רן ומיכל');
+await stranger.fill('input[name=surname]', 'ברק');
+await stranger.click('form button[type=submit]');
+await stranger.waitForSelector('text=איפה אתם בחג?');
+check('registering with no invite works', rows('Households').some((r) => r[1] === 'רן ומיכל ברק'));
+
+// Nobody on the list yet: the guest button would open an empty dropdown.
+const cold = await stranger.$$eval('main button', (els) => els.map((e) => e.textContent.trim()));
+check(`an empty circle points at filling it (${cold.join(', ')})`,
+  cold.includes('הוספת המשפחות שלנו'));
+
+await stranger.click('text=הוספת המשפחות שלנו');
+await stranger.click('text=לא מוצאים? הוסיפו משפחה');
+await stranger.waitForSelector('input[name=familyPhone]');
+check('a number can be typed, not only picked from contacts',
+  await stranger.isVisible('input[name=familyPhone]'));
+
+// Typing a number the app already knows joins that family rather than a copy.
+const beforeCold = rows('Households').length;
+await stranger.fill('input[name=familyFirstNames]', 'אבא ואמא');
+await stranger.fill('input[name=familyPhone]', DAD);
+await stranger.click('form:has(input[name=familyFirstNames]) button[type=submit]');
+await stranger.waitForTimeout(1800);
+check('a typed number that is known makes no second household',
+  rows('Households').length === beforeCold);
+
+await stranger.goto(BASE);
+await stranger.click('text=מתארחים אצל…');
+await stranger.waitForSelector('select[name=hostHouseholdId]');
+const coldSees = await stranger.$$eval('select[name=hostHouseholdId] option', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`and they are on the list (${coldSees.join(', ')})`, coldSees.includes('אבא ואמא'));
+
+await stranger.goto(`${BASE}/families`);
+await stranger.waitForSelector('text=המעגלים שלי');
+const coldSuggested = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
+  els.map((e) => e.innerText.split('\n')[0].trim()),
+);
+check(`one family added brings the rest as suggestions (${coldSuggested.length})`,
+  coldSuggested.length >= 2);
+await stranger.close();
 
 // ── the circle is hidden until you answer ────────────────────────────────────
 const dad = await open();
@@ -62,9 +103,9 @@ check('answering reveals where everyone is', await dad.isVisible('text=איפה 
 check('and the circle lists the other families', await dad.isVisible('text=טמיר ואפיק'));
 
 // ── invite a family that is not in the app at all ────────────────────────────
-await dad.click('nav >> text=המשפחות');
+await dad.click('nav >> text=המעגלים');
 await dad.waitForURL('**/families');
-check('the tab bar reaches the families screen', await dad.isVisible('text=המשפחות שלי'));
+check('the tab bar reaches the circles screen', await dad.isVisible('text=המעגלים שלי'));
 const beforeInvite = rows('Invites').length;
 await dad.click('text=הזמנת משפחה');
 await dad.waitForSelector('text=שליחה בוואטסאפ');

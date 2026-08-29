@@ -370,12 +370,15 @@ export function AnswerForm({
                   >
                     אנחנו מארחים
                   </button>
+                  {/* With nobody on the list there is nothing to be a guest at,
+                      so the button would open an empty dropdown. Pointing at
+                      building the circle is the honest thing to offer instead. */}
                   <button
                     type="button"
                     onClick={() => setChoosingHost(true)}
                     className={primaryButton}
                   >
-                    מתארחים אצל…
+                    {households.length === 0 ? 'הוספת המשפחות שלנו' : 'מתארחים אצל…'}
                   </button>
                   <button
                     type="submit"
@@ -387,6 +390,11 @@ export function AnswerForm({
                     לא מגיעים בכלל
                   </button>
                 </>
+              ) : households.length === 0 ? (
+                <p className="text-center text-sm text-muted">
+                  עוד אין מי שתתארחו אצלו. הוסיפו את המשפחות שלכם למטה — כל משפחה
+                  שתוסיפו תביא איתה הצעות למשפחות שהיא מכירה.
+                </p>
               ) : (
                 <>
                   <input type="hidden" name="kind" value="guest" />

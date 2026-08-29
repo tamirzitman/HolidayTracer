@@ -54,7 +54,7 @@ export function FamiliesManager({
           <span aria-hidden="true">🏡</span>
           {householdName}
         </span>
-        <Title>המשפחות שלי</Title>
+        <Title>המעגלים שלי</Title>
         <p className="text-muted">רק המשפחות שכאן מופיעות כשאתם עונים על חג.</p>
       </header>
 

@@ -6,8 +6,9 @@ import { formatPhone } from '@/lib/phone';
 import { ErrorNote, Title, card, field, primaryButton } from './ui';
 
 /**
- * Arriving on an invite. The link itself says whether this person is starting a
- * new family or joining the inviter's — so nobody has to type a phone number.
+ * Signing up — with an invite or without one. An invite is only a shortcut: it
+ * names who introduced you, offers their family to claim, and their circle to
+ * start from. Arriving cold skips all three and simply asks who you are.
  */
 export function JoinForm({
   phone,
@@ -40,7 +41,11 @@ export function JoinForm({
       <div className="flex flex-col gap-2 text-center">
         <span className="text-4xl" aria-hidden="true">👋</span>
         <Title>
-          {kind === 'household' ? `הצטרפות ל${invitedBy}` : `${invitedBy} הזמינו אתכם`}
+          {!invitedBy
+            ? 'נעים להכיר'
+            : kind === 'household'
+              ? `הצטרפות ל${invitedBy}`
+              : `${invitedBy} הזמינו אתכם`}
         </Title>
         <p className="text-muted">
           המספר <span dir="ltr">{formatPhone(phone)}</span> עוד לא מוכר לנו.

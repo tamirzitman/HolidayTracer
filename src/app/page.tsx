@@ -1,9 +1,9 @@
 import { headers } from 'next/headers';
 import { signOut } from '@/app/actions';
-import { formatPhone } from '@/lib/phone';
 import { AnswerForm } from '@/components/AnswerForm';
+import { JoinForm } from '@/components/JoinForm';
 import { SignInForm } from '@/components/SignInForm';
-import { Title, card, secondaryButton } from '@/components/ui';
+import { Title, card, quietButton, secondaryButton } from '@/components/ui';
 import {
   circleAnswers,
   circleOf,
@@ -43,40 +43,41 @@ export default async function Page({
 
   const person = await findPerson(phone);
   if (!person) {
-    // Two very different things land here, and saying "ask for an invite" to
-    // both of them is wrong. A sheet with no families in it is a deployment
-    // pointed at the wrong place, not a visitor who has not been invited.
-    const empty = (await getHouseholds()).length === 0;
-
-    return (
-      <div className={`${card} flex flex-col gap-3 text-center`}>
-        <span className="text-4xl" aria-hidden="true">{empty ? '🗂️' : '✉️'}</span>
-        <Title>{empty ? 'הגיליון ריק' : 'צריך הזמנה'}</Title>
-        {empty ? (
+    // An empty sheet is a deployment pointed at the wrong place, not a person
+    // who has done anything wrong; saying "sign up" to that would be a dead end
+    // of its own, since there would be nothing to sign up to.
+    if ((await getHouseholds()).length === 0) {
+      return (
+        <div className={`${card} flex flex-col gap-3 text-center`}>
+          <span className="text-4xl" aria-hidden="true">🗂️</span>
+          <Title>הגיליון ריק</Title>
           <p className="text-muted">
             אין אף משפחה בגיליון שהאפליקציה קוראת ממנו. כנראה SHEET_ID מצביע על
             הגיליון הלא נכון, או שהטאבים עוד לא נוצרו.
           </p>
-        ) : (
-          <p className="text-muted">
-            המספר <span dir="ltr" className="font-semibold text-ink">{formatPhone(phone)}</span> לא
-            מוכר לנו. בקשו ממשפחה שכבר משתמשת באפליקציה לשלוח לכם קישור הזמנה.
-          </p>
-        )}
+          <form action={signOut}>
+            <button type="submit" className={secondaryButton}>
+              התחברות עם מספר אחר
+            </button>
+          </form>
+        </div>
+      );
+    }
 
-        {/* Without this the screen is a dead end: one wrong digit and there is
-            no way back to the sign-in at all. */}
-        <form action={signOut}>
-          <button type="submit" className={secondaryButton}>
-            התחברות עם מספר אחר
+    // No invite needed. Signing up leaves you with nobody on your list, and the
+    // families you add bring the families they know along as suggestions.
+    return (
+      <div className="flex flex-col gap-4">
+        <JoinForm phone={phone} token="" invitedBy="" kind="family" claimable={[]} circle={[]} />
+        <form action={signOut} className="text-center">
+          <button type="submit" className={quietButton}>
+            זה לא המספר שלי
           </button>
         </form>
       </div>
     );
   }
 
-  // Scoped to this family, so its own occasions are in the round and nobody
-  // else's are.
   const upcoming = await getUpcomingHolidays(person.householdId);
   if (upcoming.length === 0) {
     return (
