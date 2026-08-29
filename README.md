@@ -60,12 +60,14 @@ Sign-in is a phone number and nothing else, so trying a scenario end to end mean
 being several people — and doing it against the real record would put invented
 families into it. Both are config, not code:
 
-**A scratch sheet.** Make a second Google Sheet, share it with the same service
-account, then `npm run setup` and `npm run seed:holidays -- --years 2` against it.
-On Vercel, set `SHEET_ID` to that sheet for the **Preview** environment only, and
-`PLAYGROUND=1` alongside it. Production keeps the real sheet. The preview URL then
-carries a standing red strip — <span dir="rtl">סביבת ניסיון</span> — so the two can
-never be confused, and being a different origin it keeps its own cookie.
+**A scratch sheet, and a second deployment.** Make a second Google Sheet, share it
+with the same service account, then run `npm run setup` and `npm run seed:holidays`
+against it. On Vercel, import the repo a second time as its own project with
+`SHEET_ID` pointed at that sheet and `PLAYGROUND=1` — see
+[docs/GOING-LIVE.md](docs/GOING-LIVE.md). Both projects track the same branch, so
+one push updates both. The scratch URL carries a standing red strip —
+<span dir="rtl">סביבת ניסיון</span> — so the two can never be confused, and being a
+different origin it keeps its own cookie.
 
 **Several people at once, on one phone.** Every browser has its own cookie jar, so
 Chrome, a Chrome incognito tab, Safari and Firefox are four households side by

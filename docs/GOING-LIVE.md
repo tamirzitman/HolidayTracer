@@ -110,19 +110,31 @@ sheet is already up to date.
 
 You get a URL like `holidaytracer.vercel.app`. Open it, sign in with your own number, and answer.
 
-### A preview deployment pointed at a scratch sheet
+### A second deployment pointed at a scratch sheet
 
-Vercel scopes each variable to the environments you tick, and **two variables with the same name
-cannot share one**. So splitting `SHEET_ID` is a two-step edit, in this order:
+**A second Vercel project, not a preview environment.** Preview deployments only exist for branches
+that are not the production branch, and this repo has one branch, which is the production branch —
+so there is nothing for preview variables to apply to. Two projects on the same repo is simpler
+anyway: both track the same branch, so one push updates both and the playground can never be
+running older code than the real thing.
 
-1. Edit the existing `SHEET_ID` and untick everything but **Production**. Save.
-2. Add a second `SHEET_ID`, the scratch sheet's id, ticked for **Preview** only.
-3. Add `PLAYGROUND=1`, **Preview** only — it puts a standing
-   <span dir="rtl">סביבת ניסיון</span> strip across the top.
+Import the repo again at <https://vercel.com/new>, name it something like `holidaytracer-test`, and
+give it five variables on **all** environments:
 
-Leave `SESSION_SECRET` and the two Google values on every environment; the preview needs them too.
-Doing step 1 without step 2 leaves preview deployments with no sheet at all, which the app refuses
-to start on rather than coming up looking empty.
+| Name | Value |
+|---|---|
+| `SHEET_ID` | the scratch sheet's id |
+| `PLAYGROUND` | `1` |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | the same as the real project |
+| `GOOGLE_PRIVATE_KEY` | the same as the real project |
+| `SESSION_SECRET` | any long random string |
+
+`PLAYGROUND` puts a standing <span dir="rtl">סביבת ניסיון</span> strip across the top, so the two
+URLs can never be mistaken for each other. The scratch sheet needs the same service account shared
+with it as an Editor, and its own `npm run setup` and `npm run seed:holidays`.
+
+A deployment with no `SHEET_ID` refuses to start rather than falling back to a local file and coming
+up looking merely empty.
 
 ### Then send the family the link
 Ask everyone to open it on their phone and use **Add to Home Screen** — it then behaves like an app
