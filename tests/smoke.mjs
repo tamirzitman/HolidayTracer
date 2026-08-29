@@ -353,12 +353,31 @@ const nowSees = await newcomer.$$eval('select[name=hostHouseholdId] option', (el
 check('and they are pickable straight away', nowSees.includes('אחות ובעלה'));
 
 // ── being somebody else, without another phone ───────────────────────────────
-await dad.goto(`${BASE}/families`);
-check('signing out is offered, and says who you are',
-  await dad.isVisible('text=/יציאה \\(אבא ואמא\\)/'));
-await dad.click('text=/^יציאה/');
+// The household name belongs at the top of every screen, not only the one that
+// asks a question.
+for (const where of ['/', '/families', '/history', '/occasions']) {
+  await dad.goto(BASE + where);
+  await dad.waitForSelector('button[aria-haspopup=menu]');
+  check(`the household is named on ${where}`,
+    (await dad.innerText('button[aria-haspopup=menu]')).includes('אבא ואמא'));
+}
+
+await dad.click('button[aria-haspopup=menu]');
+await dad.waitForSelector('[role=menu]');
+const menu = await dad.$$eval('[role=menu] [role=menuitem]', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`the menu holds what belongs to you (${menu.join(' · ')})`, menu.length === 3);
+check('occasions are reachable without going through an add button',
+  Boolean(await dad.$('[role=menu] a[href="/occasions"]')));
+
+// Sharing the app is not an invite: no token, so it connects nobody to anybody.
+const shareHref = await dad.getAttribute('[role=menu] a[href*="wa.me"]', 'href');
+check('sharing the app carries no invite link', !shareHref.includes('/join/'));
+
+await dad.click('[role=menu] >> text=יציאה');
 await dad.waitForSelector('input[name=phone]');
-check('and it lands back on the sign-in', await dad.isVisible('input[name=phone]'));
+check('and signing out lands back on the sign-in', await dad.isVisible('input[name=phone]'));
 await dad.fill('input[name=phone]', DAD);
 await dad.click('button[type=submit]');
 await dad.waitForSelector('nav');
