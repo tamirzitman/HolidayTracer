@@ -482,21 +482,41 @@ await dad.click('a[href="/occasions"]');
 await dad.waitForURL('**/occasions');
 await dad.fill('input[name=name]', 'יום הולדת לסבתא');
 await dad.fill('input[name=date]', SOON);
-await dad.click('button[type=submit]');
+const preTicked = await dad.$$eval('input[name=share]', (els) => els.map((e) => e.checked));
+check(`the circle is ticked without being asked (${preTicked.length})`,
+  preTicked.length > 0 && preTicked.every(Boolean));
+await dad.click('form button[type=submit]');
 await dad.waitForSelector('text=יום הולדת לסבתא');
+await dad.waitForTimeout(1200);
 check('a family can add an occasion of its own', await dad.isVisible('text=יום הולדת לסבתא'));
-check('and it is written with the family as its owner',
-  rows('Holidays').at(-1)[6] === 'hh_parents');
+const added = rows('Holidays').at(-1);
+check('and it is written with the family as its owner', added[6] === 'hh_parents');
+check(`and with who it goes out to (${added[7]})`, added[7].includes('hh_tamir'));
+const occasionKey = added[0];
 
 await dad.goto(BASE);
 check('the occasion is asked about like any holiday',
   (await dad.innerText('.font-display')).includes('יום הולדת לסבתא'));
 
-await newcomer.goto(BASE);
-check('but no other family sees it',
-  !(await newcomer.innerText('body')).includes('יום הולדת לסבתא'));
+// The point of sharing: somebody else can answer on it.
+await newcomer.goto(`${BASE}/?h=${occasionKey}`);
+await newcomer.waitForSelector('nav');
+check('a family in the circle can open it too',
+  (await newcomer.innerText('header')).includes('יום הולדת לסבתא'));
 
+// And narrowing it takes it back off their list.
 await dad.goto(`${BASE}/occasions`);
+await dad.click('li:has-text("יום הולדת לסבתא") >> text=מי רואה');
+await dad.click('li:has-text("יום הולדת לסבתא") >> text=בטלו הכל');
+await dad.click('li:has-text("יום הולדת לסבתא") >> text=שמירה');
+await dad.waitForTimeout(1500);
+check('it can be made private again',
+  await dad.isVisible('text=פרטי — רק אתם רואים'));
+await newcomer.goto(`${BASE}/?h=${occasionKey}`);
+await newcomer.waitForSelector('nav');
+check('and then nobody else sees it',
+  !(await newcomer.innerText('header')).includes('יום הולדת לסבתא'));
+
 const beforeRemove = rows('Holidays').length;
 await dad.click('text=הסרה');
 await dad.waitForSelector('text=יום הולדת לסבתא', { state: 'detached' });

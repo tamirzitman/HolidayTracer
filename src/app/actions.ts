@@ -15,6 +15,7 @@ import {
   getPastHoliday,
   getUpcomingHolidays,
   removeOccasion,
+  shareOccasion,
   isConnected,
   readInvite,
   recordConflicts,
@@ -261,7 +262,36 @@ export async function createOccasion(
   if (!name) return { error: 'צריך שם למועד' };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'צריך תאריך' };
 
-  await addOccasion(me.householdId, name, date);
+  await addOccasion(me.householdId, name, date, await chosenFromCircle(me.householdId, formData));
+  revalidatePath('/');
+  revalidatePath('/occasions');
+  revalidatePath('/history');
+  return { savedAt: new Date().toISOString() };
+}
+
+/**
+ * Which of my families a form ticked. Filtered against the circle rather than
+ * trusted, so a hand-made request cannot show an occasion to a household I am
+ * not connected to.
+ */
+async function chosenFromCircle(householdId: string, formData: FormData): Promise<string[]> {
+  const mine = new Set((await circleOf(householdId)).map((h) => h.id));
+  return [...new Set(formData.getAll('share').map(String))].filter((id) => mine.has(id));
+}
+
+/** Widening or narrowing who sees an occasion after the fact. */
+export async function shareOccasionWith(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  await shareOccasion(
+    me.householdId,
+    String(formData.get('holidayKey') ?? '').trim(),
+    await chosenFromCircle(me.householdId, formData),
+  );
   revalidatePath('/');
   revalidatePath('/occasions');
   revalidatePath('/history');

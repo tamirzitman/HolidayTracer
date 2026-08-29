@@ -20,6 +20,13 @@ export type Holiday = {
   include: boolean;
   /** Empty for the seeded holidays everyone shares; set for one family's own occasion. */
   ownerHouseholdId: string;
+  /**
+   * Households the owner shares this occasion with, besides itself. An occasion
+   * nobody else can see is one nobody else can answer about, which makes it
+   * useless for the gatherings these mostly are — so this is normally the
+   * owner's whole circle, and empty only when they deliberately kept it theirs.
+   */
+  sharedWith: string[];
 };
 
 /** away — not gathering at all this holiday: no host, no guests. */
@@ -80,7 +87,10 @@ export const TABS = {
 } as const;
 
 export const HEADERS = {
-  holidays: ['holiday_key', 'name_he', 'type', 'date', 'year', 'include', 'owner_household_id'],
+  holidays: [
+    'holiday_key', 'name_he', 'type', 'date', 'year', 'include',
+    'owner_household_id', 'shared_with',
+  ],
   households: ['household_id', 'name', 'active'],
   people: ['phone', 'name', 'household_id'],
   answers: ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone'],

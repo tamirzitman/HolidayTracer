@@ -103,6 +103,7 @@ async function fetchSheet(): Promise<Sheet> {
             year: cell(row, holidaysTab.headers, 'year'),
             include: isTrue(cell(row, holidaysTab.headers, 'include')),
             ownerHouseholdId: cell(row, holidaysTab.headers, 'owner_household_id'),
+            sharedWith: splitIds(cell(row, holidaysTab.headers, 'shared_with')),
           }))
           .filter((h) => h.key && h.date)
           .map((h) => [h.key, h] as const),
@@ -216,13 +217,20 @@ export async function membersByHousehold(): Promise<Map<string, { name: string; 
   return byHousehold;
 }
 
+/** "hh_a, hh_b" ⇄ ["hh_a", "hh_b"] — a set in one cell, so the sheet keeps one row per occasion. */
+const splitIds = (cell: string): string[] =>
+  cell.split(',').map((id) => id.trim()).filter(Boolean);
+const joinIds = (ids: string[]): string => ids.join(', ');
+
 /** The person behind a number on an answer — the log itself stores no names. */
 const personName = (sheet: Sheet, phone: string): string =>
   sheet.people.find((p) => p.phone === phone)?.name ?? '';
 
 /** Shared holidays have no owner; a family's own occasion is theirs alone. */
 const visibleTo = (holiday: Holiday, householdId?: string): boolean =>
-  !holiday.ownerHouseholdId || holiday.ownerHouseholdId === householdId;
+  !holiday.ownerHouseholdId ||
+  holiday.ownerHouseholdId === householdId ||
+  (householdId !== undefined && holiday.sharedWith.includes(householdId));
 
 /** erev_pesach_2027 → erev_pesach */
 const holidayKind = (key: string): string => key.replace(/_\d{4}$/, '');
@@ -354,6 +362,7 @@ export async function addOccasion(
   householdId: string,
   name: string,
   date: string,
+  sharedWith: string[],
 ): Promise<void> {
   const key = `own_${householdId}_${date.replace(/-/g, '')}_${Date.now().toString(36)}`;
   await appendRow(TABS.holidays, HEADERS.holidays, [
@@ -364,6 +373,33 @@ export async function addOccasion(
     date.slice(0, 4),
     'TRUE',
     householdId,
+    joinIds(sharedWith),
+  ]);
+}
+
+/**
+ * Changing who sees an occasion. Append-only like everything else: a newer row
+ * for the same key wins, so the audience can be widened or narrowed without
+ * rewriting anything.
+ */
+export async function shareOccasion(
+  householdId: string,
+  key: string,
+  sharedWith: string[],
+): Promise<void> {
+  const holiday = (await loadSheet()).holidays.find(
+    (h) => h.key === key && h.ownerHouseholdId === householdId,
+  );
+  if (!holiday) return;
+  await appendRow(TABS.holidays, HEADERS.holidays, [
+    holiday.key,
+    holiday.nameHe,
+    holiday.type,
+    holiday.date,
+    holiday.year,
+    'TRUE',
+    householdId,
+    joinIds(sharedWith),
   ]);
 }
 
@@ -381,6 +417,7 @@ export async function removeOccasion(householdId: string, key: string): Promise<
     holiday.year,
     'FALSE',
     householdId,
+    joinIds(holiday.sharedWith),
   ]);
 }
 

@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react';
 import { register, type ActionResult } from '@/app/actions';
 import { formatPhone } from '@/lib/phone';
+import { CirclePicker } from './CirclePicker';
 import { ErrorNote, Title, card, field, primaryButton } from './ui';
 
 /**
@@ -118,54 +119,13 @@ export function JoinForm({
           {/* The whole point of arriving on somebody's invite: their list is
               probably most of yours. Deciding here costs the inviter nothing
               and saves the newcomer from an app with one family in it. */}
-          {circle.length > 0 && (
-            <fieldset className="flex flex-col gap-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <legend className="text-sm font-semibold text-muted">
-                  {invitedBy} רואים גם את אלה. מי מהן רלוונטית לכם?
-                </legend>
-                <button
-                  type="button"
-                  onClick={() => setShare(share.length === 0 ? circle.map((h) => h.id) : [])}
-                  className="shrink-0 text-xs font-bold text-brand underline underline-offset-4"
-                >
-                  {share.length === 0 ? 'סמנו הכל' : 'בטלו הכל'}
-                </button>
-              </div>
-              <ul className="grid grid-cols-2 gap-1.5">
-                {circle.map((family) => {
-                  const on = share.includes(family.id);
-                  return (
-                    <li key={family.id}>
-                      <label
-                        className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
-                          on
-                            ? 'border-brand/40 bg-brand-wash text-brand'
-                            : 'border-line bg-surface text-muted'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          name="share"
-                          value={family.id}
-                          checked={on}
-                          onChange={() =>
-                            setShare((was) =>
-                              was.includes(family.id)
-                                ? was.filter((id) => id !== family.id)
-                                : [...was, family.id],
-                            )
-                          }
-                          className="h-4 w-4 shrink-0 accent-brand"
-                        />
-                        <span className="truncate">{family.name}</span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            </fieldset>
-          )}
+          <CirclePicker
+            name="share"
+            families={circle}
+            chosen={share}
+            onChange={setShare}
+            legend={`${invitedBy} רואים גם את אלה. מי מהן רלוונטית לכם?`}
+          />
         </>
       )}
 
