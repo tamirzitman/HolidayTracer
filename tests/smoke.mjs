@@ -201,8 +201,12 @@ const left = await newcomer.$$eval('section:has-text("מוצע להוספה") li
 // What the button promises: nothing offered is left behind, and the list grew.
 check(`and all of it goes in one tap (${mineBefore} → ${mineAfter}, ${left} left)`,
   left === 0 && mineAfter > mineBefore);
+// Back to the question, where the dropdown has to be opened again.
 await newcomer.goto(BASE);
-
+await newcomer.waitForSelector('nav');
+if (await newcomer.isVisible('text=שינוי תשובה')) await newcomer.click('text=שינוי תשובה');
+await newcomer.click('text=מתארחים אצל…');
+await newcomer.waitForSelector('select[name=hostHouseholdId]');
 await newcomer.selectOption('select[name=hostHouseholdId]', { label: 'אבא ואמא' });
 await newcomer.click('button[type=submit]');
 await newcomer.waitForSelector('text=מתארחים אצל אבא ואמא');
