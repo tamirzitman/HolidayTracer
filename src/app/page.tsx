@@ -6,7 +6,7 @@ import { SignInForm } from '@/components/SignInForm';
 import { Title, card, secondaryButton } from '@/components/ui';
 import {
   circleAnswers,
-  circleOf,
+  circlesOf,
   findConflict,
   findPerson,
   getHouseholds,
@@ -87,10 +87,10 @@ export default async function Page({
   const at = Math.max(0, upcoming.findIndex((h) => h.key === requested));
   const holiday = upcoming[at];
 
-  const [households, circle, current, guests, conflict, members, inviteToken, base] =
+  const [households, circles, current, guests, conflict, members, inviteToken, base] =
     await Promise.all([
       getHouseholds(),
-      circleOf(person.householdId),
+      circlesOf(person.householdId),
       getLatestAnswer(holiday.key, person.householdId),
       guestsComingTo(holiday.key, person.householdId),
       findConflict(holiday.key, person.householdId),
@@ -125,7 +125,10 @@ export default async function Page({
     <AnswerForm
       key={holiday.key}
       holiday={holiday}
-      households={circle}
+      circles={circles.map((c) => ({
+        name: c.name,
+        families: c.families.map((h) => ({ id: h.id, name: h.name })),
+      }))}
       current={current}
       host={host}
       daysAway={daysUntil(holiday.date)}

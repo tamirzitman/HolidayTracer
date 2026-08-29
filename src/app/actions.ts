@@ -111,7 +111,9 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
   // moment to judge families they had not seen — and that job is now done, in
   // context and with evidence, by the suggestions on the circles screen.
   if (invite && String(formData.get('connect') ?? 'yes') === 'yes') {
-    if (householdId !== invite.household.id) await connect(householdId, invite.household.id);
+    if (householdId !== invite.household.id) {
+      await connect(householdId, invite.household.id, invite.circle);
+    }
   }
 
   // Straight to the question: that is what they came for.
@@ -137,7 +139,7 @@ export async function acceptInvite(
 
   if (invite.household.id !== me.householdId) {
     if (!(await isConnected(me.householdId, invite.household.id))) {
-      await connect(me.householdId, invite.household.id);
+      await connect(me.householdId, invite.household.id, invite.circle);
     }
   }
 
@@ -214,6 +216,7 @@ export async function addFamilyNow(
     String(formData.get('familySurname') ?? ''),
   );
   const phone = normalizePhone(String(formData.get('familyPhone') ?? ''));
+  const circle = String(formData.get('familyCircle') ?? '').trim();
   if (!name && !phone) return { error: 'צריך שם למשפחה' };
 
   // A number we already know belongs to a household — connect, never duplicate.
@@ -222,14 +225,14 @@ export async function addFamilyNow(
   if (known) {
     if (known.householdId === me.householdId) return { error: 'זו המשפחה שלכם' };
     if (!(await isConnected(me.householdId, known.householdId))) {
-      await connect(me.householdId, known.householdId);
+      await connect(me.householdId, known.householdId, circle);
     }
     householdId = known.householdId;
   } else {
     if (!name) return { error: 'צריך שם למשפחה' };
     householdId = await addHousehold(name);
     if (phone) await addPerson({ phone, name, householdId });
-    await connect(me.householdId, householdId);
+    await connect(me.householdId, householdId, circle);
   }
 
   revalidatePath('/');
@@ -370,7 +373,11 @@ export async function addSuggested(householdId: string): Promise<ActionResult> {
     return { error: 'המשפחה הזו לא בהצעות שלכם' };
   }
 
-  await connect(me.householdId, householdId);
+  await connect(
+    me.householdId,
+    householdId,
+    suggested.find((s) => s.household.id === householdId)?.circle ?? '',
+  );
   revalidatePath('/families');
   revalidatePath('/');
   return {};
@@ -391,10 +398,13 @@ export async function dismissSuggested(householdId: string): Promise<ActionResul
   return {};
 }
 
-export async function newInviteLink(kind: 'family' | 'household'): Promise<string> {
+export async function newInviteLink(
+  kind: 'family' | 'household',
+  circle = '',
+): Promise<string> {
   const me = await currentHousehold();
   if ('error' in me) throw new Error(me.error);
-  return createInvite(me.householdId, kind);
+  return createInvite(me.householdId, kind, circle.trim());
 }
 
 async function currentHousehold(): Promise<{ householdId: string } | ActionResult & { error: string }> {

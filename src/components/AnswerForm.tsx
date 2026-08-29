@@ -6,14 +6,19 @@ import { useActionState, useEffect, useOptimistic, useRef, useState } from 'reac
 import { answer, type ActionResult } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { FamilyWhatsApp, type Member } from './WhatsApp';
-import type { Answer, Holiday, Household } from '@/lib/types';
+import type { Answer, Holiday } from '@/lib/types';
 import { formatDayAndDate } from '@/lib/dates';
 import { holidayEmoji } from '@/lib/holiday-emoji';
 import { DatePill, ErrorNote, Title, card, field, primaryButton, quietButton, secondaryButton } from './ui';
 
 type Props = {
   holiday: Holiday;
-  households: Household[];
+  /**
+   * The families you can answer at, grouped the way the family actually is —
+   * one list per circle. Two sides of a family are two circles, so a twenty-name
+   * dropdown becomes a few short ones with headings.
+   */
+  circles: { name: string; families: { id: string; name: string }[] }[];
   current: Answer | undefined;
   /** Resolved from the id on the answer — the log itself stores no names. */
   host: { id: string; name: string; members: Member[] } | undefined;
@@ -62,7 +67,7 @@ function whenLabel(daysAway: number): string {
 
 export function AnswerForm({
   holiday,
-  households,
+  circles,
   current,
   host,
   daysAway,
@@ -116,6 +121,10 @@ export function AnswerForm({
     const timer = setTimeout(() => setCelebrating(false), 2000);
     return () => clearTimeout(timer);
   }, [answeredAt]);
+
+  // The flat view, for the handful of places that only need "everyone".
+  const everyone = circles.flatMap((c) => c.families);
+  const named = (id: string) => everyone.find((h) => h.id === id)?.name ?? id;
 
   const shown = optimistic;
   const answered = shown && !editing;
@@ -283,7 +292,7 @@ export function AnswerForm({
                       they want to write to them. */}
                   <p className="font-display text-3xl leading-snug font-bold text-balance text-brand">
                     מתארחים אצל{' '}
-                    {host?.name ?? households.find((h) => h.id === shown.hostHouseholdId)?.name}
+                    {host?.name ?? named(shown.hostHouseholdId)}
                     {host && (
                       /* Inline, so it stays on the line with the name rather than
                          dropping underneath it. */
@@ -363,7 +372,7 @@ export function AnswerForm({
                     onClick={() => setChoosingHost(true)}
                     className={primaryButton}
                   >
-                    {households.length === 0 ? 'הוספת המשפחות שלנו' : 'מתארחים אצל…'}
+                    {everyone.length === 0 ? 'הוספת המשפחות שלנו' : 'מתארחים אצל…'}
                   </button>
                   <button
                     type="submit"
@@ -375,7 +384,7 @@ export function AnswerForm({
                     לא מגיעים בכלל
                   </button>
                 </>
-              ) : households.length === 0 ? (
+              ) : everyone.length === 0 ? (
                 <p className="text-center text-sm text-muted">
                   עוד אין מי שתתארחו אצלו. הוסיפו את המשפחות שלכם למטה — כל משפחה
                   שתוסיפו תביא איתה הצעות למשפחות שהיא מכירה.
@@ -393,11 +402,23 @@ export function AnswerForm({
                     <option value="" disabled>
                       בחרו משפחה
                     </option>
-                    {households.map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.name}
-                      </option>
-                    ))}
+                    {circles.map((circle) =>
+                      circle.name || circles.length > 1 ? (
+                        <optgroup key={circle.name} label={circle.name || 'המשפחה'}>
+                          {circle.families.map((h) => (
+                            <option key={h.id} value={h.id}>
+                              {h.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : (
+                        circle.families.map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.name}
+                          </option>
+                        ))
+                      ),
+                    )}
                   </select>
                   <button type="submit" disabled={pending} className={primaryButton}>
                     {pending ? 'רגע…' : 'אישור'}
@@ -439,6 +460,7 @@ export function AnswerForm({
       {!answered && choosingHost && (
         <AddFamilyInline
           inviteUrl={inviteUrl}
+          circles={circles.map((c) => c.name).filter(Boolean)}
           onAdded={(householdId) => {
             // Straight into the dropdown they were looking in: adding a family
             // and then having to find it again is the friction this removes.

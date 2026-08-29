@@ -5,30 +5,36 @@ import { addSuggested, dismissSuggested, newInviteLink } from '@/app/actions';
 import { ContactPicker } from './ContactPicker';
 import { WhatsAppMark, type Member } from './WhatsApp';
 import { inviteText } from '@/lib/whatsapp';
-import { Title, card, chipButton, primaryButton, quietButton, secondaryButton } from './ui';
+import { Title, card, chipButton, field, primaryButton, quietButton, secondaryButton } from './ui';
 
 type Family = { id: string; name: string; members: Member[] };
 
 export function FamiliesManager({
-  families,
+  circles,
   inviteUrl,
   suggested,
+  knownCircles,
 }: {
-  families: Family[];
+  circles: { name: string; families: Family[] }[];
   /** This family's standing join link, for the families nobody has joined yet. */
   inviteUrl: string;
   /** Families your families know and you don't, with how many of them know each. */
   suggested: { id: string; name: string; seenBy: number }[];
+  /** Circle names already in use, offered back so they are not retyped. */
+  knownCircles: string[];
 }) {
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<'family' | 'household' | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
+  // Which circle the link joins. Two sides of a family never sit together and
+  // do not share a group chat, so an invite to one is not an invite to the other.
+  const [circleName, setCircleName] = useState('');
 
   async function makeLink(kind: 'family' | 'household') {
     setBusy(kind);
     try {
-      const token = await newInviteLink(kind);
+      const token = await newInviteLink(kind, circleName);
       setLink(`${window.location.origin}/join/${token}`);
       setCopied(false);
     } finally {
@@ -52,29 +58,38 @@ export function FamiliesManager({
         <p className="text-muted">רק המשפחות שכאן מופיעות כשאתם עונים על חג.</p>
       </header>
 
-      <section className={`${card} flex flex-col gap-1 p-0`}>
-        {families.length === 0 ? (
-          <p className="p-6 text-center text-muted">עדיין אין אף משפחה. הזמינו מישהו למטה.</p>
-        ) : (
-          <ul className="divide-y divide-line">
-            {families.map((family) => (
-              <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">
-                <div className="min-w-0 grow">
-                  <p className="truncate font-semibold text-ink">{family.name}</p>
-                  {/* Say what the state actually is. "טרם הצטרפו" left people
-                      guessing whether the family was missing something, when
-                      all it means is that nobody from it has opened the app. */}
-                  <span className="text-sm text-muted">
-                    {family.members.length === 0
-                      ? 'עוד לא נרשמו לאפליקציה'
-                      : family.members.map((m) => m.name).join(', ')}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {circles.length === 0 ? (
+        <section className={`${card} p-6 text-center text-muted`}>
+          עדיין אין אף משפחה. הזמינו מישהו למטה.
+        </section>
+      ) : (
+        circles.map((circle) => (
+          <section key={circle.name} className={`${card} flex flex-col gap-1 p-0`}>
+            {/* A single unnamed circle needs no heading — that is what everybody
+                had before circles were named, and it should look unchanged. */}
+            {(circle.name || circles.length > 1) && (
+              <h2 className="px-5 pt-4 pb-1 text-sm font-bold text-muted">
+                {circle.name || 'המשפחה'}
+              </h2>
+            )}
+            <ul className="divide-y divide-line">
+              {circle.families.map((family) => (
+                <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">
+                  <div className="min-w-0 grow">
+                    <p className="truncate font-semibold text-ink">{family.name}</p>
+                    <span className="text-sm text-muted">
+                      {family.members.length === 0
+                        ? 'עוד לא נרשמו לאפליקציה'
+                        : family.members.map((m) => m.name).join(', ')}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))
+      )}
+
       {/* Circles drift apart as people add families of their own. Rather than ask
           anyone to keep the lists in step, this reads the overlap off the
           connections that already exist. */}
@@ -163,6 +178,28 @@ export function FamiliesManager({
         <p className="text-sm text-muted">
           שולחים קישור בוואטסאפ. מי שפותח אותו מתחבר אליכם — גם אם הוא כבר באפליקציה.
         </p>
+
+        {!link && (
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-muted">לאיזה מעגל?</span>
+            <input
+              list="circle-names"
+              value={circleName}
+              onChange={(e) => setCircleName(e.target.value)}
+              placeholder="המשפחה של אבא"
+              className={field}
+            />
+            <datalist id="circle-names">
+              {knownCircles.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+            <span className="text-xs text-muted">
+              מי שנכנס דרך הקישור מצטרף למעגל הזה. הצד השני של המשפחה הוא מעגל אחר,
+              עם קישור משלו.
+            </span>
+          </label>
+        )}
 
         {link ? (
           <>

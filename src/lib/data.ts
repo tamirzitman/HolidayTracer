@@ -161,6 +161,7 @@ async function fetchSheet(): Promise<Sheet> {
         connectedTo: cell(row, connectionsTab.headers, 'connected_to'),
         action: (cell(row, connectionsTab.headers, 'action') || 'add') as 'add' | 'remove',
         at: cell(row, connectionsTab.headers, 'at'),
+        circle: cell(row, connectionsTab.headers, 'circle'),
       }))
       .filter((c) => c.householdId && c.connectedTo),
 
@@ -171,6 +172,7 @@ async function fetchSheet(): Promise<Sheet> {
         // Links written before there were two kinds are family invites.
         kind: (cell(row, invitesTab.headers, 'kind') || 'family') as 'family' | 'household',
         createdAt: cell(row, invitesTab.headers, 'created_at'),
+        circle: cell(row, invitesTab.headers, 'circle'),
       }))
       .filter((i) => i.token && i.createdBy),
   };
@@ -497,7 +499,7 @@ export async function claimableIn(householdId: string): Promise<Household[]> {
  */
 export async function suggestionsFor(
   householdId: string,
-): Promise<{ household: Household; seenBy: number }[]> {
+): Promise<{ household: Household; seenBy: number; circle: string }[]> {
   const sheet = await loadSheet();
   const mine = await circleOf(householdId);
   const state = connectionState(sheet.connections, householdId);
@@ -511,11 +513,19 @@ export async function suggestionsFor(
     ...[...state.entries()].filter(([, action]) => action === 'remove').map(([id]) => id),
   ]);
 
+  // Also remembered: the circle each vouching family was reached through, so
+  // taking a suggestion up files it where the evidence came from rather than
+  // dropping it into no circle at all.
   const seenBy = new Map<string, number>();
+  const through = new Map<string, string>();
+  const circleNameOf = new Map(
+    (await circlesOf(householdId)).flatMap((c) => c.families.map((f) => [f.id, c.name] as const)),
+  );
   for (const family of mine) {
     for (const theirs of await circleOf(family.id)) {
       if (known.has(theirs.id)) continue;
       seenBy.set(theirs.id, (seenBy.get(theirs.id) ?? 0) + 1);
+      if (!through.has(theirs.id)) through.set(theirs.id, circleNameOf.get(family.id) ?? '');
     }
   }
 
@@ -527,8 +537,13 @@ export async function suggestionsFor(
 
   return [...seenBy.entries()]
     .filter(([, count]) => count >= enough)
-    .map(([id, count]) => ({ household: sheet.households.find((h) => h.id === id), seenBy: count }))
-    .filter((s): s is { household: Household; seenBy: number } => s.household !== undefined)
+    .map(([id, count]) => ({
+      household: sheet.households.find((h) => h.id === id),
+      seenBy: count,
+      circle: through.get(id) ?? '',
+    }))
+    .filter((s): s is { household: Household; seenBy: number; circle: string } =>
+      s.household !== undefined)
     .sort((a, b) => b.seenBy - a.seenBy || a.household.name.localeCompare(b.household.name, 'he'));
 }
 
@@ -552,15 +567,52 @@ export async function dismissSuggestion(householdId: string, other: string): Pro
 }
 
 /** Introducing two families is mutual; hiding one is not. */
-export async function connect(a: string, b: string): Promise<void> {
+export async function connect(a: string, b: string, circle = ''): Promise<void> {
   const at = new Date().toISOString();
-  await appendRow(TABS.connections, HEADERS.connections, [a, b, 'add', at]);
-  await appendRow(TABS.connections, HEADERS.connections, [b, a, 'add', at]);
+  await appendRow(TABS.connections, HEADERS.connections, [a, b, 'add', at, circle]);
+  await appendRow(TABS.connections, HEADERS.connections, [b, a, 'add', at, circle]);
+}
+
+/**
+ * The circles a household belongs to, and who is in each.
+ *
+ * Whether two families are connected stays a flat question — the newest row for
+ * the pair decides it — so nothing that asks "can I answer at them?" changes.
+ * This only says which name each link was made under, so lists can be grouped
+ * the way the family actually is. A family reached through two circles appears
+ * in both, which is correct: the same aunt can be on both sides.
+ */
+export async function circlesOf(
+  householdId: string,
+): Promise<{ name: string; families: Household[] }[]> {
+  const sheet = await loadSheet();
+  const connected = await circleOf(householdId);
+  const byId = new Map(connected.map((h) => [h.id, h]));
+
+  const named = new Map<string, Household[]>();
+  for (const c of sheet.connections) {
+    if (c.householdId !== householdId || c.action !== 'add') continue;
+    const family = byId.get(c.connectedTo);
+    if (!family) continue;
+    const list = named.get(c.circle) ?? [];
+    if (!list.some((h) => h.id === family.id)) list.push(family);
+    named.set(c.circle, list);
+  }
+
+  return [...named.entries()]
+    .map(([name, families]) => ({ name, families }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+}
+
+/** Circle names this household already uses, for offering them back. */
+export async function circleNames(householdId: string): Promise<string[]> {
+  return (await circlesOf(householdId)).map((c) => c.name).filter(Boolean);
 }
 
 export async function createInvite(
   householdId: string,
   kind: 'family' | 'household',
+  circle = '',
 ): Promise<string> {
   const token = randomUUID().replace(/-/g, '').slice(0, 12);
   await appendRow(TABS.invites, HEADERS.invites, [
@@ -568,6 +620,7 @@ export async function createInvite(
     householdId,
     kind,
     new Date().toISOString(),
+    circle,
   ]);
   return token;
 }
@@ -603,12 +656,12 @@ const expired = (invite: { createdAt: string }): boolean => {
 /** Reusable: a link in the family group should bring in more than one household. */
 export async function readInvite(
   token: string,
-): Promise<{ household: Household; kind: 'family' | 'household' } | undefined> {
+): Promise<{ household: Household; kind: 'family' | 'household'; circle: string } | undefined> {
   const sheet = await loadSheet();
   const invite = sheet.invites.find((i) => i.token === token);
   if (!invite || expired(invite)) return undefined;
   const household = sheet.households.find((h) => h.id === invite.createdBy);
-  return household ? { household, kind: invite.kind } : undefined;
+  return household ? { household, kind: invite.kind, circle: invite.circle } : undefined;
 }
 
 export async function addHousehold(name: string): Promise<string> {

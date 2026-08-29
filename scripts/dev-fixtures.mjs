@@ -60,13 +60,13 @@ sheet.Answers = [
 // Everyone who was here before circles saw everyone, so link them all.
 const active = sheet.Households.slice(1).filter((r) => r[2] === 'TRUE').map((r) => r[0]);
 const now = new Date().toISOString();
-sheet.Connections = [['household_id', 'connected_to', 'action', 'at']];
+sheet.Connections = [['household_id', 'connected_to', 'action', 'at', 'circle']];
 for (const a of active) {
   for (const b of active) {
-    if (a !== b) sheet.Connections.push([a, b, 'add', now]);
+    if (a !== b) sheet.Connections.push([a, b, 'add', now, '']);
   }
 }
-sheet.Invites = [['token', 'created_by', 'kind', 'created_at']];
+sheet.Invites = [['token', 'created_by', 'kind', 'created_at', 'circle']];
 
 delete sheet.Conflicts;
 

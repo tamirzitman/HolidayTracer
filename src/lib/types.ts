@@ -63,6 +63,13 @@ export type Answer = StoredAnswer & { householdId: string };
  * when two people act at the same moment.
  */
 export type Connection = {
+  /**
+   * Which circle this link belongs to. A household sits in several — one for
+   * each side of the family — and they do not mix: the two sides of your
+   * parents' families would never sit at one table and do not share so much as
+   * a WhatsApp group. Empty on links made before circles had names.
+   */
+  circle: string;
   householdId: string;
   connectedTo: string;
   action: 'add' | 'remove';
@@ -76,6 +83,8 @@ export type Connection = {
  * Reusable: one link can go in a WhatsApp group and bring in several families.
  */
 export type Invite = {
+  /** The circle this link joins somebody to. */
+  circle: string;
   token: string;
   createdBy: string;
   kind: 'family' | 'household';
@@ -103,6 +112,6 @@ export const HEADERS = {
     'timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone', 'for_household_id',
   ],
   conflicts: ['holiday_key', 'household_id', 'host_household_id', 'status', 'at'],
-  connections: ['household_id', 'connected_to', 'action', 'at'],
-  invites: ['token', 'created_by', 'kind', 'created_at'],
+  connections: ['household_id', 'connected_to', 'action', 'at', 'circle'],
+  invites: ['token', 'created_by', 'kind', 'created_at', 'circle'],
 } as const;

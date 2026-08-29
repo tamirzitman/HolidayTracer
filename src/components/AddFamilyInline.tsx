@@ -17,9 +17,11 @@ import { ErrorNote, card, field, primaryButton, quietButton, secondaryButton } f
  * dropdown was the whole friction this was meant to remove. And a family with a
  * number nobody has signed in with is one you can invite on the spot.
  */
-export function AddFamilyInline({ onAdded, inviteUrl }: {
+export function AddFamilyInline({ onAdded, inviteUrl, circles }: {
   onAdded?: (householdId: string) => void;
   inviteUrl: string;
+  /** Circle names already in use. Asked about only when there is a choice. */
+  circles: string[];
 }) {
   const [state, formAction, pending] = useActionState<AddedFamily, FormData>(addFamilyNow, {});
   const [open, setOpen] = useState(false);
@@ -125,6 +127,20 @@ export function AddFamilyInline({ onAdded, inviteUrl }: {
           className={field}
         />
       </label>
+
+      {circles.length > 1 && (
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-semibold text-muted">לאיזה מעגל?</span>
+          <select name="familyCircle" defaultValue={circles[0]} className={field}>
+            {circles.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {circles.length === 1 && <input type="hidden" name="familyCircle" value={circles[0]} />}
 
       <p className="text-xs text-muted">
         עם מספר הם יוכלו להיכנס בעצמם, ואפשר לכתוב להם בוואטסאפ. בלעדיו אפשר

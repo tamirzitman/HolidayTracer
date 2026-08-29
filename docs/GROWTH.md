@@ -172,6 +172,26 @@ one tap each — or **הוספת כולן** for the parent-invites-child case wh
 Joining now asks three things: your name in two halves, and what your family is called. Claiming a
 family somebody already added is one line away, for the rarer case that needs it.
 
+### The link is what makes the circle
+
+A household does not have *a* circle — it has several, and they do not mix. The two sides of your
+parents' families would never sit at one table and do not share so much as a group chat. Inviting
+your father's side and inviting your mother's side are two different acts, and until now the app
+recorded them as the same one: everybody landed in a single flat list that only got longer.
+
+So the invite names the circle it joins. `Connections` carries that name on the link, and whoever
+opens the link lands in that circle. Nothing else about connectivity changed — whether two families
+can answer at each other is still the newest row for the pair — so this is only how the lists are
+grouped, not a new thing to reason about:
+
+- The host dropdown becomes a few short lists with headings instead of one long one.
+- The circles screen lists each circle separately.
+- A family reached through two circles appears in both, which is right: the same aunt can be on
+  both sides.
+
+A household with one unnamed circle — everybody, before this existed — sees no heading and no
+change at all.
+
 ### A link cannot quietly put somebody on your list
 
 Invite links travel. They get pasted into family WhatsApp groups and forwarded
