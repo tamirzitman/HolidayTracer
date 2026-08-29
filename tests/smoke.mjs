@@ -191,12 +191,16 @@ await newcomer.goto(`${BASE}/families`);
 await newcomer.waitForSelector('text=המעגלים שלי');
 const waiting = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) => els.length);
 check(`the inviter's circle arrives as suggestions instead (${waiting})`, waiting >= 2);
+const mineBefore = await newcomer.$$eval('section:first-of-type li', (els) => els.length);
 await newcomer.click('text=הוספת כולן');
-await newcomer.waitForTimeout(2500);
+await newcomer.waitForTimeout(4000);
 await newcomer.reload();
 await newcomer.waitForSelector('text=המעגלים שלי');
-check('and all of it can be taken in one tap',
-  (await newcomer.$$eval('section:first-of-type li', (els) => els.length)) >= waiting + 1);
+const mineAfter = await newcomer.$$eval('section:first-of-type li', (els) => els.length);
+const left = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) => els.length);
+// What the button promises: nothing offered is left behind, and the list grew.
+check(`and all of it goes in one tap (${mineBefore} → ${mineAfter}, ${left} left)`,
+  left === 0 && mineAfter > mineBefore);
 await newcomer.goto(BASE);
 
 await newcomer.selectOption('select[name=hostHouseholdId]', { label: 'אבא ואמא' });
