@@ -544,10 +544,25 @@ export async function createInvite(
  */
 export async function inviteFor(householdId: string): Promise<string> {
   const existing = (await loadSheet()).invites
-    .filter((i) => i.createdBy === householdId && i.kind === 'family')
+    .filter((i) => i.createdBy === householdId && i.kind === 'family' && !expired(i))
     .at(-1);
   return existing?.token ?? createInvite(householdId, 'family');
 }
+
+/**
+ * How long an invite stays good for.
+ *
+ * These links travel: they are pasted into family WhatsApp groups and forwarded
+ * on, and one from last year sitting in a group is a way into your circle that
+ * nobody remembers leaving open. Two weeks is longer than any invitation stays
+ * interesting and short enough that a stale link is dead.
+ */
+const INVITE_DAYS = 14;
+
+const expired = (invite: { createdAt: string }): boolean => {
+  const at = Date.parse(invite.createdAt);
+  return Number.isFinite(at) && Date.now() - at > INVITE_DAYS * 86_400_000;
+};
 
 /** Reusable: a link in the family group should bring in more than one household. */
 export async function readInvite(
@@ -555,7 +570,7 @@ export async function readInvite(
 ): Promise<{ household: Household; kind: 'family' | 'household' } | undefined> {
   const sheet = await loadSheet();
   const invite = sheet.invites.find((i) => i.token === token);
-  if (!invite) return undefined;
+  if (!invite || expired(invite)) return undefined;
   const household = sheet.households.find((h) => h.id === invite.createdBy);
   return household ? { household, kind: invite.kind } : undefined;
 }

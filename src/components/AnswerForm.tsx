@@ -430,9 +430,7 @@ export function AnswerForm({
 
       {!answered && choosingHost && <AddFamilyInline />}
 
-      {answered && circleStatus.length > 0 && (
-        <Circle families={circleStatus} inviteUrl={inviteUrl} />
-      )}
+      {answered && circleStatus.length > 0 && <Circle families={circleStatus} />}
 
     </div>
   );
@@ -483,17 +481,8 @@ function Step({
 /** Where the rest of the circle is — visible only once you have answered. */
 function Circle({
   families,
-  inviteUrl,
 }: {
-  families: {
-    id: string;
-    name: string;
-    kind: string;
-    hostName: string;
-    byName: string;
-    members: Member[];
-  }[];
-  inviteUrl: string;
+  families: { id: string; name: string; kind: string; hostName: string; byName: string }[];
 }) {
   const said = (kind: string, hostName: string) => {
     if (kind === 'hosting') return 'מארחים';
@@ -512,22 +501,18 @@ function Circle({
               <p className="truncate font-semibold text-ink">{family.name}</p>
               {family.byName && <p className="text-xs text-muted">ענו: {family.byName}</p>}
             </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <span
-                className={
-                  family.kind === 'none'
-                    ? 'text-sm text-muted'
-                    : 'text-sm font-semibold text-brand'
-                }
-              >
-                {said(family.kind, family.hostName)}
-              </span>
-              <FamilyWhatsApp
-                familyName={family.name}
-                members={family.members}
-                inviteUrl={inviteUrl}
-              />
-            </div>
+            {/* No WhatsApp mark here. One on every row of a ten-family list is
+                noise, and the two places worth writing from — the host you are
+                going to, and the families coming to you — carry one. */}
+            <span
+              className={
+                family.kind === 'none'
+                  ? 'shrink-0 text-sm text-muted'
+                  : 'shrink-0 text-sm font-semibold text-brand'
+              }
+            >
+              {said(family.kind, family.hostName)}
+            </span>
           </li>
         ))}
       </ul>

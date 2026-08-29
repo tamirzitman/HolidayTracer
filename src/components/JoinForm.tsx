@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react';
 import { register, type ActionResult } from '@/app/actions';
 import { formatPhone } from '@/lib/phone';
 import { CirclePicker } from './CirclePicker';
-import { ErrorNote, Title, card, field, primaryButton } from './ui';
+import { ErrorNote, Title, card, field, primaryButton, quietButton } from './ui';
 
 /**
  * Signing up — with an invite or without one. An invite is only a shortcut: it
@@ -131,9 +131,34 @@ export function JoinForm({
 
       <ErrorNote>{state.error}</ErrorNote>
 
-      <button type="submit" disabled={pending} className={primaryButton}>
-        {pending ? 'רגע…' : 'סיום'}
-      </button>
+      {invitedBy ? (
+        <>
+          {/* Two answers, both spelled out. Tapping a link is not consent to
+              being put on somebody's list — and these links get forwarded. */}
+          <button
+            type="submit"
+            name="connect"
+            value="yes"
+            disabled={pending}
+            className={primaryButton}
+          >
+            {pending ? 'רגע…' : `סיום — ולהצטרף ל${invitedBy}`}
+          </button>
+          <button
+            type="submit"
+            name="connect"
+            value="no"
+            disabled={pending}
+            className={quietButton}
+          >
+            רק להירשם, בלי להתחבר לאף אחד
+          </button>
+        </>
+      ) : (
+        <button type="submit" disabled={pending} className={primaryButton}>
+          {pending ? 'רגע…' : 'סיום'}
+        </button>
+      )}
     </form>
   );
 }

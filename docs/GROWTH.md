@@ -171,6 +171,22 @@ It costs the inviter nothing — the same link they already send — and every n
 the inviter's circle when the form is submitted, so a hand-made request cannot connect a household
 to a family nobody offered it.
 
+### A link cannot quietly put somebody on your list
+
+Invite links travel. They get pasted into family WhatsApp groups and forwarded
+on, and the person who opens one is not always the person it was meant for — a
+friend taps it out of curiosity and would have landed inside somebody's circle
+without ever choosing to. Three things keep that from happening:
+
+- **It asks.** Opening a link never connects anything by itself. A newcomer gets
+  two answers of equal weight — join them, or just register — and somebody
+  already in the app gets the same question before anything is written.
+- **It expires.** Fourteen days: longer than an invitation stays interesting,
+  short enough that last year's link in a group is dead.
+- **A dead link is a way in, not a wall.** An expired or unknown token falls back
+  to the ordinary sign-up, with a line saying why nobody is being introduced.
+  Telling somebody who wanted the app that their link is invalid helps nobody.
+
 ### Sharing the app without sharing your circle
 
 The invite link is a connection: opening it puts two families on each other's lists. That is wrong

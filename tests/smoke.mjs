@@ -7,7 +7,7 @@
  */
 import { chromium } from 'playwright';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 // Start from known fixtures: a half-finished earlier run would otherwise leave
 // answers behind and the first assertion would fail for the wrong reason.
@@ -137,7 +137,12 @@ check('and one can be dropped',
 await newcomer.fill('input[name=name]', 'דנה');
 await newcomer.fill('input[name=firstNames]', 'דנה ויוסי');
 await newcomer.fill('input[name=surname]', 'לוי');
-await newcomer.click('button[type=submit]');
+const joinButtons = await newcomer.$$eval('form button[type=submit]', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`joining a circle is asked, not assumed (${joinButtons.length} answers)`,
+  joinButtons.length === 2 && joinButtons.some((t) => t.includes('בלי להתחבר')));
+await newcomer.click('text=/^סיום/');
 await newcomer.waitForSelector('text=איפה אתם בחג?');
 check('the newcomer is in', rows('Households').some((r) => r[1] === 'דנה ויוסי לוי'));
 check('the family name is the two fields joined',
@@ -383,6 +388,37 @@ await dad.click('button[type=submit]');
 await dad.waitForSelector('nav');
 check('signing back in takes one number and no code', await dad.isVisible('nav'));
 
+// ── an invite link cannot quietly put somebody on your list ──────────────────
+const friend = await open();
+await friend.goto(`${BASE}/join/${token}`);
+await friend.fill('input[name=phone]', '058-111-2222');
+await friend.click('button[type=submit]');
+await friend.waitForSelector('input[name=firstNames]');
+await friend.fill('input[name=name]', 'חבר');
+await friend.fill('input[name=firstNames]', 'חבר');
+await friend.fill('input[name=surname]', 'סקרן');
+await friend.click('text=רק להירשם, בלי להתחבר לאף אחד');
+await friend.waitForSelector('text=איפה אתם בחג?');
+await friend.waitForTimeout(1500);
+const friendId = rows('Households').at(-1)[0];
+check('somebody who only wanted the app joins nobody',
+  rows('Connections').every((r) => r[0] !== friendId && r[1] !== friendId));
+await friend.close();
+
+// A link that has gone stale is a way in, not a wall.
+const aged = sheet();
+aged.Invites = aged.Invites.map((r, i) =>
+  i && r[0] === token ? [r[0], r[1], r[2], '2020-01-01T00:00:00.000Z'] : r,
+);
+writeFileSync(SHEET, `${JSON.stringify(aged, null, 2)}\n`, 'utf8');
+await dad.waitForTimeout(21000);
+const late = await open();
+await late.goto(`${BASE}/join/${token}`);
+await late.waitForSelector('input[name=phone]');
+check('an expired link falls back to signing in, not to a dead end',
+  await late.isVisible('text=כבר לא בתוקף'));
+await late.close();
+
 // ── everything goes out through WhatsApp ─────────────────────────────────────
 await dad.goto(BASE);
 if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
@@ -408,13 +444,11 @@ check(`picking between them is offered (${chooser.join(', ')})`,
 
 // Message for a family that is here, invite for one that is not — everywhere.
 await dad.goto(`${BASE}/families`);
-const marks = await dad.$$eval('section a[href*="wa.me"], section button[aria-label*="וואטסאפ"]', (els) =>
-  els.map((e) => `${e.getAttribute('aria-label')}|${(e.getAttribute('href') ?? '').includes('text=') ? 'invite' : 'chat'}`),
-);
-check(`a family that has joined gets a message (${marks[0] ?? 'none'})`,
-  marks.some((m) => m.startsWith('הודעה לטמיר ואפיק')));
-check('a family that has not gets an invite',
-  marks.some((m) => m.startsWith('הזמנת אח ואשתו') && m.endsWith('invite')));
+const marks = await dad.$$eval('section a[href*="wa.me"], section button[aria-label*="וואטסאפ"]',
+  (els) => els.length);
+check(`the circles list carries no per-family marks (${marks})`, marks === 0);
+check('the household name is not repeated under the header',
+  (await dad.$$('main [aria-hidden="true"]:text("🏡")')).length === 0);
 
 await dad.goto(`${BASE}/history`);
 check('history says who answered', /ענו: אבא/.test(await dad.innerText('main')));

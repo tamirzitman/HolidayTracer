@@ -92,7 +92,9 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
 
   await addPerson({ phone, name, householdId });
 
-  if (invite) {
+  // Registering and joining somebody's circle are two things, and the form asks
+  // about the second one separately.
+  if (invite && String(formData.get('connect') ?? 'yes') === 'yes') {
     if (householdId !== invite.household.id) await connect(householdId, invite.household.id);
 
     // The families the newcomer ticked off the inviter's circle. Circles overlap
@@ -111,6 +113,33 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
   // Straight to the question: that is what they came for.
   revalidatePath('/');
   redirect('/');
+}
+
+/**
+ * Answering the invite prompt. Saying no is not a failure state: it registers
+ * nothing, connects nothing, and drops the person into the app they wanted.
+ */
+export async function acceptInvite(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (String(formData.get('connect') ?? '') !== 'yes') redirect('/');
+
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const invite = await readInvite(String(formData.get('token') ?? '').trim());
+  if (!invite) return { error: 'הקישור כבר לא בתוקף' };
+
+  if (invite.household.id !== me.householdId) {
+    if (!(await isConnected(me.householdId, invite.household.id))) {
+      await connect(me.householdId, invite.household.id);
+    }
+  }
+
+  revalidatePath('/');
+  revalidatePath('/families');
+  redirect('/families');
 }
 
 /**

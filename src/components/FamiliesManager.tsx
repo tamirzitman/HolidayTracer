@@ -3,19 +3,17 @@
 import { useState } from 'react';
 import { addSuggested, newInviteLink } from '@/app/actions';
 import { ContactPicker } from './ContactPicker';
-import { FamilyWhatsApp, WhatsAppMark, type Member } from './WhatsApp';
+import { WhatsAppMark, type Member } from './WhatsApp';
 import { inviteText } from '@/lib/whatsapp';
 import { Title, card, chipButton, primaryButton, quietButton, secondaryButton } from './ui';
 
 type Family = { id: string; name: string; members: Member[] };
 
 export function FamiliesManager({
-  householdName,
   families,
   inviteUrl,
   suggested,
 }: {
-  householdName: string;
   families: Family[];
   /** This family's standing join link, for the families nobody has joined yet. */
   inviteUrl: string;
@@ -50,10 +48,6 @@ export function FamiliesManager({
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-col items-center gap-2 text-center">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand-wash px-3.5 py-1.5 text-sm font-bold text-brand">
-          <span aria-hidden="true">🏡</span>
-          {householdName}
-        </span>
         <Title>המעגלים שלי</Title>
         <p className="text-muted">רק המשפחות שכאן מופיעות כשאתם עונים על חג.</p>
       </header>
@@ -76,11 +70,6 @@ export function FamiliesManager({
                       : family.members.map((m) => m.name).join(', ')}
                   </span>
                 </div>
-                <FamilyWhatsApp
-                  familyName={family.name}
-                  members={family.members}
-                  inviteUrl={inviteUrl}
-                />
               </li>
             ))}
           </ul>

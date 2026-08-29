@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { FamiliesManager } from '@/components/FamiliesManager';
 import { headers } from 'next/headers';
-import { circleOf, findPerson, getHousehold, inviteFor, membersByHousehold, suggestionsFor } from '@/lib/data';
+import { circleOf, findPerson, inviteFor, membersByHousehold, suggestionsFor } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -12,8 +12,7 @@ export default async function FamiliesPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [mine, circle, members, token, head, suggested] = await Promise.all([
-    getHousehold(person.householdId),
+  const [circle, members, token, head, suggested] = await Promise.all([
     circleOf(person.householdId),
     membersByHousehold(),
     inviteFor(person.householdId),
@@ -31,7 +30,6 @@ export default async function FamiliesPage() {
   return (
     <div className="flex flex-col gap-6">
       <FamiliesManager
-        householdName={mine?.name ?? ''}
         families={families}
         inviteUrl={`${base}/join/${token}`}
         suggested={suggested.map((s) => ({
