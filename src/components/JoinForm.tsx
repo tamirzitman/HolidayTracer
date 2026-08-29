@@ -105,17 +105,16 @@ export function JoinForm({
               <select
                 name="claimHouseholdId"
                 value={claim}
-                onChange={(e) => {
-                  setClaim(e.target.value);
-                  // You cannot be a family in your own circle.
-                  setShare((was) => was.filter((id) => id !== e.target.value));
-                }}
+                // The circle list filters the claimed family out, so nothing
+                // needs stripping from the ticks — doing that lost the tick for
+                // anyone who changed their mind and picked "new" again.
+                onChange={(e) => setClaim(e.target.value)}
                 className={field}
               >
                 <option value="">משפחה חדשה שלנו</option>
                 {claimable.map((h) => (
                   <option key={h.id} value={h.id}>
-                    {h.name} — זו המשפחה שלנו
+                    {h.name}
                   </option>
                 ))}
               </select>
