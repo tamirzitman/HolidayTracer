@@ -141,6 +141,22 @@ check('the invite names who invited them', await newcomer.isVisible('text=אבא
 check('and asks for no phone number', !(await newcomer.isVisible('input[name=joinPhone]')));
 check('your own name is asked once, in two halves',
   (await newcomer.$$('input[name=firstName], input[name=surname]')).length === 2);
+const headings = await newcomer.$$eval('legend', (els) => els.map((e) => e.textContent.trim()));
+check(`the name and the family are asked as separate questions (${headings.slice(0, 2).join(' / ')})`,
+  headings.includes('איך קוראים לכם?') && headings.includes('המשפחה שלכם'));
+
+// Saying "that family is us" must not then offer that family to connect to.
+const offeredWhenNew = await newcomer.$$eval('input[name=share]', (els) => els.map((e) => e.value));
+await newcomer.selectOption('select[name=claimHouseholdId]', { index: 1 });
+const claimed = await newcomer.inputValue('select[name=claimHouseholdId]');
+const offeredWhenClaiming = await newcomer.$$eval('input[name=share]', (els) =>
+  els.map((e) => e.value),
+);
+check(`claiming a family takes it out of the circle list (${offeredWhenNew.length} → ${offeredWhenClaiming.length})`,
+  offeredWhenNew.includes(claimed) && !offeredWhenClaiming.includes(claimed));
+check('and stops asking what to call a new one',
+  !(await newcomer.isVisible('input[name=householdName]')));
+await newcomer.selectOption('select[name=claimHouseholdId]', '');
 
 // ── the inviter's circle is offered, ticked, and can be trimmed ──────────────
 const offeredAtJoin = await newcomer.$$eval('input[name=share]', (els) =>

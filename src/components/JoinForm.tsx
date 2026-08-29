@@ -62,11 +62,11 @@ export function JoinForm({
         </p>
       </div>
 
-      {/* One question about names, not two. Asking "what are you called?" and
-          then "what will your family be called?" left people answering the same
-          thing twice and unsure which was which. Your own name is asked in its
-          two halves, and the family name follows from them — already filled in,
-          and yours to change into whatever the family actually goes by. */}
+      {/* Two questions that look like one. The names are about *you*; the
+          family below is about which household you belong to. Unlabelled, they
+          read as alternatives — hence a heading on each. */}
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 text-sm font-semibold text-muted">איך קוראים לכם?</legend>
       <div className="flex gap-2">
         <label className="flex grow flex-col gap-2">
           <span className="text-sm font-semibold text-muted">שם פרטי</span>
@@ -94,12 +94,41 @@ export function JoinForm({
         </label>
       </div>
 
+      </fieldset>
+
       {kind === 'family' && (
-        <>
+        <fieldset className="flex flex-col gap-3">
+          <legend className="mb-2 text-sm font-semibold text-muted">המשפחה שלכם</legend>
+
+          {claimable.length > 0 && (
+            <label className="flex flex-col gap-2">
+              <select
+                name="claimHouseholdId"
+                value={claim}
+                onChange={(e) => {
+                  setClaim(e.target.value);
+                  // You cannot be a family in your own circle.
+                  setShare((was) => was.filter((id) => id !== e.target.value));
+                }}
+                className={field}
+              >
+                <option value="">משפחה חדשה שלנו</option>
+                {claimable.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name} — זו המשפחה שלנו
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-muted">
+                אם מישהו כבר הוסיף אתכם — בחרו בשם שלכם, כדי שלא ייווצרו שתי משפחות נפרדות.
+              </span>
+            </label>
+          )}
+
           {!claim && (
             <label className="flex flex-col gap-2">
               <span className="text-sm font-semibold text-muted">
-                איך המשפחה שלכם תיקרא לאחרים?
+                איך היא תיקרא לאחרים?
               </span>
               <input
                 name="householdName"
@@ -119,39 +148,17 @@ export function JoinForm({
             </label>
           )}
 
-          {claimable.length > 0 && (
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-muted">או שאתם כבר ברשימה?</span>
-              <select
-                name="claimHouseholdId"
-                value={claim}
-                onChange={(e) => setClaim(e.target.value)}
-                className={field}
-              >
-                <option value="">לא, אנחנו משפחה חדשה</option>
-                {claimable.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name}
-                  </option>
-                ))}
-              </select>
-              <span className="text-xs text-muted">
-                אם מישהו כבר הוסיף אתכם — בחרו בשם שלכם, כדי שלא ייווצרו שתי משפחות נפרדות.
-              </span>
-            </label>
-          )}
-
           {/* The whole point of arriving on somebody's invite: their list is
               probably most of yours. Deciding here costs the inviter nothing
               and saves the newcomer from an app with one family in it. */}
           <CirclePicker
             name="share"
-            families={circle}
+            families={circle.filter((h) => h.id !== claim)}
             chosen={share}
             onChange={setShare}
             legend={`${invitedBy} רואים גם את אלה. מי מהן רלוונטית לכם?`}
           />
-        </>
+        </fieldset>
       )}
 
       <ErrorNote>{state.error}</ErrorNote>
