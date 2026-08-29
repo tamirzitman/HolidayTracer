@@ -501,10 +501,13 @@ check(`the panel that moves holds the holiday itself (${travels})`,
 
 // ── occasions belong to one family ───────────────────────────────────────────
 const SOON = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
-check('the question screen offers adding an occasion',
-  await dad.isVisible('a[href="/occasions"]'));
-await dad.click('a[href="/occasions"]');
+// Reached through the household menu, from wherever you happen to be.
+await dad.click('button[aria-haspopup=menu]');
+await dad.waitForSelector('[role=menu]');
+await dad.click('[role=menu] >> text=המועדים שלנו');
 await dad.waitForURL('**/occasions');
+check('the occasions screen is two taps from anywhere',
+  await dad.isVisible('text=הוספת מועד'));
 await dad.fill('input[name=name]', 'יום הולדת לסבתא');
 await dad.fill('input[name=date]', SOON);
 const preTicked = await dad.$$eval('input[name=share]', (els) => els.map((e) => e.checked));
