@@ -20,8 +20,8 @@ import { ErrorNote, card, field, primaryButton, quietButton, secondaryButton } f
 export function AddFamilyInline({ onAdded, inviteUrl, circles }: {
   onAdded?: (householdId: string) => void;
   inviteUrl: string;
-  /** Circle names already in use. Asked about only when there is a choice. */
-  circles: string[];
+  /** The circles you are in. Asked about only when there is more than one. */
+  circles: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState<AddedFamily, FormData>(addFamilyNow, {});
   const [open, setOpen] = useState(false);
@@ -131,16 +131,16 @@ export function AddFamilyInline({ onAdded, inviteUrl, circles }: {
       {circles.length > 1 && (
         <label className="flex flex-col gap-2">
           <span className="text-sm font-semibold text-muted">לאיזה מעגל?</span>
-          <select name="familyCircle" defaultValue={circles[0]} className={field}>
-            {circles.map((name) => (
-              <option key={name} value={name}>
-                {name}
+          <select name="familyCircle" defaultValue={circles[0].id} className={field}>
+            {circles.map((circle) => (
+              <option key={circle.id} value={circle.id}>
+                {circle.name}
               </option>
             ))}
           </select>
         </label>
       )}
-      {circles.length === 1 && <input type="hidden" name="familyCircle" value={circles[0]} />}
+      {circles.length === 1 && <input type="hidden" name="familyCircle" value={circles[0].id} />}
 
       <p className="text-xs text-muted">
         עם מספר הם יוכלו להיכנס בעצמם, ואפשר לכתוב להם בוואטסאפ. בלעדיו אפשר

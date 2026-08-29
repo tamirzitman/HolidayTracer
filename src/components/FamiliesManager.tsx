@@ -1,7 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { addSuggested, dismissSuggested, newInviteLink } from '@/app/actions';
+import {
+  addSuggested,
+  dismissSuggested,
+  makeCircle,
+  nameCircle,
+  newInviteLink,
+  setCircleMember,
+  type ActionResult,
+} from '@/app/actions';
+import { useActionState } from 'react';
 import { ContactPicker } from './ContactPicker';
 import { WhatsAppMark, type Member } from './WhatsApp';
 import { inviteText } from '@/lib/whatsapp';
@@ -11,17 +20,14 @@ type Family = { id: string; name: string; members: Member[] };
 
 export function FamiliesManager({
   circles,
-  inviteUrl,
   suggested,
-  knownCircles,
+  everyone,
 }: {
-  circles: { name: string; families: Family[] }[];
-  /** This family's standing join link, for the families nobody has joined yet. */
-  inviteUrl: string;
-  /** Families your families know and you don't, with how many of them know each. */
+  circles: { id: string; name: string; families: Family[] }[];
+  /** Circles your families sit in and you don't, with how many of them are in each. */
   suggested: { id: string; name: string; seenBy: number }[];
-  /** Circle names already in use, offered back so they are not retyped. */
-  knownCircles: string[];
+  /** Every family you know, for adding one to a circle it is not in yet. */
+  everyone: { id: string; name: string }[];
 }) {
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
@@ -29,12 +35,13 @@ export function FamiliesManager({
   const [adding, setAdding] = useState<string | null>(null);
   // Which circle the link joins. Two sides of a family never sit together and
   // do not share a group chat, so an invite to one is not an invite to the other.
-  const [circleName, setCircleName] = useState('');
+  const [circleId, setCircleId] = useState(circles[0]?.id ?? '');
+  const [, createAction] = useActionState<ActionResult, FormData>(makeCircle, {});
 
   async function makeLink(kind: 'family' | 'household') {
     setBusy(kind);
     try {
-      const token = await newInviteLink(kind, circleName);
+      const token = await newInviteLink(kind, circleId);
       setLink(`${window.location.origin}/join/${token}`);
       setCopied(false);
     } finally {
@@ -64,31 +71,22 @@ export function FamiliesManager({
         </section>
       ) : (
         circles.map((circle) => (
-          <section key={circle.name} className={`${card} flex flex-col gap-1 p-0`}>
-            {/* A single unnamed circle needs no heading — that is what everybody
-                had before circles were named, and it should look unchanged. */}
-            {(circle.name || circles.length > 1) && (
-              <h2 className="px-5 pt-4 pb-1 text-sm font-bold text-muted">
-                {circle.name || 'המשפחה'}
-              </h2>
-            )}
-            <ul className="divide-y divide-line">
-              {circle.families.map((family) => (
-                <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">
-                  <div className="min-w-0 grow">
-                    <p className="truncate font-semibold text-ink">{family.name}</p>
-                    <span className="text-sm text-muted">
-                      {family.members.length === 0
-                        ? 'עוד לא נרשמו לאפליקציה'
-                        : family.members.map((m) => m.name).join(', ')}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <CircleCard key={circle.id} circle={circle} everyone={everyone} />
         ))
       )}
+
+      {/* A circle is the thing you build; making one should not be buried. */}
+      <form action={createAction} className={`${card} flex flex-col gap-3`}>
+        <h2 className="font-display text-xl font-bold text-ink">מעגל חדש</h2>
+        <p className="text-sm text-muted">
+          צד אחד של המשפחה הוא מעגל, והצד השני הוא מעגל אחר. הם לא נפגשים ולא
+          חולקים קבוצה.
+        </p>
+        <input name="name" type="text" required placeholder="המשפחה של אבא" className={field} />
+        <button type="submit" className={secondaryButton}>
+          יצירת מעגל
+        </button>
+      </form>
 
       {/* Circles drift apart as people add families of their own. Rather than ask
           anyone to keep the lists in step, this reads the overlap off the
@@ -182,18 +180,18 @@ export function FamiliesManager({
         {!link && (
           <label className="flex flex-col gap-2">
             <span className="text-sm font-semibold text-muted">לאיזה מעגל?</span>
-            <input
-              list="circle-names"
-              value={circleName}
-              onChange={(e) => setCircleName(e.target.value)}
-              placeholder="המשפחה של אבא"
+            <select
+              name="circleId"
+              value={circleId}
+              onChange={(e) => setCircleId(e.target.value)}
               className={field}
-            />
-            <datalist id="circle-names">
-              {knownCircles.map((name) => (
-                <option key={name} value={name} />
+            >
+              {circles.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
-            </datalist>
+            </select>
             <span className="text-xs text-muted">
               מי שנכנס דרך הקישור מצטרף למעגל הזה. הצד השני של המשפחה הוא מעגל אחר,
               עם קישור משלו.
@@ -253,5 +251,88 @@ export function FamiliesManager({
       </div>
 
     </div>
+  );
+}
+
+/** One circle: its name, who is in it, and taking families in and out. */
+function CircleCard({
+  circle,
+  everyone,
+}: {
+  circle: { id: string; name: string; families: Family[] };
+  everyone: { id: string; name: string }[];
+}) {
+  const [, renameAction] = useActionState<ActionResult, FormData>(nameCircle, {});
+  const [, memberAction] = useActionState<ActionResult, FormData>(setCircleMember, {});
+  const [editing, setEditing] = useState(false);
+
+  const outside = everyone.filter((h) => !circle.families.some((f) => f.id === h.id));
+
+  return (
+    <section className={`${card} flex flex-col gap-1 p-0`}>
+      <div className="flex items-center gap-2 px-5 pt-4 pb-1">
+        <h2 className="grow text-sm font-bold text-muted">{circle.name}</h2>
+        <button type="button" onClick={() => setEditing(!editing)} className={chipButton}>
+          {editing ? 'סיום' : 'עריכה'}
+        </button>
+      </div>
+
+      {editing && (
+        <form action={renameAction} className="flex gap-2 px-5 pb-3">
+          <input type="hidden" name="circleId" value={circle.id} />
+          <input
+            name="name"
+            defaultValue={circle.name}
+            className={`${field} grow`}
+            aria-label="שם המעגל"
+          />
+          <button type="submit" className={chipButton}>
+            שמירה
+          </button>
+        </form>
+      )}
+
+      <ul className="divide-y divide-line">
+        {circle.families.map((family) => (
+          <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">
+            <div className="min-w-0 grow">
+              <p className="truncate font-semibold text-ink">{family.name}</p>
+              <span className="text-sm text-muted">
+                {family.members.length === 0
+                  ? 'עוד לא נרשמו לאפליקציה'
+                  : family.members.map((m) => m.name).join(', ')}
+              </span>
+            </div>
+            {editing && (
+              <form action={memberAction}>
+                <input type="hidden" name="circleId" value={circle.id} />
+                <input type="hidden" name="householdId" value={family.id} />
+                <input type="hidden" name="member" value="no" />
+                <button type="submit" className={quietButton}>
+                  הסרה
+                </button>
+              </form>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {editing && outside.length > 0 && (
+        <form action={memberAction} className="flex gap-2 border-t border-line px-5 py-3">
+          <input type="hidden" name="circleId" value={circle.id} />
+          <input type="hidden" name="member" value="yes" />
+          <select name="householdId" className={`${field} grow`} aria-label="להוסיף למעגל">
+            {outside.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.name}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className={chipButton}>
+            הוספה
+          </button>
+        </form>
+      )}
+    </section>
   );
 }

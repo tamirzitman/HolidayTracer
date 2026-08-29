@@ -10,7 +10,8 @@ import {
   type Household,
   type Person,
   type StoredAnswer,
-  type Connection,
+  type Circle,
+  type Membership,
   type Invite,
 } from './types';
 
@@ -45,7 +46,8 @@ export type Sheet = {
   people: Person[];
   answers: Answer[];
   conflicts: { holidayKey: string; householdId: string; hostHouseholdId: string; status: 'open' | 'resolved' }[];
-  connections: Connection[];
+  circles: Circle[];
+  members: Membership[];
   invites: Invite[];
 };
 
@@ -55,7 +57,8 @@ const TAB_LIST = [
   TABS.people,
   TABS.answers,
   TABS.conflicts,
-  TABS.connections,
+  TABS.circles,
+  TABS.members,
   TABS.invites,
 ];
 
@@ -78,7 +81,8 @@ async function fetchSheet(): Promise<Sheet> {
   const householdsTab = indexRows(raw[TABS.households] ?? []);
   const peopleTab = indexRows(raw[TABS.people] ?? []);
   const answersTab = indexRows(raw[TABS.answers] ?? []);
-  const connectionsTab = indexRows(raw[TABS.connections] ?? []);
+  const circlesTab = indexRows(raw[TABS.circles] ?? []);
+  const membersTab = indexRows(raw[TABS.members] ?? []);
   const invitesTab = indexRows(raw[TABS.invites] ?? []);
   const conflictsTab = indexRows(raw[TABS.conflicts] ?? []);
 
@@ -155,15 +159,27 @@ async function fetchSheet(): Promise<Sheet> {
       }))
       .filter((c) => c.holidayKey && c.householdId),
 
-    connections: connectionsTab.body
+    // Append-only like the rest: the last row for an id wins, so renaming is
+    // another row rather than an edit.
+    circles: [...new Map(circlesTab.body
       .map((row) => ({
-        householdId: cell(row, connectionsTab.headers, 'household_id'),
-        connectedTo: cell(row, connectionsTab.headers, 'connected_to'),
-        action: (cell(row, connectionsTab.headers, 'action') || 'add') as 'add' | 'remove',
-        at: cell(row, connectionsTab.headers, 'at'),
-        circle: cell(row, connectionsTab.headers, 'circle'),
+        id: cell(row, circlesTab.headers, 'circle_id'),
+        name: cell(row, circlesTab.headers, 'name'),
+        createdBy: cell(row, circlesTab.headers, 'created_by'),
+        createdAt: cell(row, circlesTab.headers, 'created_at'),
       }))
-      .filter((c) => c.householdId && c.connectedTo),
+      .filter((c) => c.id)
+      .map((c) => [c.id, c] as const)).values()],
+
+    members: membersTab.body
+      .map((row) => ({
+        circleId: cell(row, membersTab.headers, 'circle_id'),
+        householdId: cell(row, membersTab.headers, 'household_id'),
+        action: (cell(row, membersTab.headers, 'action') || 'add') as Membership['action'],
+        at: cell(row, membersTab.headers, 'at'),
+        holidayKey: cell(row, membersTab.headers, 'holiday_key'),
+      }))
+      .filter((m) => m.circleId && m.householdId),
 
     invites: invitesTab.body
       .map((row) => ({
@@ -172,7 +188,7 @@ async function fetchSheet(): Promise<Sheet> {
         // Links written before there were two kinds are family invites.
         kind: (cell(row, invitesTab.headers, 'kind') || 'family') as 'family' | 'household',
         createdAt: cell(row, invitesTab.headers, 'created_at'),
-        circle: cell(row, invitesTab.headers, 'circle'),
+        circleId: cell(row, invitesTab.headers, 'circle_id'),
       }))
       .filter((i) => i.token && i.createdBy),
   };
@@ -316,7 +332,7 @@ export async function circleAnswers(
   // circle, the rest would otherwise sit at "עוד לא ענו" forever — reading as
   // if they had been asked and ignored it, when they were never asked.
   const holiday = sheet.holidays.find((h) => h.key === holidayKey);
-  const asked = (await circleOf(householdId)).filter(
+  const asked = (await circleOf(householdId, holidayKey)).filter(
     (h) => !holiday || visibleTo(holiday, h.id),
   );
 
@@ -450,34 +466,101 @@ async function appendRow(tab: string, headers: readonly string[], row: string[])
 // ── circles ───────────────────────────────────────────────────────────────────
 
 /** Latest event wins. Rows are only ever appended, never rewritten. */
-function connectionState(connections: Connection[], householdId: string): Map<string, 'add' | 'remove'> {
-  const state = new Map<string, 'add' | 'remove'>();
-  for (const c of connections) {
-    if (c.householdId === householdId) state.set(c.connectedTo, c.action);
+/**
+ * Who is in a circle: the newest standing row per household decides, and then a
+ * holiday's own rows are laid over the top. Being out for one seder is not the
+ * same as leaving, and the app should not make you choose between them.
+ */
+function membersIn(sheet: Sheet, circleId: string, holidayKey = ''): Set<string> {
+  const state = new Map<string, Membership['action']>();
+  for (const m of sheet.members) {
+    if (m.circleId !== circleId) continue;
+    if (m.holidayKey && m.holidayKey !== holidayKey) continue;
+    // Standing rows first, then this holiday's, so the exception wins.
+    if (!m.holidayKey || m.holidayKey === holidayKey) state.set(m.householdId, m.action);
   }
-  return state;
+  return new Set([...state.entries()].filter(([, a]) => a === 'add').map(([id]) => id));
 }
 
-/** The families this household can see — its whole world in the app. */
-export async function circleOf(householdId: string): Promise<Household[]> {
+/** The circles this household is in. */
+export async function circleIdsOf(householdId: string): Promise<string[]> {
   const sheet = await loadSheet();
-  const state = connectionState(sheet.connections, householdId);
-  return sheet.households.filter((h) => h.id !== householdId && state.get(h.id) === 'add');
+  return sheet.circles.filter((c) => membersIn(sheet, c.id).has(householdId)).map((c) => c.id);
 }
 
 /**
- * The families a newcomer arriving on this invite could say they belong to:
- * the family that invited them, and everyone that family is connected to.
+ * The circles this household is in, each with the other families in it.
+ *
+ * This is the shape everything is arranged around. A household is in as many
+ * circles as it needs — one per side of the family — and they do not mix. A
+ * family met through two circles appears in both, which is right: the same aunt
+ * can be on both sides.
+ */
+export async function circlesOf(
+  householdId: string,
+  /** Reads the circle as it stands for one holiday: a family taken out of this
+   *  seder alone is missing here and nowhere else. */
+  holidayKey = '',
+): Promise<{ id: string; name: string; families: Household[] }[]> {
+  const sheet = await loadSheet();
+  const byId = new Map(sheet.households.map((h) => [h.id, h]));
+
+  // Membership is judged standing-only: being away from one seder does not take
+  // you out of the circle, so the circle still shows on your screen.
+  return sheet.circles
+    .filter((c) => membersIn(sheet, c.id).has(householdId))
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      families: [...membersIn(sheet, c.id, holidayKey)]
+        .filter((id) => id !== householdId)
+        .map((id) => byId.get(id))
+        .filter((h): h is Household => h !== undefined),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+}
+
+/** Everyone this household can answer at: every circle it is in, flattened. */
+export async function circleOf(householdId: string, holidayKey = ''): Promise<Household[]> {
+  const seen = new Map<string, Household>();
+  for (const circle of await circlesOf(householdId, holidayKey)) {
+    for (const family of circle.families) seen.set(family.id, family);
+  }
+  return [...seen.values()];
+}
+
+/**
+ * Families who are in your circles but out of this one holiday — the cousins who
+ * are at the other side's seder this year. Kept apart from leaving a circle,
+ * which is a different thing entirely.
+ */
+export async function awayFrom(householdId: string, holidayKey: string): Promise<Household[]> {
+  if (!holidayKey) return [];
+  const here = new Set((await circleOf(householdId, holidayKey)).map((h) => h.id));
+  return (await circleOf(householdId)).filter((h) => !here.has(h.id));
+}
+
+/** Two families can answer at each other when they share a circle. */
+export async function isConnected(a: string, b: string): Promise<boolean> {
+  const sheet = await loadSheet();
+  return sheet.circles.some((c) => {
+    const members = membersIn(sheet, c.id);
+    return members.has(a) && members.has(b);
+  });
+}
+
+/**
+ * The families a newcomer arriving on this invite could say they belong to: the
+ * family that invited them, and everyone in that family's circles.
  *
  * Matching on the phone number is not enough to keep one family from becoming
  * two. The number somebody typed in when they added a family belongs to one
  * person in it, and the one who actually signs up may be their partner, with a
  * number nobody has ever entered. So the newcomer is shown the families already
- * on the list and can simply say which one is theirs; joining then appends them
- * to that household rather than opening a second row beside it.
+ * on the list and can simply say which one is theirs.
  *
- * Families that nobody has signed into yet come first: those are the ones added
- * by name alone, and the likeliest thing a newcomer is here to claim.
+ * Families nobody has signed into come first: those are the ones added by name
+ * alone, and the likeliest thing a newcomer is here to claim.
  */
 export async function claimableIn(householdId: string): Promise<Household[]> {
   const sheet = await loadSheet();
@@ -487,132 +570,113 @@ export async function claimableIn(householdId: string): Promise<Household[]> {
   return [...all.filter((h) => !joined.has(h.id)), ...all.filter((h) => joined.has(h.id))];
 }
 
+export async function createCircle(name: string, createdBy: string): Promise<string> {
+  const used = (await loadSheet()).circles
+    .map((c) => Number(c.id))
+    .filter((n) => Number.isInteger(n));
+  const id = String(Math.max(0, ...used) + 1);
+  await appendRow(TABS.circles, HEADERS.circles, [
+    id,
+    name,
+    createdBy,
+    new Date().toISOString(),
+  ]);
+  await joinCircle(id, createdBy);
+  return id;
+}
+
+export async function joinCircle(
+  circleId: string,
+  householdId: string,
+  holidayKey = '',
+): Promise<void> {
+  await setMembership(circleId, householdId, 'add', holidayKey);
+}
+
+/** Out of the circle — for good, or for one holiday when a key is given. */
+export async function leaveCircle(
+  circleId: string,
+  householdId: string,
+  holidayKey = '',
+): Promise<void> {
+  await setMembership(circleId, householdId, 'remove', holidayKey);
+}
+
+async function setMembership(
+  circleId: string,
+  householdId: string,
+  action: Membership['action'],
+  holidayKey: string,
+): Promise<void> {
+  await appendRow(TABS.members, HEADERS.members, [
+    circleId,
+    householdId,
+    action,
+    new Date().toISOString(),
+    holidayKey,
+  ]);
+}
+
+export async function renameCircle(circleId: string, name: string): Promise<void> {
+  const circle = (await loadSheet()).circles.find((c) => c.id === circleId);
+  if (!circle) return;
+  await appendRow(TABS.circles, HEADERS.circles, [
+    circle.id,
+    name,
+    circle.createdBy,
+    circle.createdAt,
+  ]);
+}
+
 /**
- * Families that the families you know all know, and you don't.
+ * Turning down a suggested circle, for good. Recorded rather than forgotten,
+ * because the circles you have decided against are exactly the ones your
+ * families will keep vouching for. Not a deletion: a later `add` wins over it.
+ */
+export async function declineCircle(circleId: string, householdId: string): Promise<void> {
+  await setMembership(circleId, householdId, 'declined', '');
+}
+
+/**
+ * Circles worth being in: ones the families you already know belong to.
  *
- * Circles overlap heavily — a brother's list is most of yours, a parent's may
- * be all of it — but the overlap drifts as people add families of their own.
- * Rather than ask anyone to keep the lists in step, this reads the overlap off
- * the connections that already exist: a household in several of your families'
- * circles but not in yours is almost certainly one of yours too. The count is
- * the evidence, and it is what the list is ordered by.
+ * Two families have to be in it before it is offered — one family's other
+ * circle is theirs, not yours — except when your own circles are too few to
+ * reach two, where the first suggestion is what gets a new household started.
  */
 export async function suggestionsFor(
   householdId: string,
-): Promise<{ household: Household; seenBy: number; circle: string }[]> {
+): Promise<{ circle: Circle; seenBy: number }[]> {
   const sheet = await loadSheet();
-  const mine = await circleOf(householdId);
-  const state = connectionState(sheet.connections, householdId);
+  const mine = await circleIdsOf(householdId);
+  const family = await circleOf(householdId);
 
-  // Turned down before, so don't offer it again. A suggestion that keeps coming
-  // back is worse than no suggestion: the families you have decided against are
-  // exactly the ones your families will keep vouching for.
-  const known = new Set([
-    householdId,
-    ...mine.map((h) => h.id),
-    ...[...state.entries()].filter(([, action]) => action === 'remove').map(([id]) => id),
-  ]);
-
-  // Also remembered: the circle each vouching family was reached through, so
-  // taking a suggestion up files it where the evidence came from rather than
-  // dropping it into no circle at all.
-  const seenBy = new Map<string, number>();
-  const through = new Map<string, string>();
-  const circleNameOf = new Map(
-    (await circlesOf(householdId)).flatMap((c) => c.families.map((f) => [f.id, c.name] as const)),
+  const decided = new Set(
+    sheet.members
+      .filter((m) => m.householdId === householdId && m.action !== 'add')
+      .map((m) => m.circleId),
   );
-  for (const family of mine) {
-    for (const theirs of await circleOf(family.id)) {
-      if (known.has(theirs.id)) continue;
-      seenBy.set(theirs.id, (seenBy.get(theirs.id) ?? 0) + 1);
-      if (!through.has(theirs.id)) through.set(theirs.id, circleNameOf.get(family.id) ?? '');
-    }
+
+  const seenBy = new Map<string, number>();
+  for (const c of sheet.circles) {
+    if (mine.includes(c.id) || decided.has(c.id)) continue;
+    const members = membersIn(sheet, c.id);
+    const overlap = family.filter((h) => members.has(h.id)).length;
+    if (overlap > 0) seenBy.set(c.id, overlap);
   }
 
-  // Two families vouching is evidence; one is that family's own acquaintance,
-  // which says nothing about you. The exception is a circle too small to reach
-  // two — somebody who has just added their first family would otherwise get
-  // nothing back, and that first suggestion is what gets them started.
-  const enough = Math.min(2, mine.length);
-
+  const enough = Math.min(2, Math.max(1, family.length));
   return [...seenBy.entries()]
     .filter(([, count]) => count >= enough)
-    .map(([id, count]) => ({
-      household: sheet.households.find((h) => h.id === id),
-      seenBy: count,
-      circle: through.get(id) ?? '',
-    }))
-    .filter((s): s is { household: Household; seenBy: number; circle: string } =>
-      s.household !== undefined)
-    .sort((a, b) => b.seenBy - a.seenBy || a.household.name.localeCompare(b.household.name, 'he'));
-}
-
-export async function isConnected(a: string, b: string): Promise<boolean> {
-  return connectionState((await loadSheet()).connections, a).get(b) === 'add';
-}
-
-/**
- * Turning down a suggestion, for good. One-way on purpose: deciding a family is
- * not yours says nothing about whether you belong on theirs, and it is not a
- * deletion — a newer 'add' row, from taking them up later or from a number
- * typed in, wins over it.
- */
-export async function dismissSuggestion(householdId: string, other: string): Promise<void> {
-  await appendRow(TABS.connections, HEADERS.connections, [
-    householdId,
-    other,
-    'remove',
-    new Date().toISOString(),
-  ]);
-}
-
-/** Introducing two families is mutual; hiding one is not. */
-export async function connect(a: string, b: string, circle = ''): Promise<void> {
-  const at = new Date().toISOString();
-  await appendRow(TABS.connections, HEADERS.connections, [a, b, 'add', at, circle]);
-  await appendRow(TABS.connections, HEADERS.connections, [b, a, 'add', at, circle]);
-}
-
-/**
- * The circles a household belongs to, and who is in each.
- *
- * Whether two families are connected stays a flat question — the newest row for
- * the pair decides it — so nothing that asks "can I answer at them?" changes.
- * This only says which name each link was made under, so lists can be grouped
- * the way the family actually is. A family reached through two circles appears
- * in both, which is correct: the same aunt can be on both sides.
- */
-export async function circlesOf(
-  householdId: string,
-): Promise<{ name: string; families: Household[] }[]> {
-  const sheet = await loadSheet();
-  const connected = await circleOf(householdId);
-  const byId = new Map(connected.map((h) => [h.id, h]));
-
-  const named = new Map<string, Household[]>();
-  for (const c of sheet.connections) {
-    if (c.householdId !== householdId || c.action !== 'add') continue;
-    const family = byId.get(c.connectedTo);
-    if (!family) continue;
-    const list = named.get(c.circle) ?? [];
-    if (!list.some((h) => h.id === family.id)) list.push(family);
-    named.set(c.circle, list);
-  }
-
-  return [...named.entries()]
-    .map(([name, families]) => ({ name, families }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'he'));
-}
-
-/** Circle names this household already uses, for offering them back. */
-export async function circleNames(householdId: string): Promise<string[]> {
-  return (await circlesOf(householdId)).map((c) => c.name).filter(Boolean);
+    .map(([id, count]) => ({ circle: sheet.circles.find((c) => c.id === id), seenBy: count }))
+    .filter((s): s is { circle: Circle; seenBy: number } => s.circle !== undefined)
+    .sort((a, b) => b.seenBy - a.seenBy || a.circle.name.localeCompare(b.circle.name, 'he'));
 }
 
 export async function createInvite(
   householdId: string,
   kind: 'family' | 'household',
-  circle = '',
+  circleId = '',
 ): Promise<string> {
   const token = randomUUID().replace(/-/g, '').slice(0, 12);
   await appendRow(TABS.invites, HEADERS.invites, [
@@ -620,7 +684,7 @@ export async function createInvite(
     householdId,
     kind,
     new Date().toISOString(),
-    circle,
+    circleId,
   ]);
   return token;
 }
@@ -656,12 +720,12 @@ const expired = (invite: { createdAt: string }): boolean => {
 /** Reusable: a link in the family group should bring in more than one household. */
 export async function readInvite(
   token: string,
-): Promise<{ household: Household; kind: 'family' | 'household'; circle: string } | undefined> {
+): Promise<{ household: Household; kind: 'family' | 'household'; circleId: string } | undefined> {
   const sheet = await loadSheet();
   const invite = sheet.invites.find((i) => i.token === token);
   if (!invite || expired(invite)) return undefined;
   const household = sheet.households.find((h) => h.id === invite.createdBy);
-  return household ? { household, kind: invite.kind, circle: invite.circle } : undefined;
+  return household ? { household, kind: invite.kind, circleId: invite.circleId } : undefined;
 }
 
 export async function addHousehold(name: string): Promise<string> {

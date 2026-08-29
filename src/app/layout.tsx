@@ -7,7 +7,9 @@ import { getSessionPhone } from '@/lib/session';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'איפה אתם בחג?',
+  // The app is named after the thing it is arranged around: a circle is a set of
+  // households that could sit down together, and a family belongs to several.
+  title: 'Circles — מעגלים',
   description: 'מי מארח ומי מתארח, חג אחרי חג',
 };
 

@@ -1,5 +1,5 @@
 {
-  "name": "holidaytracer",
+  "name": "circles",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -14,7 +14,8 @@
     "mark": "tsx scripts/mark-holidays.mts",
     "connect-all": "tsx scripts/connect-all.mts",
     "align": "tsx scripts/align-headers.mts",
-    "reset": "tsx scripts/reset-playground.mts"
+    "reset": "tsx scripts/reset-playground.mts",
+    "to-circles": "tsx scripts/to-circles.mts"
   },
   "dependencies": {
     "googleapis": "^176.0.0",

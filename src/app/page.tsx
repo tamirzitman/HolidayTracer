@@ -5,6 +5,7 @@ import { JoinForm } from '@/components/JoinForm';
 import { SignInForm } from '@/components/SignInForm';
 import { Title, card, secondaryButton } from '@/components/ui';
 import {
+  awayFrom,
   circleAnswers,
   circlesOf,
   findConflict,
@@ -103,6 +104,8 @@ export default async function Page({
 
   // Knowing where everyone else is, is the reward for saying where you are.
   const circleStatus = current ? await circleAnswers(holiday.key, person.householdId) : [];
+  // Families in the circle who are out of this date alone, so they can be put back.
+  const away = current ? await awayFrom(person.householdId, holiday.key) : [];
 
   // Names and numbers are resolved here so the log itself can stay keys-only.
   const host = current?.hostHouseholdId
@@ -126,6 +129,7 @@ export default async function Page({
       key={holiday.key}
       holiday={holiday}
       circles={circles.map((c) => ({
+        id: c.id,
         name: c.name,
         families: c.families.map((h) => ({ id: h.id, name: h.name })),
       }))}
@@ -144,6 +148,7 @@ export default async function Page({
         byName: c.byName,
         members: whoIsIn(c.household.id),
       }))}
+      away={away.map((h) => ({ id: h.id, name: h.name }))}
       hostDisagrees={Boolean(conflict)}
       earlierKey={at > 0 ? upcoming[at - 1].key : undefined}
       laterKey={at < upcoming.length - 1 ? upcoming[at + 1].key : undefined}

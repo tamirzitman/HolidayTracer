@@ -1,14 +1,21 @@
-# HolidayTracer
+# Circles
 
 A one-screen web app for a family. For each holiday it asks:
 
 > **<span dir="rtl">איפה אתם בחג?</span>** — <span dir="rtl">אני מארח</span>, or
 > <span dir="rtl">מתארח אצל</span> + a family picked from a dropdown.
 
+**A circle is the thing the app is arranged around**: the set of households that could plausibly
+sit down together. The two sides of a family are two circles — they would never share a table, or
+a WhatsApp group — and a household belongs to as many circles as it needs. Everything else follows
+from that: an invite link fills one circle, an occasion goes out to one, and answering a holiday
+shows the families in the circles you are in.
+
 Sign in with a phone number and a name — no password, no email, no code, and no invite needed —
 remembered in a browser cookie so you only ever type it once. You start with nobody on your list,
-and every family you add brings the families it knows along as suggestions. **A Google Sheet is the entire database**, and everything is
-managed by hand in it. Hebrew, right-to-left.
+and every family you add brings the circles it sits in along as suggestions, so one tap can bring
+in a dozen households nobody typed a number for. **A Google Sheet is the entire database**, and
+everything is managed by hand in it. Hebrew, right-to-left.
 
 Three screens on a tab bar — the question, **המעגלים** (your families, and invites), and
 **היסטוריה** (what happened, and correcting it) — plus **המועדים שלנו**, reached from the household
