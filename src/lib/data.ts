@@ -194,6 +194,32 @@ export async function householdPhone(householdId: string): Promise<string> {
   return (await loadSheet()).people.find((p) => p.householdId === householdId)?.phone ?? '';
 }
 
+/**
+ * Everyone registered in a family, so a message can be aimed at a person rather
+ * than at a household. A family nobody has joined has none — that is exactly
+ * what makes it a family to invite rather than one to write to.
+ */
+export async function membersOf(householdId: string): Promise<{ name: string; phone: string }[]> {
+  return (await loadSheet()).people
+    .filter((p) => p.householdId === householdId)
+    .map((p) => ({ name: p.name, phone: p.phone }));
+}
+
+/** Everyone, keyed by household, in one pass — a screen usually needs them all. */
+export async function membersByHousehold(): Promise<Map<string, { name: string; phone: string }[]>> {
+  const byHousehold = new Map<string, { name: string; phone: string }[]>();
+  for (const p of (await loadSheet()).people) {
+    const list = byHousehold.get(p.householdId) ?? [];
+    list.push({ name: p.name, phone: p.phone });
+    byHousehold.set(p.householdId, list);
+  }
+  return byHousehold;
+}
+
+/** The person behind a number on an answer — the log itself stores no names. */
+const personName = (sheet: Sheet, phone: string): string =>
+  sheet.people.find((p) => p.phone === phone)?.name ?? '';
+
 /** Shared holidays have no owner; a family's own occasion is theirs alone. */
 const visibleTo = (holiday: Holiday, householdId?: string): boolean =>
   !holiday.ownerHouseholdId || holiday.ownerHouseholdId === householdId;
@@ -259,6 +285,8 @@ export type CircleAnswer = {
   household: Household;
   kind: AnswerKind | 'none';
   hostName: string;
+  /** Which person in that family actually answered. Empty when nobody has. */
+  byName: string;
 };
 
 export async function circleAnswers(
@@ -275,6 +303,7 @@ export async function circleAnswers(
       household,
       kind: answer?.kind ?? 'none',
       hostName: answer?.hostHouseholdId ? nameOf(answer.hostHouseholdId) : '',
+      byName: answer ? personName(sheet, answer.byPhone) : '',
     };
   });
 }
@@ -285,7 +314,7 @@ export async function circleAnswers(
  */
 export async function historyFor(
   householdId: string,
-): Promise<{ holiday: Holiday; answer: Answer | undefined }[]> {
+): Promise<{ holiday: Holiday; answer: Answer | undefined; byName: string }[]> {
   const sheet = await loadSheet();
   const today = todayInIsrael();
 
@@ -297,7 +326,10 @@ export async function historyFor(
   return sheet.holidays
     .filter((h) => h.include && h.date < today && visibleTo(h, householdId))
     .sort((a, b) => b.date.localeCompare(a.date))
-    .map((holiday) => ({ holiday, answer: mine.get(holiday.key) }));
+    .map((holiday) => {
+      const answer = mine.get(holiday.key);
+      return { holiday, answer, byName: answer ? personName(sheet, answer.byPhone) : '' };
+    });
 }
 
 /** A holiday that has already passed, for correcting the record after the fact. */
@@ -426,6 +458,19 @@ export async function createInvite(
     new Date().toISOString(),
   ]);
   return token;
+}
+
+/**
+ * The family's standing invite link, made once and reused. Every unregistered
+ * family on a screen carries an invite button, and minting a token per button
+ * per page load would fill the tab with links nobody ever opens. Reuse is
+ * already the semantics: a token names who is inviting, not who is invited.
+ */
+export async function inviteFor(householdId: string): Promise<string> {
+  const existing = (await loadSheet()).invites
+    .filter((i) => i.createdBy === householdId && i.kind === 'family')
+    .at(-1);
+  return existing?.token ?? createInvite(householdId, 'family');
 }
 
 /** Reusable: a link in the family group should bring in more than one household. */

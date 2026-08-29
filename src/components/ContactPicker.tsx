@@ -1,12 +1,13 @@
 'use client';
 
+import { inviteVia } from '@/lib/whatsapp';
+import { WhatsAppMark } from './WhatsApp';
 import { useState } from 'react';
 import { connectContacts, newInviteLink, type ContactResult } from '@/app/actions';
 import { contactPickerAvailable, pickContacts } from '@/lib/contacts';
 import { formatPhone } from '@/lib/phone';
 import { ErrorNote, secondaryButton } from './ui';
 
-const message = (url: string) => `הצטרפו אלינו — עונים בשתי נגיעות איפה אתם בחג:\n${url}`;
 
 /**
  * Picks families out of the phone's address book. Numbers already in the app are
@@ -78,12 +79,14 @@ export function ContactPicker() {
                     </span>
                     {inviteUrl && (
                       <a
-                        href={`https://wa.me/${contact.phone.replace('+', '')}?text=${encodeURIComponent(message(inviteUrl))}`}
+                        href={inviteVia(inviteUrl, contact.phone)}
                         target="_blank"
                         rel="noreferrer"
-                        className="shrink-0 text-sm font-bold text-brand underline underline-offset-4"
+                        aria-label={`הזמנת ${contact.name || 'איש קשר'} לאפליקציה בוואטסאפ`}
+                        title="הזמנה לאפליקציה"
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-whatsapp transition active:scale-95"
                       >
-                        הזמנה
+                        <WhatsAppMark invite />
                       </a>
                     )}
                   </li>

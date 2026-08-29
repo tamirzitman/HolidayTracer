@@ -42,13 +42,14 @@ export default async function HistoryPage() {
           </div>
 
           <HistoryList
-            entries={past.map(({ holiday, answer }) => ({
+            entries={past.map(({ holiday, answer, byName }) => ({
               key: holiday.key,
               name: holiday.nameHe,
               date: holiday.date,
               kind: answer?.kind ?? null,
               hostId: answer?.hostHouseholdId ?? '',
               hostName: answer?.hostHouseholdId ? nameOf(answer.hostHouseholdId) : '',
+              byName,
             }))}
             families={circle.map((h) => ({ id: h.id, name: h.name }))}
           />

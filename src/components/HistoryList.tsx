@@ -12,6 +12,8 @@ type Entry = {
   kind: 'hosting' | 'guest' | 'away' | null;
   hostId: string;
   hostName: string;
+  /** Which person in the family gave this answer. */
+  byName: string;
 };
 
 
@@ -60,7 +62,10 @@ export function HistoryList({
                     חסר
                   </span>
                 )}
-                <span className="text-sm text-muted">{formatDayAndDate(entry.date)}</span>
+                <span className="text-sm text-muted">
+                  {formatDayAndDate(entry.date)}
+                  {entry.byName && ` · ענו: ${entry.byName}`}
+                </span>
               </div>
               <button
                 type="button"

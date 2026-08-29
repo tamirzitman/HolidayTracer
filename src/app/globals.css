@@ -17,6 +17,8 @@
   --color-brand: #7c2740;
   --color-brand-wash: #f6eaed;
   --color-glow: rgba(124, 39, 64, 0.11);
+  /* WhatsApp's own green, so the mark is recognised rather than read. */
+  --color-whatsapp: #1da851;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -29,6 +31,7 @@
     --color-brand: #e39bb0;
     --color-brand-wash: #2f1f25;
     --color-glow: rgba(227, 155, 176, 0.16);
+    --color-whatsapp: #4ad07d;
   }
 }
 

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useOptimistic, useRef, useState } from 'react';
 import { answer, type ActionResult } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
-import { formatPhone } from '@/lib/phone';
+import { FamilyWhatsApp, type Member } from './WhatsApp';
 import type { Answer, Holiday, Household } from '@/lib/types';
 import { formatDayAndDate } from '@/lib/dates';
 import { holidayEmoji } from '@/lib/holiday-emoji';
@@ -18,12 +18,23 @@ type Props = {
   householdName: string;
   current: Answer | undefined;
   /** Resolved from the id on the answer — the log itself stores no names. */
-  host: { name: string; phone: string } | undefined;
+  host: { id: string; name: string; members: Member[] } | undefined;
   daysAway: number;
+  /** Which person in our family gave this answer. */
+  answeredBy: string;
+  /** Our family's standing join link, for writing to families nobody has joined. */
+  inviteUrl: string;
   /** Households that said they are coming to us. Only meaningful when hosting. */
-  guests: { id: string; name: string }[];
+  guests: { id: string; name: string; members: Member[] }[];
   /** Where everyone in the circle is. Empty until we have answered ourselves. */
-  circleStatus: { id: string; name: string; kind: string; hostName: string }[];
+  circleStatus: {
+    id: string;
+    name: string;
+    kind: string;
+    hostName: string;
+    byName: string;
+    members: Member[];
+  }[];
   /** Set when our host answered that they are not hosting. */
   hostDisagrees: boolean;
   /** Neighbouring holidays inside the month-ahead window, if there are any. */
@@ -56,6 +67,8 @@ export function AnswerForm({
   current,
   host,
   daysAway,
+  answeredBy,
+  inviteUrl,
   guests,
   circleStatus,
   hostDisagrees,
@@ -286,19 +299,23 @@ export function AnswerForm({
                 <p className="font-display text-3xl font-bold text-brand">לא מגיעים</p>
               ) : (
                 <>
+                  {/* The number itself is gone: nobody wants to ring the host,
+                      they want to write to them. */}
                   <p className="font-display text-3xl leading-snug font-bold text-balance text-brand">
                     מתארחים אצל{' '}
                     {host?.name ?? households.find((h) => h.id === shown.hostHouseholdId)?.name}
+                    {host && (
+                      /* Inline, so it stays on the line with the name rather than
+                         dropping underneath it. */
+                      <span className="ms-1.5 inline-block align-middle">
+                        <FamilyWhatsApp
+                          familyName={host.name}
+                          members={host.members}
+                          inviteUrl={inviteUrl}
+                        />
+                      </span>
+                    )}
                   </p>
-                  {host?.phone && (
-                    <a
-                      href={`tel:${host.phone}`}
-                      dir="ltr"
-                      className="text-sm font-semibold text-muted underline underline-offset-4"
-                    >
-                      {formatPhone(host.phone)}
-                    </a>
-                  )}
                   {hostDisagrees && (
                     <p className="mt-1 rounded-xl border border-line bg-ground px-3 py-2 text-sm text-muted">
                       <span aria-hidden="true">⚠️ </span>
@@ -307,6 +324,8 @@ export function AnswerForm({
                   )}
                 </>
               )}
+              {answeredBy && <p className="text-sm text-muted">ענו: {answeredBy}</p>}
+
               <button
                 type="button"
                 onClick={() => {
@@ -318,7 +337,7 @@ export function AnswerForm({
                 שינוי תשובה
               </button>
 
-              {shown.kind === 'hosting' && <Guests guests={guests} />}
+              {shown.kind === 'hosting' && <Guests guests={guests} inviteUrl={inviteUrl} />}
             </div>
           ) : (
             <form
@@ -426,7 +445,9 @@ export function AnswerForm({
 
       {!answered && choosingHost && <AddFamilyInline />}
 
-      {answered && circleStatus.length > 0 && <Circle families={circleStatus} />}
+      {answered && circleStatus.length > 0 && (
+        <Circle families={circleStatus} inviteUrl={inviteUrl} />
+      )}
 
     </div>
   );
@@ -475,7 +496,20 @@ function Step({
 }
 
 /** Where the rest of the circle is — visible only once you have answered. */
-function Circle({ families }: { families: { id: string; name: string; kind: string; hostName: string }[] }) {
+function Circle({
+  families,
+  inviteUrl,
+}: {
+  families: {
+    id: string;
+    name: string;
+    kind: string;
+    hostName: string;
+    byName: string;
+    members: Member[];
+  }[];
+  inviteUrl: string;
+}) {
   const said = (kind: string, hostName: string) => {
     if (kind === 'hosting') return 'מארחים';
     if (kind === 'guest') return `אצל ${hostName}`;
@@ -488,11 +522,27 @@ function Circle({ families }: { families: { id: string; name: string; kind: stri
       <h2 className="px-5 pt-4 pb-1 text-sm font-bold text-muted">איפה כולם</h2>
       <ul className="divide-y divide-line">
         {families.map((family) => (
-          <li key={family.id} className="flex items-baseline justify-between gap-3 px-5 py-3">
-            <span className="font-semibold text-ink">{family.name}</span>
-            <span className={family.kind === 'none' ? 'text-sm text-muted' : 'text-sm font-semibold text-brand'}>
-              {said(family.kind, family.hostName)}
-            </span>
+          <li key={family.id} className="flex items-center justify-between gap-2 px-5 py-3">
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-ink">{family.name}</p>
+              {family.byName && <p className="text-xs text-muted">ענו: {family.byName}</p>}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <span
+                className={
+                  family.kind === 'none'
+                    ? 'text-sm text-muted'
+                    : 'text-sm font-semibold text-brand'
+                }
+              >
+                {said(family.kind, family.hostName)}
+              </span>
+              <FamilyWhatsApp
+                familyName={family.name}
+                members={family.members}
+                inviteUrl={inviteUrl}
+              />
+            </div>
           </li>
         ))}
       </ul>
@@ -523,7 +573,13 @@ function Celebration({ kind }: { kind: AnswerKindLike }) {
 type AnswerKindLike = 'hosting' | 'guest' | 'away' | undefined;
 
 /** Who said they are coming to us — the whole reward for answering "we're hosting". */
-function Guests({ guests }: { guests: { id: string; name: string }[] }) {
+function Guests({
+  guests,
+  inviteUrl,
+}: {
+  guests: { id: string; name: string; members: Member[] }[];
+  inviteUrl: string;
+}) {
   return (
     <div className="mt-2 w-full border-t border-line pt-4">
       {guests.length === 0 ? (
@@ -533,8 +589,9 @@ function Guests({ guests }: { guests: { id: string; name: string }[] }) {
           <p className="mb-2 text-sm font-semibold text-muted">מגיעים אליכם</p>
           <ul className="flex flex-col gap-1">
             {guests.map((g) => (
-              <li key={g.id} className="text-ink">
-                {g.name}
+              <li key={g.id} className="flex items-center justify-between gap-2 text-ink">
+                <span className="truncate">{g.name}</span>
+                <FamilyWhatsApp familyName={g.name} members={g.members} inviteUrl={inviteUrl} />
               </li>
             ))}
           </ul>

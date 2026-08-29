@@ -253,6 +253,42 @@ const corrected = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.te
 check(`the counts follow the correction (${stats.join('/')} → ${corrected.join('/')})`,
   Number(corrected[0]) === Number(stats[0]) + 1);
 
+// ── everything goes out through WhatsApp ─────────────────────────────────────
+await dad.goto(BASE);
+if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
+await dad.click('text=מתארחים אצל…');
+await dad.selectOption('select[name=hostHouseholdId]', { label: 'טמיר ואפיק' });
+await dad.click('button[type=submit]');
+await dad.waitForSelector('text=שינוי תשובה');
+await dad.waitForTimeout(1200);
+
+check('no phone number is offered as a call', (await dad.$$('a[href^="tel:"]')).length === 0);
+check('the host carries a way to write to them',
+  await dad.isVisible('[aria-label="הודעה לטמיר ואפיק בוואטסאפ"]'));
+check('and it says who in our family answered', /ענו: אבא/.test(await dad.innerText('main')));
+
+// A family with two people registered must not guess which of them you meant.
+await dad.click('[aria-label="הודעה לטמיר ואפיק בוואטסאפ"]');
+await dad.waitForSelector('a[href="https://wa.me/972502223333"]');
+const chooser = await dad.$$eval('ul li a[href^="https://wa.me/972"]', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`picking between them is offered (${chooser.join(', ')})`,
+  chooser.includes('טמיר') && chooser.includes('אפיק'));
+
+// Message for a family that is here, invite for one that is not — everywhere.
+await dad.goto(`${BASE}/families`);
+const marks = await dad.$$eval('section a[href*="wa.me"], section button[aria-label*="וואטסאפ"]', (els) =>
+  els.map((e) => `${e.getAttribute('aria-label')}|${(e.getAttribute('href') ?? '').includes('text=') ? 'invite' : 'chat'}`),
+);
+check(`a family that has joined gets a message (${marks[0] ?? 'none'})`,
+  marks.some((m) => m.startsWith('הודעה לטמיר ואפיק')));
+check('a family that has not gets an invite',
+  marks.some((m) => m.startsWith('הזמנת אח ואשתו') && m.endsWith('invite')));
+
+await dad.goto(`${BASE}/history`);
+check('history says who answered', /ענו: אבא/.test(await dad.innerText('main')));
+
 // ── one family stays one family, whatever number signs up ────────────────────
 // Dad adds the Leibowitz family by name so he can answer at them. Naama joins
 // and claims it. Then Yuval joins with a number nobody has ever entered — and

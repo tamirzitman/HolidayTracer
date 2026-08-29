@@ -24,9 +24,13 @@ sheet.Households = [
   ['hh_sister', 'אחות ובעלה', 'TRUE'],
   ['hh_gone', 'משפחה שכבר לא איתנו', 'FALSE'],
 ];
+// One family with two people in it, so the WhatsApp mark has somebody to open a
+// chat with — and has to ask which of them you meant.
 sheet.People = [
   ['phone', 'name', 'household_id'],
   ['+972501234567', 'אבא', 'hh_parents'],
+  ['+972502223333', 'טמיר', 'hh_tamir'],
+  ['+972504445555', 'אפיק', 'hh_tamir'],
 ];
 
 // One holiday already in the past, with an answer, so the history screen has

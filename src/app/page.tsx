@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { AnswerForm } from '@/components/AnswerForm';
 import { SignInForm } from '@/components/SignInForm';
 import { Title, card } from '@/components/ui';
@@ -10,12 +11,19 @@ import {
   getLatestAnswer,
   getUpcomingHolidays,
   guestsComingTo,
-  householdPhone,
+  inviteFor,
+  membersByHousehold,
   todayInIsrael,
 } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
+
+/** The app's own address, for the join links that go out over WhatsApp. */
+async function origin(): Promise<string> {
+  const head = await headers();
+  return `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
+}
 
 function daysUntil(date: string): number {
   const from = Date.parse(`${todayInIsrael()}T00:00:00Z`);
@@ -63,13 +71,19 @@ export default async function Page({
   const at = Math.max(0, upcoming.findIndex((h) => h.key === requested));
   const holiday = upcoming[at];
 
-  const [households, circle, current, guests, conflict] = await Promise.all([
-    getHouseholds(),
-    circleOf(person.householdId),
-    getLatestAnswer(holiday.key, person.householdId),
-    guestsComingTo(holiday.key, person.householdId),
-    findConflict(holiday.key, person.householdId),
-  ]);
+  const [households, circle, current, guests, conflict, members, inviteToken, base] =
+    await Promise.all([
+      getHouseholds(),
+      circleOf(person.householdId),
+      getLatestAnswer(holiday.key, person.householdId),
+      guestsComingTo(holiday.key, person.householdId),
+      findConflict(holiday.key, person.householdId),
+      membersByHousehold(),
+      inviteFor(person.householdId),
+      origin(),
+    ]);
+  const inviteUrl = `${base}/join/${inviteToken}`;
+  const whoIsIn = (id: string) => members.get(id) ?? [];
 
   // Knowing where everyone else is, is the reward for saying where you are.
   const circleStatus = current ? await circleAnswers(holiday.key, person.householdId) : [];
@@ -77,10 +91,16 @@ export default async function Page({
   // Names and numbers are resolved here so the log itself can stay keys-only.
   const host = current?.hostHouseholdId
     ? {
+        id: current.hostHouseholdId,
         name: households.find((h) => h.id === current.hostHouseholdId)?.name ?? current.hostHouseholdId,
-        phone: await householdPhone(current.hostHouseholdId),
+        members: whoIsIn(current.hostHouseholdId),
       }
     : undefined;
+
+  // Who in our own family answered, so nobody has to guess whether it was them.
+  const answeredBy = current
+    ? (members.get(person.householdId) ?? []).find((m) => m.phone === current.byPhone)?.name ?? ''
+    : '';
 
   return (
     <AnswerForm
@@ -91,12 +111,16 @@ export default async function Page({
       current={current}
       host={host}
       daysAway={daysUntil(holiday.date)}
-      guests={guests.map((g) => ({ id: g.id, name: g.name }))}
+      answeredBy={answeredBy}
+      inviteUrl={inviteUrl}
+      guests={guests.map((g) => ({ id: g.id, name: g.name, members: whoIsIn(g.id) }))}
       circleStatus={circleStatus.map((c) => ({
         id: c.household.id,
         name: c.household.name,
         kind: c.kind,
         hostName: c.hostName,
+        byName: c.byName,
+        members: whoIsIn(c.household.id),
       }))}
       hostDisagrees={Boolean(conflict)}
       earlierKey={at > 0 ? upcoming[at - 1].key : undefined}

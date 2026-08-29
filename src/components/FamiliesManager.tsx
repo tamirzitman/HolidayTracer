@@ -3,23 +3,25 @@
 import { useState } from 'react';
 import { newInviteLink } from '@/app/actions';
 import { ContactPicker } from './ContactPicker';
-import { formatPhone } from '@/lib/phone';
+import { FamilyWhatsApp, WhatsAppMark, type Member } from './WhatsApp';
+import { inviteText } from '@/lib/whatsapp';
 import { Title, card, primaryButton, quietButton, secondaryButton } from './ui';
 
-type Family = { id: string; name: string; phone: string };
+type Family = { id: string; name: string; members: Member[] };
 
 export function FamiliesManager({
   householdName,
   families,
+  inviteUrl,
 }: {
   householdName: string;
   families: Family[];
+  /** This family's standing join link, for the families nobody has joined yet. */
+  inviteUrl: string;
 }) {
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<'family' | 'household' | null>(null);
-
-  const message = (url: string) => `הצטרפו אלינו — עונים בשתי נגיעות איפה אתם בחג:\n${url}`;
 
   async function makeLink(kind: 'family' | 'household') {
     setBusy(kind);
@@ -59,16 +61,19 @@ export function FamiliesManager({
           <ul className="divide-y divide-line">
             {families.map((family) => (
               <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">
-                <div className="grow">
-                  <p className="font-semibold text-ink">{family.name}</p>
-                  {family.phone ? (
-                    <a href={`tel:${family.phone}`} dir="ltr" className="text-sm text-muted">
-                      {formatPhone(family.phone)}
-                    </a>
-                  ) : (
-                    <span className="text-sm text-muted">טרם הצטרפו</span>
-                  )}
+                <div className="min-w-0 grow">
+                  <p className="truncate font-semibold text-ink">{family.name}</p>
+                  <span className="text-sm text-muted">
+                    {family.members.length === 0
+                      ? 'טרם הצטרפו'
+                      : family.members.map((m) => m.name).join(', ')}
+                  </span>
                 </div>
+                <FamilyWhatsApp
+                  familyName={family.name}
+                  members={family.members}
+                  inviteUrl={inviteUrl}
+                />
               </li>
             ))}
           </ul>
@@ -83,11 +88,12 @@ export function FamiliesManager({
         {link ? (
           <>
             <a
-              href={`https://wa.me/?text=${encodeURIComponent(message(link))}`}
+              href={`https://wa.me/?text=${encodeURIComponent(inviteText(link))}`}
               target="_blank"
               rel="noreferrer"
-              className={primaryButton}
+              className={`${primaryButton} inline-flex items-center justify-center gap-2`}
             >
+              <WhatsAppMark invite />
               שליחה בוואטסאפ
             </a>
             <button type="button" onClick={copy} className={secondaryButton}>
