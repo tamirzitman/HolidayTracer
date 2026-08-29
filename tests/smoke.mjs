@@ -325,10 +325,15 @@ check(`the counts follow the correction (${stats.join('/')} → ${corrected.join
 // אחות ובעלה at the join, and every family that did keep them is now evidence
 // that they belong on the newcomer's list too.
 await newcomer.goto(`${BASE}/families`);
+await newcomer.waitForSelector('text=המעגלים שלי');
 const suggestions = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) =>
   els.map((e) => e.innerText.replace(/\n+/g, ' | ').trim()),
 );
-check(`the overlap is offered back (${suggestions[0] ?? 'none'})`,
+// Naming who the newcomer already knows, so a failure here says why.
+const knownAlready = await newcomer.$$eval('section li p.font-semibold', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`the overlap is offered back (${suggestions[0] ?? `none; knows ${knownAlready.join(', ')}`})`,
   suggestions.some((t) => t.includes('אחות ובעלה')));
 check('with how many of your families know them',
   suggestions.some((t) => /\d+ מהמשפחות שלכם רואות אותם|משפחה אחת שלכם רואה אותם/.test(t)));
