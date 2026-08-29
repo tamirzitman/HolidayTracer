@@ -254,53 +254,70 @@ check(`the counts follow the correction (${stats.join('/')} → ${corrected.join
   Number(corrected[0]) === Number(stats[0]) + 1);
 
 // ── one family stays one family, whatever number signs up ────────────────────
-// Dad adds the Leibowitz family with Naama's number. Yuval, who has never been
-// entered anywhere, joins on Dad's invite: he must land in that same household,
-// not open a second one beside it.
+// Dad adds the Leibowitz family by name so he can answer at them. Naama joins
+// and claims it. Then Yuval joins with a number nobody has ever entered — and
+// must land in that same household rather than opening a second one for it.
 const NAAMA = '054-000-7001';
 const YUVAL = '054-000-7002';
+const beforeJoin = rows('Households').length;
+
 await dad.goto(BASE);
 if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
 await dad.click('text=מתארחים אצל…');
 await dad.click('text=לא מוצאים? הוסיפו משפחה');
 await dad.fill('input[name=familyName]', 'נעמה ויובל');
-await dad.fill('input[name=familyPhone]', NAAMA);
 await dad.click('form:has(input[name=familyName]) button[type=submit]');
 await dad.waitForTimeout(1500);
-const beforeJoin = rows('Households').length;
+check('a family added by name is one new household',
+  rows('Households').length === beforeJoin + 1);
+const leibowitz = rows('Households').find((r) => r[1] === 'נעמה ויובל')[0];
 
 await dad.goto(`${BASE}/families`);
 await dad.click('text=הזמנת משפחה');
-await dad.waitForSelector('a[href^="https://wa.me/"], text=העתקת הקישור');
-const joinUrl = await dad.evaluate(() => {
-  const a = [...document.querySelectorAll('a')].find((el) => el.href.includes('/join/'));
-  return a ? a.href : document.body.innerText.match(/https?:\/\/\S+\/join\/\w+/)?.[0];
-});
-const yuvalToken = String(joinUrl).match(/\/join\/(\w+)/)[1];
+await dad.waitForSelector('text=העתקת הקישור');
+const shared = rows('Invites').at(-1)[0];
 
-const yuval = await open();
-await yuval.goto(`${BASE}/join/${yuvalToken}`);
-await yuval.fill('input[name=phone]', YUVAL);
-await yuval.click('button[type=submit]');
-await yuval.waitForSelector('select[name=claimHouseholdId]');
-const offered = await yuval.$$eval('select[name=claimHouseholdId] option', (els) =>
+const naama = await open();
+await naama.goto(`${BASE}/join/${shared}`);
+await naama.fill('input[name=phone]', NAAMA);
+await naama.click('button[type=submit]');
+await naama.waitForSelector('select[name=claimHouseholdId]');
+const offered = await naama.$$eval('select[name=claimHouseholdId] option', (els) =>
   els.map((e) => e.textContent.trim()),
 );
 check(`a newcomer is offered the families already on the list (${offered.length})`,
   offered.includes('נעמה ויובל'));
+await naama.fill('input[name=name]', 'נעמה');
+await naama.selectOption('select[name=claimHouseholdId]', { label: 'נעמה ויובל' });
+check('and claiming one replaces being asked to name a new family',
+  !(await naama.isVisible('input[name=householdName]')));
+await naama.click('button[type=submit]');
+await naama.waitForTimeout(1500);
+check('claiming opens no second household', rows('Households').length === beforeJoin + 1);
+
+// The point of the whole thing: Yuval's number is not the one on file.
+const yuval = await open();
+await yuval.goto(`${BASE}/join/${shared}`);
+await yuval.fill('input[name=phone]', YUVAL);
+await yuval.click('button[type=submit]');
+await yuval.waitForSelector('select[name=claimHouseholdId]');
+const stillOffered = await yuval.$$eval('select[name=claimHouseholdId] option', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check('a family somebody already joined is still offered to the next one',
+  stillOffered.includes('נעמה ויובל'));
 await yuval.fill('input[name=name]', 'יובל');
 await yuval.selectOption('select[name=claimHouseholdId]', { label: 'נעמה ויובל' });
-check('and naming the family replaces asking for a new one',
-  !(await yuval.isVisible('input[name=householdName]')));
 await yuval.click('button[type=submit]');
-await yuval.waitForURL(BASE + '/');
-await yuval.waitForTimeout(1200);
-check('claiming it opens no second household', rows('Households').length === beforeJoin);
-check('and his number joins the household that was already there',
-  rows('People').some((r) => r[0].endsWith('540007002') && r[2] ===
-    rows('Households').find((h) => h[1] === 'נעמה ויובל')[0]));
-check('so the family is still one row, not two',
+await yuval.waitForTimeout(1500);
+
+check('a second number in the family opens no household either',
+  rows('Households').length === beforeJoin + 1);
+check('both numbers sit in the one household',
+  rows('People').filter((r) => r[2] === leibowitz).length === 2);
+check('so the family is one row, not two',
   rows('Households').filter((r) => r[1] === 'נעמה ויובל').length === 1);
+await naama.close();
 await yuval.close();
 
 // ── the year is shown as something you can page through ──────────────────────
