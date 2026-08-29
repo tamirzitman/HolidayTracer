@@ -515,7 +515,10 @@ await dad.waitForSelector('text=איפה כולם');
 const onOccasion = await dad.$$eval('section:has-text("איפה כולם") li p.font-semibold', (els) =>
   els.map((e) => e.textContent.trim()),
 );
-await dad.goto(BASE);
+// A seeded holiday by key: the occasion is only days away, so plain BASE would
+// land on the occasion again and measure the same screen twice.
+await dad.goto(`${BASE}/?h=erev_rosh_hashana_2026`);
+await dad.waitForSelector('nav');
 if (!(await dad.isVisible('text=איפה כולם'))) await dad.click('text=אנחנו מארחים');
 await dad.waitForSelector('text=איפה כולם');
 const onHoliday = await dad.$$eval('section:has-text("איפה כולם") li p.font-semibold', (els) =>
