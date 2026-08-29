@@ -36,6 +36,11 @@ type Props = {
 /** The same height whether the holiday has been answered or not. */
 const cardFloor = 'min-h-[17.5rem]';
 
+type Towards = 'later' | 'earlier';
+
+/** Which way the last move went, so the holiday arriving knows where to enter from. */
+const CAME_FROM = 'holidaytracer:came-from';
+
 function whenLabel(daysAway: number): string {
   if (daysAway <= 0) return 'היום';
   if (daysAway === 1) return 'מחר';
@@ -123,6 +128,53 @@ export function AnswerForm({
     el.style.opacity = String(1 - Math.min(Math.abs(x) / 260, 0.45));
   };
 
+  /**
+   * Leaving for a neighbouring holiday. The holiday being left slides away in
+   * the direction of travel and the one arriving comes in from the other side,
+   * so a move reads as a move rather than as the screen simply changing. Which
+   * way it came from has to survive the navigation, hence the note to self.
+   */
+  const pageTo = (towards: Towards) => {
+    const to = towards === 'later' ? laterKey : earlierKey;
+    if (!to) return;
+    try {
+      sessionStorage.setItem(CAME_FROM, towards);
+    } catch {
+      // Private mode, or storage turned off: the arrival just won't animate.
+    }
+    const el = slider.current;
+    if (el) {
+      el.style.transition = 'transform 170ms ease-in, opacity 170ms ease-in';
+      el.style.transform = `translateX(${towards === 'later' ? '55%' : '-55%'})`;
+      el.style.opacity = '0';
+      // If the navigation never lands, don't leave the screen blank.
+      window.setTimeout(() => {
+        if (slider.current === el) offsetBy(0, true);
+      }, 800);
+    }
+    router.push(href(to));
+  };
+
+  useEffect(() => {
+    const el = slider.current;
+    if (!el) return;
+    let towards = '';
+    try {
+      towards = sessionStorage.getItem(CAME_FROM) ?? '';
+      sessionStorage.removeItem(CAME_FROM);
+    } catch {
+      // Nothing stored means nothing to play.
+    }
+    if (towards !== 'later' && towards !== 'earlier') return;
+    el.animate(
+      [
+        { transform: `translateX(${towards === 'later' ? '-55%' : '55%'})`, opacity: 0 },
+        { transform: 'translateX(0)', opacity: 1 },
+      ],
+      { duration: 240, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)' },
+    );
+  }, [holiday.key]);
+
   const onTouchStart = (e: React.TouchEvent) => {
     drag.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, axis: null, dx: 0 };
   };
@@ -141,19 +193,22 @@ export function AnswerForm({
     }
     if (from.axis !== 'x') return;
 
-    // In a right-to-left page the next holiday sits to the left, so dragging
-    // leftwards brings it in. With nothing to reach for, the page resists.
+    // The holidays lie right to left, the next one to the left of this one. To
+    // bring it into view the strip has to travel rightwards under the window —
+    // so dragging rightwards moves forward, the mirror of a left-to-right page.
+    // With nothing to reach for in that direction, the page resists.
     from.dx = dx;
-    offsetBy((dx < 0 ? laterKey : earlierKey) ? dx : dx / 5, false);
+    offsetBy((dx > 0 ? laterKey : earlierKey) ? dx : dx / 5, false);
   };
 
   const onTouchEnd = () => {
     const from = drag.current;
     drag.current = null;
-    offsetBy(0, true);
-    if (!from || from.axis !== 'x' || Math.abs(from.dx) < 55) return;
-    const to = from.dx < 0 ? laterKey : earlierKey;
-    if (to) router.push(href(to));
+    if (!from || from.axis !== 'x' || Math.abs(from.dx) < 55) {
+      offsetBy(0, true);
+      return;
+    }
+    pageTo(from.dx > 0 ? 'later' : 'earlier');
   };
 
   return (
@@ -192,11 +247,11 @@ export function AnswerForm({
             {holidayEmoji(holiday.key)}
           </span>
           <div className="mt-1 flex w-full items-center justify-between gap-2">
-            <Step to={earlierKey} label="החג הקודם" points="earlier" />
+            <Step to={earlierKey} label="החג הקודם" points="earlier" onGo={pageTo} />
             <p className="font-display grow text-4xl leading-tight font-bold text-balance text-ink">
               {holiday.nameHe}
             </p>
-            <Step to={laterKey} label="החג הבא" points="later" />
+            <Step to={laterKey} label="החג הבא" points="later" onGo={pageTo} />
           </div>
           <DatePill>
             <span>{formatDayAndDate(holiday.date)}</span>
@@ -376,10 +431,12 @@ function Step({
   to,
   label,
   points,
+  onGo,
 }: {
   to: string | undefined;
   label: string;
-  points: 'earlier' | 'later';
+  points: Towards;
+  onGo: (towards: Towards) => void;
 }) {
   const shape = 'grid h-12 w-12 shrink-0 place-items-center rounded-full';
   if (!to) return <span aria-hidden="true" className={shape} />;
@@ -390,6 +447,12 @@ function Step({
     <Link
       href={`/?h=${encodeURIComponent(to)}`}
       aria-label={label}
+      // Tapping and swiping should look the same; the href stays so the link is
+      // a real link — prefetched, and it still works if the click never runs.
+      onClick={(e) => {
+        e.preventDefault();
+        onGo(points);
+      }}
       className={`${shape} border border-line bg-surface text-brand transition active:scale-95`}
     >
       <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">

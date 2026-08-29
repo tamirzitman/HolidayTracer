@@ -381,6 +381,28 @@ export async function circleOf(householdId: string): Promise<Household[]> {
   return sheet.households.filter((h) => h.id !== householdId && state.get(h.id) === 'add');
 }
 
+/**
+ * The families a newcomer arriving on this invite could say they belong to:
+ * the family that invited them, and everyone that family is connected to.
+ *
+ * Matching on the phone number is not enough to keep one family from becoming
+ * two. The number somebody typed in when they added a family is one person's —
+ * Naama's, say — and the one who actually signs up may be Yuval, with a number
+ * nobody has ever entered. So the newcomer is shown the families already on the
+ * list and can simply say which one is theirs; joining then appends them to
+ * that household rather than opening a second row beside it.
+ *
+ * Families that nobody has signed into yet come first: those are the ones added
+ * by name alone, and the likeliest thing a newcomer is here to claim.
+ */
+export async function claimableIn(householdId: string): Promise<Household[]> {
+  const sheet = await loadSheet();
+  const joined = new Set(sheet.people.map((p) => p.householdId));
+  const inviter = sheet.households.find((h) => h.id === householdId);
+  const all = inviter ? [inviter, ...(await circleOf(householdId))] : await circleOf(householdId);
+  return [...all.filter((h) => !joined.has(h.id)), ...all.filter((h) => joined.has(h.id))];
+}
+
 export async function isConnected(a: string, b: string): Promise<boolean> {
   return connectionState((await loadSheet()).connections, a).get(b) === 'add';
 }

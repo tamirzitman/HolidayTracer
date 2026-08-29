@@ -1,7 +1,7 @@
 import { JoinForm } from '@/components/JoinForm';
 import { SignInForm } from '@/components/SignInForm';
 import { Title, card } from '@/components/ui';
-import { connect, findPerson, isConnected, readInvite } from '@/lib/data';
+import { connect, findPerson, isConnected, readInvite, claimableIn } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 import { redirect } from 'next/navigation';
 
@@ -23,7 +23,6 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
   const phone = await getSessionPhone();
   if (!phone) return <SignInForm invitedBy={invite.household.name} token={token} />;
 
-  // Already registered: the invite just introduces the two families.
   // Already registered: the link just introduces the two families.
   const person = await findPerson(phone);
   if (person) {
@@ -40,6 +39,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       token={token}
       invitedBy={invite.household.name}
       kind={invite.kind}
+      claimable={(await claimableIn(invite.household.id)).map((h) => ({ id: h.id, name: h.name }))}
     />
   );
 }

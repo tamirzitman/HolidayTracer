@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { register, type ActionResult } from '@/app/actions';
 import { formatPhone } from '@/lib/phone';
 import { ErrorNote, Title, card, field, primaryButton } from './ui';
@@ -14,13 +14,17 @@ export function JoinForm({
   token,
   invitedBy,
   kind,
+  claimable,
 }: {
   phone: string;
   token: string;
   invitedBy: string;
   kind: 'family' | 'household';
+  /** Families already on the inviter's list, which this newcomer may belong to. */
+  claimable: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(register, {});
+  const [claim, setClaim] = useState('');
 
   return (
     <form action={formAction} className={`${card} flex flex-col gap-5`}>
@@ -42,10 +46,49 @@ export function JoinForm({
       </label>
 
       {kind === 'family' && (
-        <label className="flex flex-col gap-2">
-          <span className="text-sm font-semibold text-muted">איך המשפחה שלכם תופיע לאחרים?</span>
-          <input name="householdName" type="text" required placeholder="דנה ויוסי" className={field} />
-        </label>
+        <>
+          {/* Somebody has very likely added this family already, so they could
+              be answered at. Saying so here is what keeps one family from
+              becoming two rows nobody can tell apart — and it works whatever
+              number this person signs up with, which matching on the phone
+              cannot. */}
+          {claimable.length > 0 && (
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-muted">המשפחה שלכם כבר ברשימה?</span>
+              <select
+                name="claimHouseholdId"
+                value={claim}
+                onChange={(e) => setClaim(e.target.value)}
+                className={field}
+              >
+                <option value="">לא, אנחנו משפחה חדשה</option>
+                {claimable.map((household) => (
+                  <option key={household.id} value={household.id}>
+                    {household.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-muted">
+                אם מישהו כבר הוסיף אתכם — בחרו בשם שלכם, כדי שלא ייווצרו שתי משפחות נפרדות.
+              </span>
+            </label>
+          )}
+
+          {!claim && (
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-muted">
+                איך המשפחה שלכם תופיע לאחרים?
+              </span>
+              <input
+                name="householdName"
+                type="text"
+                required
+                placeholder="דנה ויוסי"
+                className={field}
+              />
+            </label>
+          )}
+        </>
       )}
 
       <ErrorNote>{state.error}</ErrorNote>

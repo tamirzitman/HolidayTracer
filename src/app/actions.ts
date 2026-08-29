@@ -18,6 +18,7 @@ import {
   isConnected,
   readInvite,
   recordConflicts,
+  claimableIn,
 } from '@/lib/data';
 import { normalizePhone } from '@/lib/phone';
 import { clearSession, getSessionPhone, setSessionPhone } from '@/lib/session';
@@ -64,9 +65,21 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
     // Joining the inviter's own household — a spouse, a grown child.
     householdId = invite.household.id;
   } else {
-    const householdName = String(formData.get('householdName') ?? '').trim();
-    if (!householdName) return { error: 'צריך שם למשפחה' };
-    householdId = await addHousehold(householdName);
+    // Saying "that one is us" about a family already on the list is what keeps
+    // one family from becoming two. It works whichever number they sign up
+    // with, which matching on the phone alone cannot.
+    const claiming = String(formData.get('claimHouseholdId') ?? '').trim();
+    if (claiming) {
+      const claimable = await claimableIn(invite.household.id);
+      if (!claimable.some((h) => h.id === claiming)) {
+        return { error: 'המשפחה הזו לא ברשימה של מי שהזמין אתכם' };
+      }
+      householdId = claiming;
+    } else {
+      const householdName = String(formData.get('householdName') ?? '').trim();
+      if (!householdName) return { error: 'צריך שם למשפחה' };
+      householdId = await addHousehold(householdName);
+    }
   }
 
   await addPerson({ phone, name, householdId });
