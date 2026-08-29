@@ -238,9 +238,20 @@ export function AnswerForm({
         </Link>
       </div>
 
-      {/* Only this panel travels: the holiday and the answer that belongs to it.
-          Everything around it — who you are, the pager, the tab bar — stays
-          where it is, so it is obvious what is being paged. */}
+      {/*
+        Only this panel travels: the holiday and the answer that belongs to it.
+        Everything around it — who you are, the pager, the tab bar — stays where
+        it is, so it is obvious what is being paged.
+
+        The clip matters. A panel sliding past the edge of the screen widens the
+        page, and in a right-to-left document only the overflow to the left is
+        scrollable — so moving forward, and only forward, ended with the tab bar
+        and the header jumping as the page settled to its new width. Clipping at
+        the viewport edge (hence the negative margin against the page padding)
+        keeps the slide from changing the width at all. `clip` rather than
+        `hidden`: it does not turn this into a scroll container.
+      */}
+      <div className="-mx-5 overflow-x-clip px-5">
       <div ref={slider} className="flex flex-col gap-6">
         <header className="flex flex-col items-center gap-1 text-center">
           <span className="text-5xl leading-none" aria-hidden="true">
@@ -389,6 +400,7 @@ export function AnswerForm({
             </form>
           )}
         </div>
+      </div>
       </div>
 
       {/* Under the panel, where a pager belongs: without it the year looks like
