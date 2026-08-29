@@ -37,6 +37,13 @@ await stranger.fill('input[name=phone]', '050-000-0000');
 await stranger.click('button[type=submit]');
 await stranger.waitForSelector('text=צריך הזמנה');
 check('joining without an invite is refused', await stranger.isVisible('text=צריך הזמנה'));
+check('the screen names the number you are signed in as',
+  await stranger.isVisible('text=050-000-0000'));
+// One wrong digit used to leave you on this screen with no way back.
+await stranger.click('text=התחברות עם מספר אחר');
+await stranger.waitForSelector('input[name=phone]');
+check('and offers a way back to the sign-in',
+  await stranger.isVisible('input[name=phone]'));
 
 // ── the circle is hidden until you answer ────────────────────────────────────
 const dad = await open();

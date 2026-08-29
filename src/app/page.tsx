@@ -1,7 +1,9 @@
 import { headers } from 'next/headers';
+import { signOut } from '@/app/actions';
+import { formatPhone } from '@/lib/phone';
 import { AnswerForm } from '@/components/AnswerForm';
 import { SignInForm } from '@/components/SignInForm';
-import { Title, card } from '@/components/ui';
+import { Title, card, secondaryButton } from '@/components/ui';
 import {
   circleAnswers,
   circleOf,
@@ -41,14 +43,34 @@ export default async function Page({
 
   const person = await findPerson(phone);
   if (!person) {
-    // Joining is by invitation only, so there is nothing to fill in here.
+    // Two very different things land here, and saying "ask for an invite" to
+    // both of them is wrong. A sheet with no families in it is a deployment
+    // pointed at the wrong place, not a visitor who has not been invited.
+    const empty = (await getHouseholds()).length === 0;
+
     return (
-      <div className={`${card} flex flex-col gap-2 text-center`}>
-        <span className="text-4xl" aria-hidden="true">✉️</span>
-        <Title>צריך הזמנה</Title>
-        <p className="text-muted">
-          בקשו ממשפחה שכבר משתמשת באפליקציה לשלוח לכם קישור הזמנה.
-        </p>
+      <div className={`${card} flex flex-col gap-3 text-center`}>
+        <span className="text-4xl" aria-hidden="true">{empty ? '🗂️' : '✉️'}</span>
+        <Title>{empty ? 'הגיליון ריק' : 'צריך הזמנה'}</Title>
+        {empty ? (
+          <p className="text-muted">
+            אין אף משפחה בגיליון שהאפליקציה קוראת ממנו. כנראה SHEET_ID מצביע על
+            הגיליון הלא נכון, או שהטאבים עוד לא נוצרו.
+          </p>
+        ) : (
+          <p className="text-muted">
+            המספר <span dir="ltr" className="font-semibold text-ink">{formatPhone(phone)}</span> לא
+            מוכר לנו. בקשו ממשפחה שכבר משתמשת באפליקציה לשלוח לכם קישור הזמנה.
+          </p>
+        )}
+
+        {/* Without this the screen is a dead end: one wrong digit and there is
+            no way back to the sign-in at all. */}
+        <form action={signOut}>
+          <button type="submit" className={secondaryButton}>
+            התחברות עם מספר אחר
+          </button>
+        </form>
       </div>
     );
   }
