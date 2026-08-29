@@ -308,6 +308,13 @@ check('the warning is gone for the guest',
 
 // ── adding a family from the question screen ─────────────────────────────────
 // The case this exists for: answering on the night, and the host is not listed.
+// A circle of our own first, so where the new family lands is a choice and not
+// wherever the list happened to start.
+await dad.goto(`${BASE}/families`);
+await dad.fill('form:has-text("מעגל חדש") >> input[name=name]', 'רק אצלנו');
+await dad.click('text=יצירת מעגל');
+await dad.waitForTimeout(1800);
+
 const beforeAdd = rows('Households').length;
 await dad.goto(BASE);
 await dad.click('text=שינוי תשובה');
@@ -315,6 +322,7 @@ await dad.waitForSelector('text=מתארחים אצל…');
 await dad.click('text=מתארחים אצל…');
 await dad.click('text=לא מוצאים? הוסיפו משפחה');
 await dad.fill('input[name=familySurname]', 'כהן');
+await dad.selectOption('select[name=familyCircle]', { label: 'רק אצלנו' });
 await dad.click('text=הוספה');
 await dad.waitForTimeout(1500);
 check('a family can be added while answering', rows('Households').length === beforeAdd + 1);
@@ -337,7 +345,9 @@ await dad.goto(`${BASE}/families`);
 check('a family nobody has signed up from says so plainly',
   await dad.isVisible('text=עוד לא נרשמו לאפליקציה'));
 
-// nothing is inherited: the newcomer never sees them
+// A circle does not leak into the circles beside it. Everyone in "רק אצלנו"
+// sees כהן — that is what a circle is for — and the newcomer, who is not in it,
+// does not, however many other circles they share with us.
 await newcomer.goto(BASE);
 await newcomer.click('text=שינוי תשובה');
 await newcomer.waitForSelector('text=מתארחים אצל…');
@@ -346,7 +356,13 @@ await newcomer.waitForSelector('select[name=hostHouseholdId]');
 const newcomerSees = await newcomer.$$eval('select[name=hostHouseholdId] option', (els) =>
   els.map((e) => e.textContent.trim()),
 );
-check('and nobody else inherits them', !newcomerSees.includes('כהן'));
+check('and a circle they are not in stays out of their list',
+  !newcomerSees.includes('כהן'));
+const newcomerGroups = await newcomer.$$eval('select[name=hostHouseholdId] optgroup', (els) =>
+  els.map((g) => g.label),
+);
+check(`while the circles they share are all there (${newcomerGroups.join(' · ')})`,
+  newcomerGroups.length > 0 && !newcomerGroups.includes('רק אצלנו'));
 
 // ── picking families out of the address book ─────────────────────────────────
 // Chromium has no Contact Picker, so we hand the page one. What is being tested
