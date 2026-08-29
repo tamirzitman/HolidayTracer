@@ -262,7 +262,7 @@ const YUVAL = '054-000-7002';
 await dad.goto(BASE);
 if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
 await dad.click('text=מתארחים אצל…');
-await dad.click('text=הוספת משפחה');
+await dad.click('text=לא מוצאים? הוסיפו משפחה');
 await dad.fill('input[name=familyName]', 'נעמה ויובל');
 await dad.fill('input[name=familyPhone]', NAAMA);
 await dad.click('form:has(input[name=familyName]) button[type=submit]');
