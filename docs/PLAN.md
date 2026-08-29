@@ -1,4 +1,4 @@
-# Circles — Plan
+# HolidayTracer — Plan
 
 > Status: **phase 1 is built** — see the repository root and [README](../README.md) for how to run
 > it. Phases 2 and 3 are still plan. Reflects decisions confirmed with the owner on 2026-08-28.
@@ -49,13 +49,8 @@ The app is deliberately dumb: it reads the sheet, shows a question, and appends 
 
 ## 2. The spreadsheet
 
-Nine tabs, and nothing in them that isn't needed. Names live in `Households`, phone numbers live in
-`People`, circle names live in `Circles`, and everything else references them by key. Years are
-**Gregorian**: 2026, not 5786.
-
-`Circles` and `Members` are what the app is arranged around — see
-[GROWTH.md](GROWTH.md#the-circle-is-the-thing). `Connections`, the pairwise tab they replaced, is
-left in the sheet until the circles have been seen working.
+Seven tabs, and nothing in them that isn't needed. Names live in `Households`, phone numbers live in
+`People`, and everything else references them by key. Years are **Gregorian**: 2026, not 5786.
 
 ### `Holidays` — only what you gather for
 | holiday_key | name_he | type | date | year | include | owner_household_id |

@@ -88,12 +88,12 @@ await stranger.waitForSelector('text=המעגלים שלי');
 const coldSuggested = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
   els.map((e) => e.innerText.split('\n')[0].trim()),
 );
-check(`one family added suggests the circles they sit in (${coldSuggested.join(' · ')})`,
-  coldSuggested.includes('המשפחה שלנו') && coldSuggested.includes('הצד השני'));
+check(`one family added brings the rest as suggestions (${coldSuggested.length})`,
+  coldSuggested.length >= 2);
 
-// A circle turned down should not come back: the one you decided against is
-// exactly the one your families keep vouching for.
-const dropped = 'הצד השני';
+// A suggestion turned down should not come back: the families you decided
+// against are exactly the ones your families keep vouching for.
+const dropped = coldSuggested[0];
 await stranger.click(`li:has-text("${dropped}") >> [aria-label^="להסיר את"]`);
 await stranger.waitForTimeout(1500);
 await stranger.reload();
@@ -101,24 +101,24 @@ await stranger.waitForSelector('text=המעגלים שלי');
 const afterDismiss = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
   els.map((e) => e.innerText.split('\n')[0].trim()),
 );
-check(`a dismissed circle stays gone (${dropped} → ${afterDismiss.join(' · ') || 'none'})`,
-  !afterDismiss.includes(dropped) && afterDismiss.includes('המשפחה שלנו'));
+check(`a dismissed suggestion stays gone (${dropped} → ${afterDismiss.length} left)`,
+  !afterDismiss.includes(dropped) && afterDismiss.length === coldSuggested.length - 1);
 
-// The point of circles: one tap brings in families nobody typed a number for.
-const beforeSuggest = rows('Members').length;
-await stranger.click('li:has-text("המשפחה שלנו") >> text=הוספה');
+// Taking one up is the other half: a mutual connection, usable at once.
+const takeUp = afterDismiss[0];
+const beforeSuggest = rows('Connections').length;
+await stranger.click(`li:has-text("${takeUp}") >> text=הוספה`);
 await stranger.waitForTimeout(1800);
-check('taking up a circle joins it', rows('Members').length > beforeSuggest);
+check(`taking one up connects the two families (${takeUp})`,
+  rows('Connections').length === beforeSuggest + 2);
 await stranger.goto(BASE);
 await stranger.waitForSelector('nav');
 if (await stranger.isVisible('text=שינוי תשובה')) await stranger.click('text=שינוי תשובה');
 await stranger.click('text=מתארחים אצל…');
 await stranger.waitForSelector('select[name=hostHouseholdId]');
-const afterJoin = await stranger.$$eval('select[name=hostHouseholdId] option', (els) =>
-  els.map((e) => e.textContent.trim()),
-);
-check(`and every family in it is pickable at once (${afterJoin.length})`,
-  afterJoin.includes('אח ואשתו') && afterJoin.includes('אחות ובעלה'));
+check('and they are pickable straight away',
+  (await stranger.$$eval('select[name=hostHouseholdId] option', (els) =>
+    els.map((e) => e.textContent.trim()))).includes(takeUp));
 await stranger.goto(`${BASE}/families`);
 await stranger.close();
 
@@ -138,45 +138,15 @@ await dad.waitForSelector('text=איפה כולם');
 check('answering reveals where everyone is', await dad.isVisible('text=איפה כולם'));
 check('and the circle lists the other families', await dad.isVisible('text=דנה ויוסי'));
 
-// Being away from one seder is not leaving the family: the circle keeps them,
-// this date does not.
-await dad.click('text=מי לא הפעם?');
-await dad.click('li:has-text("דנה ויוסי") >> text=לא הפעם');
-await dad.waitForTimeout(1800);
-check('a family can be taken out of one holiday',
-  await dad.isVisible('text=לא איתנו במועד הזה'));
-const skipped = rows('Members').filter((r) => r[1] === 'hh_a').at(-1);
-check(`and it is written against that holiday alone (${skipped[4]})`,
-  skipped[2] === 'remove' && skipped[4] !== '');
-check('the standing membership is left where it was',
-  rows('Members').some((r) => r[1] === 'hh_a' && r[2] === 'add' && r[4] === ''));
-
-await dad.click('text=בכל זאת איתנו');
-await dad.waitForTimeout(1800);
-check('and putting them back is one tap', !(await dad.isVisible('text=לא איתנו במועד הזה')));
-
 // ── invite a family that is not in the app at all ────────────────────────────
 await dad.click('nav >> text=המעגלים');
 await dad.waitForURL('**/families');
 check('the tab bar reaches the circles screen', await dad.isVisible('text=המעגלים שלי'));
-// The link is what fills a circle, so the circle comes first.
-await dad.fill('form:has-text("מעגל חדש") >> input[name=name]', 'המשפחה של אבא');
-await dad.click('text=יצירת מעגל');
-await dad.waitForTimeout(1800);
-const dadsCircle = rows('Circles').find((r) => r[1] === 'המשפחה של אבא')?.[0];
-check('a circle can be made on the circles screen', Boolean(dadsCircle));
-check('and whoever made it is in it',
-  rows('Members').some((r) => r[0] === dadsCircle && r[1] === 'hh_parents' && r[2] === 'add'));
-
-await dad.reload();
-await dad.waitForSelector('select[name=circleId]');
 const beforeInvite = rows('Invites').length;
-await dad.selectOption('select[name=circleId]', { label: 'המשפחה של אבא' });
 await dad.click('text=הזמנת משפחה');
 await dad.waitForSelector('text=שליחה בוואטסאפ');
 check('an invite link is created', rows('Invites').length === beforeInvite + 1);
 check('the invite is a family invite', rows('Invites').at(-1)[2] === 'family');
-check('and it carries the circle it joins', rows('Invites').at(-1)[4] === dadsCircle);
 const token = rows('Invites').at(-1)[0];
 
 const newcomer = await open();
@@ -308,13 +278,6 @@ check('the warning is gone for the guest',
 
 // ── adding a family from the question screen ─────────────────────────────────
 // The case this exists for: answering on the night, and the host is not listed.
-// A circle of our own first, so where the new family lands is a choice and not
-// wherever the list happened to start.
-await dad.goto(`${BASE}/families`);
-await dad.fill('form:has-text("מעגל חדש") >> input[name=name]', 'רק אצלנו');
-await dad.click('text=יצירת מעגל');
-await dad.waitForTimeout(1800);
-
 const beforeAdd = rows('Households').length;
 await dad.goto(BASE);
 await dad.click('text=שינוי תשובה');
@@ -322,7 +285,6 @@ await dad.waitForSelector('text=מתארחים אצל…');
 await dad.click('text=מתארחים אצל…');
 await dad.click('text=לא מוצאים? הוסיפו משפחה');
 await dad.fill('input[name=familySurname]', 'כהן');
-await dad.selectOption('select[name=familyCircle]', { label: 'רק אצלנו' });
 await dad.click('text=הוספה');
 await dad.waitForTimeout(1500);
 check('a family can be added while answering', rows('Households').length === beforeAdd + 1);
@@ -345,9 +307,7 @@ await dad.goto(`${BASE}/families`);
 check('a family nobody has signed up from says so plainly',
   await dad.isVisible('text=עוד לא נרשמו לאפליקציה'));
 
-// A circle does not leak into the circles beside it. Everyone in "רק אצלנו"
-// sees כהן — that is what a circle is for — and the newcomer, who is not in it,
-// does not, however many other circles they share with us.
+// nothing is inherited: the newcomer never sees them
 await newcomer.goto(BASE);
 await newcomer.click('text=שינוי תשובה');
 await newcomer.waitForSelector('text=מתארחים אצל…');
@@ -356,13 +316,7 @@ await newcomer.waitForSelector('select[name=hostHouseholdId]');
 const newcomerSees = await newcomer.$$eval('select[name=hostHouseholdId] option', (els) =>
   els.map((e) => e.textContent.trim()),
 );
-check('and a circle they are not in stays out of their list',
-  !newcomerSees.includes('כהן'));
-const newcomerGroups = await newcomer.$$eval('select[name=hostHouseholdId] optgroup', (els) =>
-  els.map((g) => g.label),
-);
-check(`while the circles they share are all there (${newcomerGroups.join(' · ')})`,
-  newcomerGroups.length > 0 && !newcomerGroups.includes('רק אצלנו'));
+check('and nobody else inherits them', !newcomerSees.includes('כהן'));
 
 // ── picking families out of the address book ─────────────────────────────────
 // Chromium has no Contact Picker, so we hand the page one. What is being tested
@@ -447,13 +401,12 @@ await friend.click('button[type=submit]');
 await friend.waitForSelector('input[name=firstName]');
 await friend.fill('input[name=firstName]', 'חבר');
 await friend.fill('input[name=surname]', 'סקרן');
-await friend.fill('input[name=householdName]', 'חבר סקרן');
-await friend.click('text=/^להירשם בלי להתחבר/');
+await friend.click('text=רק להירשם, בלי להתחבר לאף אחד');
 await friend.waitForSelector('text=איפה אתם בחג?');
 await friend.waitForTimeout(1500);
 const friendId = rows('Households').at(-1)[0];
 check('somebody who only wanted the app joins nobody',
-  rows('Members').every((r) => r[1] !== friendId));
+  rows('Connections').every((r) => r[0] !== friendId && r[1] !== friendId));
 await friend.close();
 
 // A link that has gone stale is a way in, not a wall.
@@ -469,134 +422,6 @@ await late.waitForSelector('input[name=phone]');
 check('an expired link falls back to signing in, not to a dead end',
   await late.isVisible('text=כבר לא בתוקף'));
 await late.close();
-
-// ── editing a circle: tick several, act once ─────────────────────────────────
-// The three things that were missing, and the reason they are worth having: a
-// family per form submit is a page of work for a circle of ten.
-await dad.goto(`${BASE}/families`);
-await dad.waitForSelector('text=המעגלים שלי');
-await dad.click('section:has-text("רק אצלנו") >> text=עריכה');
-
-// Adding several at once, rather than one dropdown at a time.
-const toAdd = await dad.$$eval(
-  'section:has-text("רק אצלנו") form:has-text("הוספה למעגל") input[type=checkbox]',
-  (els) => els.slice(0, 2).map((e) => e.value),
-);
-for (const id of toAdd) {
-  await dad.check(`section:has-text("רק אצלנו") form:has-text("הוספה למעגל") input[value="${id}"]`);
-}
-const beforeBulk = rows('Members').length;
-await dad.click('text=/^הוספת 2 משפחות$/');
-await dad.waitForTimeout(1800);
-check(`two families go in on one press (${rows('Members').length - beforeBulk} rows)`,
-  rows('Members').length === beforeBulk + 2);
-
-// Ticking several and moving them somewhere else.
-await dad.reload();
-await dad.waitForSelector('text=המעגלים שלי');
-await dad.click('section:has-text("רק אצלנו") >> text=עריכה');
-const inCircle = await dad.$$eval(
-  'section:has-text("רק אצלנו") > ul > li input[type=checkbox]',
-  (els) => els.map((e) => e.getAttribute('aria-label')),
-);
-check(`every family in the circle can be ticked (${inCircle.length})`, inCircle.length >= 3);
-// Two of the three, so the move has to be exact: the one left unticked stays.
-await dad.click(`section:has-text("רק אצלנו") >> [aria-label="${inCircle[0]}"]`);
-await dad.click(`section:has-text("רק אצלנו") >> [aria-label="${inCircle[1]}"]`);
-check('and the bar counts them', await dad.isVisible('text=2 נבחרו'));
-
-const named = (label) => label.replace('בחירת ', '');
-const moved = [named(inCircle[0]), named(inCircle[1])];
-const kept = named(inCircle[2]);
-
-await dad.selectOption('select[aria-label="העברה למעגל"]', { label: 'המשפחה של אבא' });
-await dad.click('text=/^העברה$/');
-await dad.waitForTimeout(1800);
-await dad.reload();
-await dad.waitForSelector('text=המעגלים שלי');
-
-const dadsCircleFamilies = await dad.$$eval(
-  'section:has-text("המשפחה של אבא") > ul > li p',
-  (els) => els.map((e) => e.textContent.trim()),
-);
-check(`a move lands the ticked ones in the other circle (${moved.join(' · ')})`,
-  moved.every((name) => dadsCircleFamilies.includes(name)));
-const stillHere = await dad.$$eval(
-  'section:has-text("רק אצלנו") > ul > li p',
-  (els) => els.map((e) => e.textContent.trim()),
-);
-check('and takes them out of this one', moved.every((name) => !stillHere.includes(name)));
-check(`while the one left unticked stays (${kept})`, stillHere.includes(kept));
-
-await dad.click('section:has-text("רק אצלנו") >> text=עריכה');
-
-// Deleting the circle itself. It asks first, and erases nothing.
-const beforeDrop = rows('Members').length;
-await dad.click('section:has-text("רק אצלנו") >> text=מחיקת המעגל');
-check('deleting a circle asks first', await dad.isVisible('text=/^למחוק את/'));
-await dad.click('text=כן, למחוק');
-await dad.waitForTimeout(1800);
-await dad.reload();
-await dad.waitForSelector('text=המעגלים שלי');
-const remaining = await dad.$$eval('section h2', (els) => els.map((e) => e.textContent.trim()));
-check(`a deleted circle leaves the screen (${remaining.join(' · ')})`,
-  !remaining.includes('רק אצלנו'));
-check('and nothing was erased to do it — the Members tab only grew',
-  rows('Members').length > beforeDrop);
-check('the circles it was beside are untouched', remaining.includes('המשפחה של אבא'));
-
-// ── two sides of a family are two circles ────────────────────────────────────
-// They never sit together and do not share a group chat, so an invite to one is
-// not an invite to the other. The link is what makes the circle.
-await dad.goto(`${BASE}/families`);
-await dad.waitForSelector('text=המעגלים שלי');
-if (await dad.isVisible('text=קישור אחר')) await dad.click('text=קישור אחר');
-await dad.fill('form:has-text("מעגל חדש") >> input[name=name]', 'המשפחה של אמא');
-await dad.click('text=יצירת מעגל');
-await dad.waitForTimeout(1800);
-await dad.reload();
-await dad.waitForSelector('select[name=circleId]');
-await dad.selectOption('select[name=circleId]', { label: 'המשפחה של אמא' });
-await dad.click('text=הזמנת משפחה');
-await dad.waitForSelector('text=שליחה בוואטסאפ');
-const otherSide = rows('Invites').at(-1)[0];
-
-const cousin = await open();
-await cousin.goto(`${BASE}/join/${otherSide}`);
-await cousin.fill('input[name=phone]', '058-300-4001');
-await cousin.click('button[type=submit]');
-await cousin.waitForSelector('input[name=firstName]');
-await cousin.fill('input[name=firstName]', 'דודה');
-await cousin.fill('input[name=surname]', 'לוי');
-await cousin.fill('input[name=householdName]', 'דודה ואבי לוי');
-await cousin.click('text=/^סיום/');
-await cousin.waitForSelector('text=איפה אתם בחג?');
-await cousin.waitForTimeout(1500);
-await cousin.close();
-
-const mumsCircle = rows('Circles').find((r) => r[1] === 'המשפחה של אמא')?.[0];
-check('joining through a link puts them in that link\'s circle',
-  Boolean(mumsCircle) &&
-    rows('Members').some((r) => r[0] === mumsCircle && r[2] === 'add'));
-
-await dad.goto(`${BASE}/families`);
-await dad.waitForSelector('text=המעגלים שלי');
-const circleHeadings = await dad.$$eval('section h2', (els) =>
-  els.map((e) => e.textContent.trim()),
-);
-check(`the circles screen keeps them apart (${circleHeadings.join(' · ')})`,
-  circleHeadings.includes('המשפחה של אבא') && circleHeadings.includes('המשפחה של אמא'));
-
-await dad.goto(BASE);
-await dad.waitForSelector('nav');
-if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
-await dad.click('text=מתארחים אצל…');
-await dad.waitForSelector('select[name=hostHouseholdId]');
-const grouped = await dad.$$eval('select[name=hostHouseholdId] optgroup', (els) =>
-  els.map((g) => g.label),
-);
-check(`and the dropdown is grouped the same way (${grouped.join(' · ')})`,
-  grouped.includes('המשפחה של אבא') && grouped.includes('המשפחה של אמא'));
 
 // ── everything goes out through WhatsApp ─────────────────────────────────────
 await dad.goto(BASE);

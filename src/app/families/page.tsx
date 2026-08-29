@@ -1,12 +1,7 @@
 import { redirect } from 'next/navigation';
 import { FamiliesManager } from '@/components/FamiliesManager';
-import {
-  circleOf,
-  circlesOf,
-  findPerson,
-  membersByHousehold,
-  suggestionsFor,
-} from '@/lib/data';
+import { headers } from 'next/headers';
+import { circleOf, findPerson, inviteFor, membersByHousehold, suggestionsFor } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -17,33 +12,29 @@ export default async function FamiliesPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  // The invite link is made per circle, on demand, so there is none to fetch here.
-  const [circles, members, suggested, everyone] = await Promise.all([
-    circlesOf(person.householdId),
-    membersByHousehold(),
-    suggestionsFor(person.householdId),
+  const [circle, members, token, head, suggested] = await Promise.all([
     circleOf(person.householdId),
+    membersByHousehold(),
+    inviteFor(person.householdId),
+    headers(),
+    suggestionsFor(person.householdId),
   ]);
 
-  // Grouped the way the family actually is: one list per circle.
-  const grouped = circles.map((c) => ({
-    id: c.id,
-    name: c.name,
-    families: c.families.map((h) => ({
-      id: h.id,
-      name: h.name,
-      members: members.get(h.id) ?? [],
-    })),
+  const base = `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
+  const families = circle.map((h) => ({
+    id: h.id,
+    name: h.name,
+    members: members.get(h.id) ?? [],
   }));
 
   return (
     <div className="flex flex-col gap-6">
       <FamiliesManager
-        circles={grouped}
-        everyone={everyone.map((h) => ({ id: h.id, name: h.name }))}
+        families={families}
+        inviteUrl={`${base}/join/${token}`}
         suggested={suggested.map((s) => ({
-          id: s.circle.id,
-          name: s.circle.name,
+          id: s.household.id,
+          name: s.household.name,
           seenBy: s.seenBy,
         }))}
       />

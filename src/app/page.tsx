@@ -5,9 +5,8 @@ import { JoinForm } from '@/components/JoinForm';
 import { SignInForm } from '@/components/SignInForm';
 import { Title, card, secondaryButton } from '@/components/ui';
 import {
-  awayFrom,
   circleAnswers,
-  circlesOf,
+  circleOf,
   findConflict,
   findPerson,
   getHouseholds,
@@ -88,10 +87,10 @@ export default async function Page({
   const at = Math.max(0, upcoming.findIndex((h) => h.key === requested));
   const holiday = upcoming[at];
 
-  const [households, circles, current, guests, conflict, members, inviteToken, base] =
+  const [households, circle, current, guests, conflict, members, inviteToken, base] =
     await Promise.all([
       getHouseholds(),
-      circlesOf(person.householdId),
+      circleOf(person.householdId),
       getLatestAnswer(holiday.key, person.householdId),
       guestsComingTo(holiday.key, person.householdId),
       findConflict(holiday.key, person.householdId),
@@ -104,8 +103,6 @@ export default async function Page({
 
   // Knowing where everyone else is, is the reward for saying where you are.
   const circleStatus = current ? await circleAnswers(holiday.key, person.householdId) : [];
-  // Families in the circle who are out of this date alone, so they can be put back.
-  const away = current ? await awayFrom(person.householdId, holiday.key) : [];
 
   // Names and numbers are resolved here so the log itself can stay keys-only.
   const host = current?.hostHouseholdId
@@ -128,11 +125,7 @@ export default async function Page({
     <AnswerForm
       key={holiday.key}
       holiday={holiday}
-      circles={circles.map((c) => ({
-        id: c.id,
-        name: c.name,
-        families: c.families.map((h) => ({ id: h.id, name: h.name })),
-      }))}
+      households={circle}
       current={current}
       host={host}
       daysAway={daysUntil(holiday.date)}
@@ -148,7 +141,6 @@ export default async function Page({
         byName: c.byName,
         members: whoIsIn(c.household.id),
       }))}
-      away={away.map((h) => ({ id: h.id, name: h.name }))}
       hostDisagrees={Boolean(conflict)}
       earlierKey={at > 0 ? upcoming[at - 1].key : undefined}
       laterKey={at < upcoming.length - 1 ? upcoming[at + 1].key : undefined}

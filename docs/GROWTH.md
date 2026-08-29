@@ -1,10 +1,6 @@
-# Growing Circles
+# Growing HolidayTracer
 
 > Plan, not built. Decisions confirmed with the owner on 2026-08-28. Estimates are marked as such.
->
-> **Sections 1 onwards describe the pairwise `Connections` model that was built first.** It has
-> since been replaced by first-class circles — see [The circle is the thing](#the-circle-is-the-thing)
-> at the end, which is what the app actually does now.
 
 Today there is **one global list**: everyone who registers sees all eleven families. That is fine
 for eleven and useless for three hundred — nobody should scroll past families they have never met.
@@ -176,29 +172,6 @@ one tap each — or **הוספת כולן** for the parent-invites-child case wh
 Joining now asks three things: your name in two halves, and what your family is called. Claiming a
 family somebody already added is one line away, for the rarer case that needs it.
 
-### The link is what makes the circle
-
-> Superseded by [The circle is the thing](#the-circle-is-the-thing): the name on the link became a
-> row in a `Circles` tab. The reasoning below is why.
-
-A household does not have *a* circle — it has several, and they do not mix. The two sides of your
-parents' families would never sit at one table and do not share so much as a group chat. Inviting
-your father's side and inviting your mother's side are two different acts, and until now the app
-recorded them as the same one: everybody landed in a single flat list that only got longer.
-
-So the invite names the circle it joins. `Connections` carries that name on the link, and whoever
-opens the link lands in that circle. Nothing else about connectivity changed — whether two families
-can answer at each other is still the newest row for the pair — so this is only how the lists are
-grouped, not a new thing to reason about:
-
-- The host dropdown becomes a few short lists with headings instead of one long one.
-- The circles screen lists each circle separately.
-- A family reached through two circles appears in both, which is right: the same aunt can be on
-  both sides.
-
-A household with one unnamed circle — everybody, before this existed — sees no heading and no
-change at all.
-
 ### A link cannot quietly put somebody on your list
 
 Invite links travel. They get pasted into family WhatsApp groups and forwarded
@@ -227,7 +200,7 @@ The checklist covers the first minute; it does not cover the drift afterwards, w
 two families and nothing tells you. The families screen carries a quiet **מוצע להוספה** list:
 households that sit in the circles of families you are connected to but not in yours, ordered by
 how many of your families know each one. That count *is* the overlap, measured rather than asked
-for, and it is read straight off the membership rows — nobody does anything to keep it current.
+for, and it is read straight off `Connections` — nobody does anything to keep it current.
 
 **Two families have to vouch.** One family's acquaintance is theirs, not yours, and offering it
 turns the list into noise. The exception is a circle too small to reach two: somebody who has just
@@ -251,65 +224,3 @@ pointed at a date that has passed, so nothing is ever lost and the counts follow
 
 Still to come: the reminder before a holiday, push, and deleting the `Conflicts` tab in favour of
 computing conflicts on read.
-
-
----
-
-## The circle is the thing
-
-The invite link was already forming circles; the sheet was still storing pairs. A name carried on
-each link is the duplication this app refuses everywhere else — rename a circle and every row would
-have to be found and rewritten — and a pair of households cannot say *which* circle it belongs to,
-so the two sides of a family kept collapsing back into one list.
-
-So a circle became a row of its own, and everything is arranged around it.
-
-### Two tabs
-
-`Circles` — one row per circle, and the name lives here and nowhere else:
-
-| circle_id | name | created_by | created_at |
-|---|---|---|---|
-| `c_7f3a…` | המשפחה של אבא | `hh_4` | 2026-08-29T18:00:00Z |
-
-`Members` — a household's standing in a circle, append-only like the answers:
-
-| circle_id | household_id | action | at | holiday_key |
-|---|---|---|---|---|
-| `c_7f3a…` | `hh_9` | `add` | 2026-08-29T18:01:00Z | |
-| `c_7f3a…` | `hh_9` | `remove` | 2026-09-02T09:00:00Z | `erev_pesach_2027` |
-
-`action` is one of `add`, `remove`, or `declined` — the last meaning the circle was suggested and
-turned down, so it is never offered again. **The newest row for a household in a circle wins**, so
-nothing is ever rewritten: a rename is a newer `Circles` row, and leaving and rejoining is two more
-`Members` rows.
-
-### Standing, and just this once
-
-`holiday_key` is what makes the last column worth having. Empty means a standing change — they are
-in the circle, or they are not. Set, it applies to that one date: the cousins are still family, they
-are simply at the other side's seder this year. The holiday screen reads membership **as of that
-holiday**, so they drop off *"איפה כולם"* for that date alone and can be put back with one tap; every
-other screen reads the standing membership, so the circle looks untouched, because it is.
-
-A removal for one holiday is written into every circle the two of you share, or they would reappear
-through the other one.
-
-### What follows from it
-
-- **A household belongs to as many circles as it needs.** Nothing anywhere assumes one.
-- **An invite link fills one circle**, chosen when the link is made. Sending your father's side a
-  link is not sending your mother's side one.
-- **Two families can answer at each other when they share a circle** — that is the whole of
-  `isConnected` now.
-- **Suggestions are circles, not families.** A circle that families of yours already sit in is
-  offered whole: one tap brings in a dozen households nobody typed a number for. Two of your
-  families have to sit in it before it is offered, unless you have only one family so far.
-- **The circles screen is the editor**: make a circle, rename it, add a family to it, take one out.
-
-### The migration
-
-`npm run to-circles` reads the old `Connections`, takes each connected group of households — under
-the old rules everyone in a group could already see everyone else, so a group *is* a circle — and
-writes one `Circles` row and its `Members` rows. `--dry` prints what it would write. `Connections`
-is left in place, untouched, and can be deleted by hand once the app has been seen working.

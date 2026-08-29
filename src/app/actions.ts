@@ -8,18 +8,9 @@ import {
   addPerson,
   appendAnswer,
   circleOf,
-  createCircle,
-  circleIdsOf,
-  appendMemberships,
-  circlesOf,
-  emptyCircle,
-  joinCircle,
-  leaveCircle,
-  moveMemberships,
-  setMemberships,
-  declineCircle,
-  renameCircle,
+  connect,
   createInvite,
+  dismissSuggestion,
   findPerson,
   getHousehold,
   getLatestAnswer,
@@ -120,11 +111,7 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
   // moment to judge families they had not seen — and that job is now done, in
   // context and with evidence, by the suggestions on the circles screen.
   if (invite && String(formData.get('connect') ?? 'yes') === 'yes') {
-    // The link says which circle it joins; without one, the inviter's first.
-    const target = invite.circleId || (await circleIdsOf(invite.household.id))[0];
-    if (householdId !== invite.household.id && target) {
-      await joinCircle(target, householdId);
-    }
+    if (householdId !== invite.household.id) await connect(householdId, invite.household.id);
   }
 
   // Straight to the question: that is what they came for.
@@ -149,9 +136,8 @@ export async function acceptInvite(
   if (!invite) return { error: 'הקישור כבר לא בתוקף' };
 
   if (invite.household.id !== me.householdId) {
-    const target = invite.circleId || (await circleIdsOf(invite.household.id))[0];
-    if (target && !(await isConnected(me.householdId, invite.household.id))) {
-      await joinCircle(target, me.householdId);
+    if (!(await isConnected(me.householdId, invite.household.id))) {
+      await connect(me.householdId, invite.household.id);
     }
   }
 
@@ -178,11 +164,6 @@ export async function connectContacts(
   const me = await currentHousehold();
   if ('error' in me) return { connected: [], already: [], missing: [], error: me.error };
 
-  // Contacts land in the circle you already have; a household with none yet
-  // gets one, since a family has to be in some circle to be answered at.
-  const circle =
-    (await circleIdsOf(me.householdId))[0] ?? (await createCircle('המשפחה', me.householdId));
-
   const connected: string[] = [];
   const already: string[] = [];
   const missing: { name: string; phone: string }[] = [];
@@ -202,7 +183,7 @@ export async function connectContacts(
     if (await isConnected(me.householdId, person.householdId)) {
       already.push(label);
     } else {
-      await joinCircle(circle, person.householdId);
+      await connect(me.householdId, person.householdId);
       connected.push(label);
     }
   }
@@ -233,9 +214,6 @@ export async function addFamilyNow(
     String(formData.get('familySurname') ?? ''),
   );
   const phone = normalizePhone(String(formData.get('familyPhone') ?? ''));
-  const circle = String(formData.get('familyCircle') ?? '').trim()
-    || (await circleIdsOf(me.householdId))[0]
-    || (await createCircle('המשפחה', me.householdId));
   if (!name && !phone) return { error: 'צריך שם למשפחה' };
 
   // A number we already know belongs to a household — connect, never duplicate.
@@ -244,14 +222,14 @@ export async function addFamilyNow(
   if (known) {
     if (known.householdId === me.householdId) return { error: 'זו המשפחה שלכם' };
     if (!(await isConnected(me.householdId, known.householdId))) {
-      await joinCircle(circle, known.householdId);
+      await connect(me.householdId, known.householdId);
     }
     householdId = known.householdId;
   } else {
     if (!name) return { error: 'צריך שם למשפחה' };
     householdId = await addHousehold(name);
     if (phone) await addPerson({ phone, name, householdId });
-    await joinCircle(circle, householdId);
+    await connect(me.householdId, householdId);
   }
 
   revalidatePath('/');
@@ -383,185 +361,40 @@ export async function deleteOccasion(
  * household that is actually being suggested can be added, so this cannot be
  * used to reach into the sheet and connect to an arbitrary id.
  */
-export async function addSuggested(circleId: string): Promise<ActionResult> {
-  const me = await currentHousehold();
-  if ('error' in me) return me;
-
-  if (!(await suggestionsFor(me.householdId)).some((s) => s.circle.id === circleId)) {
-    return { error: 'המעגל הזה לא בהצעות שלכם' };
-  }
-
-  await joinCircle(circleId, me.householdId);
-  revalidatePath('/families');
-  revalidatePath('/');
-  return {};
-}
-
-/**
- * All of them at once — the parent-invites-child case, where their circles are
- * all yours. One appended block rather than a round trip per circle: this is the
- * button people press first, and it used to get slower the more it had to do.
- */
-export async function addAllSuggested(): Promise<ActionResult> {
+export async function addSuggested(householdId: string): Promise<ActionResult> {
   const me = await currentHousehold();
   if ('error' in me) return me;
 
   const suggested = await suggestionsFor(me.householdId);
-  if (suggested.length === 0) return {};
+  if (!suggested.some((s) => s.household.id === householdId)) {
+    return { error: 'המשפחה הזו לא בהצעות שלכם' };
+  }
 
-  const at = new Date().toISOString();
-  await appendMemberships(
-    suggested.map((s) => ({ circleId: s.circle.id, householdId: me.householdId, action: 'add' as const, at })),
-  );
-
+  await connect(me.householdId, householdId);
   revalidatePath('/families');
   revalidatePath('/');
-  return { savedAt: at };
+  return {};
 }
 
-/** Turning down a suggested circle, so it stops being offered. */
-export async function dismissSuggested(circleId: string): Promise<ActionResult> {
+/** Turning down a suggestion, so it stops being offered. */
+export async function dismissSuggested(householdId: string): Promise<ActionResult> {
   const me = await currentHousehold();
   if ('error' in me) return me;
 
-  if (!(await suggestionsFor(me.householdId)).some((s) => s.circle.id === circleId)) {
-    return { error: 'המעגל הזה לא בהצעות שלכם' };
+  const suggested = await suggestionsFor(me.householdId);
+  if (!suggested.some((s) => s.household.id === householdId)) {
+    return { error: 'המשפחה הזו לא בהצעות שלכם' };
   }
 
-  await declineCircle(circleId, me.householdId);
+  await dismissSuggestion(me.householdId, householdId);
   revalidatePath('/families');
   return {};
 }
 
-/** Making a circle, naming one, and taking families in and out of it. */
-export async function makeCircle(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const me = await currentHousehold();
-  if ('error' in me) return me;
-
-  const name = String(formData.get('name') ?? '').trim();
-  if (!name) return { error: 'צריך שם למעגל' };
-
-  await createCircle(name, me.householdId);
-  revalidatePath('/families');
-  revalidatePath('/');
-  return { savedAt: new Date().toISOString() };
-}
-
-export async function nameCircle(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const me = await currentHousehold();
-  if ('error' in me) return me;
-
-  const circleId = String(formData.get('circleId') ?? '').trim();
-  const name = String(formData.get('name') ?? '').trim();
-  if (!name) return { error: 'צריך שם למעגל' };
-  if (!(await circleIdsOf(me.householdId)).includes(circleId)) {
-    return { error: 'אתם לא במעגל הזה' };
-  }
-
-  await renameCircle(circleId, name);
-  revalidatePath('/families');
-  revalidatePath('/');
-  return { savedAt: new Date().toISOString() };
-}
-
-/**
- * The bulk edits on the circles screen: several families in, several out, or
- * several moved to another circle. One tick each and one press, rather than a
- * form submit and a page of work per family.
- *
- * `op` says which. A move needs somewhere to go, and refuses to leave anyone in
- * neither circle.
- */
-export async function editCircleMembers(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  const me = await currentHousehold();
-  if ('error' in me) return me;
-
-  const circleId = String(formData.get('circleId') ?? '').trim();
-  const op = String(formData.get('op') ?? '');
-  const households = formData
-    .getAll('householdId')
-    .map((v) => String(v).trim())
-    .filter(Boolean);
-
-  const mine = await circleIdsOf(me.householdId);
-  if (!mine.includes(circleId)) return { error: 'אתם לא במעגל הזה' };
-  if (households.length === 0) return { error: 'לא נבחרה אף משפחה' };
-
-  if (op === 'move') {
-    const to = String(formData.get('toCircleId') ?? '').trim();
-    if (!to) return { error: 'צריך לבחור מעגל' };
-    if (to === circleId) return { error: 'זה אותו מעגל' };
-    if (!mine.includes(to)) return { error: 'אתם לא במעגל הזה' };
-    await moveMemberships(circleId, to, households);
-  } else {
-    await setMemberships(circleId, households, op === 'add' ? 'add' : 'remove');
-  }
-
-  revalidatePath('/families');
-  revalidatePath('/');
-  return { savedAt: new Date().toISOString() };
-}
-
-/**
- * Deleting a circle. It goes for everyone in it, not only for us — a circle
- * half the family can still see is not deleted — so the screen asks first.
- */
-export async function dropCircle(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const me = await currentHousehold();
-  if ('error' in me) return me;
-
-  const circleId = String(formData.get('circleId') ?? '').trim();
-  if (!(await circleIdsOf(me.householdId)).includes(circleId)) {
-    return { error: 'אתם לא במעגל הזה' };
-  }
-
-  await emptyCircle(circleId);
-  revalidatePath('/families');
-  revalidatePath('/');
-  return { savedAt: new Date().toISOString() };
-}
-
-/**
- * Taking a family out of one holiday, or putting them back. Being away from a
- * seder is not leaving the family, so this writes a row for that holiday alone.
- * It writes one in every circle of ours they sit in — otherwise they would
- * simply reappear through the other one.
- */
-export async function setAtHoliday(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const me = await currentHousehold();
-  if ('error' in me) return me;
-
-  const householdId = String(formData.get('householdId') ?? '').trim();
-  const holidayKey = String(formData.get('holidayKey') ?? '').trim();
-  const isIn = String(formData.get('member') ?? '') === 'yes';
-  if (!holidayKey) return { error: 'צריך מועד' };
-
-  // Judged on the standing circles, so a family already out of this holiday can
-  // still be put back.
-  const shared = (await circlesOf(me.householdId)).filter((c) =>
-    c.families.some((f) => f.id === householdId),
-  );
-  if (shared.length === 0) return { error: 'המשפחה הזאת לא במעגלים שלכם' };
-
-  for (const circle of shared) {
-    if (isIn) await joinCircle(circle.id, householdId, holidayKey);
-    else await leaveCircle(circle.id, householdId, holidayKey);
-  }
-
-  revalidatePath('/');
-  return { savedAt: new Date().toISOString() };
-}
-
-export async function newInviteLink(
-  kind: 'family' | 'household',
-  circle = '',
-): Promise<string> {
+export async function newInviteLink(kind: 'family' | 'household'): Promise<string> {
   const me = await currentHousehold();
   if ('error' in me) throw new Error(me.error);
-  return createInvite(me.householdId, kind, circle.trim());
+  return createInvite(me.householdId, kind);
 }
 
 async function currentHousehold(): Promise<{ householdId: string } | ActionResult & { error: string }> {

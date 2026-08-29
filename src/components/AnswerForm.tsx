@@ -3,22 +3,17 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useOptimistic, useRef, useState } from 'react';
-import { answer, setAtHoliday, type ActionResult } from '@/app/actions';
+import { answer, type ActionResult } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { FamilyWhatsApp, type Member } from './WhatsApp';
-import type { Answer, Holiday } from '@/lib/types';
+import type { Answer, Holiday, Household } from '@/lib/types';
 import { formatDayAndDate } from '@/lib/dates';
 import { holidayEmoji } from '@/lib/holiday-emoji';
 import { DatePill, ErrorNote, Title, card, field, primaryButton, quietButton, secondaryButton } from './ui';
 
 type Props = {
   holiday: Holiday;
-  /**
-   * The families you can answer at, grouped the way the family actually is —
-   * one list per circle. Two sides of a family are two circles, so a twenty-name
-   * dropdown becomes a few short ones with headings.
-   */
-  circles: { id: string; name: string; families: { id: string; name: string }[] }[];
+  households: Household[];
   current: Answer | undefined;
   /** Resolved from the id on the answer — the log itself stores no names. */
   host: { id: string; name: string; members: Member[] } | undefined;
@@ -40,8 +35,6 @@ type Props = {
     byName: string;
     members: Member[];
   }[];
-  /** In our circles, but taken out of this holiday alone. */
-  away: { id: string; name: string }[];
   /** Set when our host answered that they are not hosting. */
   hostDisagrees: boolean;
   /** Neighbouring holidays inside the month-ahead window, if there are any. */
@@ -57,7 +50,7 @@ const cardFloor = 'min-h-[17.5rem]';
 type Towards = 'later' | 'earlier';
 
 /** Which way the last move went, so the holiday arriving knows where to enter from. */
-const CAME_FROM = 'circles:came-from';
+const CAME_FROM = 'holidaytracer:came-from';
 
 function whenLabel(daysAway: number): string {
   if (daysAway <= 0) return 'היום';
@@ -69,7 +62,7 @@ function whenLabel(daysAway: number): string {
 
 export function AnswerForm({
   holiday,
-  circles,
+  households,
   current,
   host,
   daysAway,
@@ -78,7 +71,6 @@ export function AnswerForm({
   inviteUrl,
   guests,
   circleStatus,
-  away,
   hostDisagrees,
   earlierKey,
   laterKey,
@@ -124,10 +116,6 @@ export function AnswerForm({
     const timer = setTimeout(() => setCelebrating(false), 2000);
     return () => clearTimeout(timer);
   }, [answeredAt]);
-
-  // The flat view, for the handful of places that only need "everyone".
-  const everyone = circles.flatMap((c) => c.families);
-  const named = (id: string) => everyone.find((h) => h.id === id)?.name ?? id;
 
   const shown = optimistic;
   const answered = shown && !editing;
@@ -295,7 +283,7 @@ export function AnswerForm({
                       they want to write to them. */}
                   <p className="font-display text-3xl leading-snug font-bold text-balance text-brand">
                     מתארחים אצל{' '}
-                    {host?.name ?? named(shown.hostHouseholdId)}
+                    {host?.name ?? households.find((h) => h.id === shown.hostHouseholdId)?.name}
                     {host && (
                       /* Inline, so it stays on the line with the name rather than
                          dropping underneath it. */
@@ -375,7 +363,7 @@ export function AnswerForm({
                     onClick={() => setChoosingHost(true)}
                     className={primaryButton}
                   >
-                    {everyone.length === 0 ? 'הוספת המשפחות שלנו' : 'מתארחים אצל…'}
+                    {households.length === 0 ? 'הוספת המשפחות שלנו' : 'מתארחים אצל…'}
                   </button>
                   <button
                     type="submit"
@@ -387,7 +375,7 @@ export function AnswerForm({
                     לא מגיעים בכלל
                   </button>
                 </>
-              ) : everyone.length === 0 ? (
+              ) : households.length === 0 ? (
                 <p className="text-center text-sm text-muted">
                   עוד אין מי שתתארחו אצלו. הוסיפו את המשפחות שלכם למטה — כל משפחה
                   שתוסיפו תביא איתה הצעות למשפחות שהיא מכירה.
@@ -405,23 +393,11 @@ export function AnswerForm({
                     <option value="" disabled>
                       בחרו משפחה
                     </option>
-                    {circles.map((circle) =>
-                      circle.name || circles.length > 1 ? (
-                        <optgroup key={circle.name} label={circle.name || 'המשפחה'}>
-                          {circle.families.map((h) => (
-                            <option key={h.id} value={h.id}>
-                              {h.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ) : (
-                        circle.families.map((h) => (
-                          <option key={h.id} value={h.id}>
-                            {h.name}
-                          </option>
-                        ))
-                      ),
-                    )}
+                    {households.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.name}
+                      </option>
+                    ))}
                   </select>
                   <button type="submit" disabled={pending} className={primaryButton}>
                     {pending ? 'רגע…' : 'אישור'}
@@ -463,7 +439,6 @@ export function AnswerForm({
       {!answered && choosingHost && (
         <AddFamilyInline
           inviteUrl={inviteUrl}
-          circles={circles.map((c) => ({ id: c.id, name: c.name }))}
           onAdded={(householdId) => {
             // Straight into the dropdown they were looking in: adding a family
             // and then having to find it again is the friction this removes.
@@ -474,9 +449,7 @@ export function AnswerForm({
         />
       )}
 
-      {answered && (circleStatus.length > 0 || away.length > 0) && (
-        <Circle families={circleStatus} away={away} holidayKey={holiday.key} />
-      )}
+      {answered && circleStatus.length > 0 && <Circle families={circleStatus} />}
 
     </div>
   );
@@ -527,17 +500,9 @@ function Step({
 /** Where the rest of the circle is — visible only once you have answered. */
 function Circle({
   families,
-  away,
-  holidayKey,
 }: {
   families: { id: string; name: string; kind: string; hostName: string; byName: string }[];
-  /** In your circles, but out of this holiday — at the other side's table. */
-  away: { id: string; name: string }[];
-  holidayKey: string;
 }) {
-  const [, atHoliday] = useActionState<ActionResult, FormData>(setAtHoliday, {});
-  const [editing, setEditing] = useState(false);
-
   const said = (kind: string, hostName: string) => {
     if (kind === 'hosting') return 'מארחים';
     if (kind === 'guest') return `אצל ${hostName}`;
@@ -547,21 +512,7 @@ function Circle({
 
   return (
     <section className={`${card} flex flex-col gap-1 p-0`}>
-      <div className="flex items-baseline gap-2 px-5 pt-4 pb-1">
-        <h2 className="grow text-sm font-bold text-muted">איפה כולם</h2>
-        {/* Not every family is at every holiday, and the ones who aren't should
-            not sit at "עוד לא ענו" all month. This takes them out of this date
-            alone — they stay in the circle. */}
-        {(families.length > 0 || away.length > 0) && (
-          <button
-            type="button"
-            onClick={() => setEditing(!editing)}
-            className="shrink-0 text-xs font-bold text-brand underline underline-offset-4"
-          >
-            {editing ? 'סיום' : 'מי לא הפעם?'}
-          </button>
-        )}
-      </div>
+      <h2 className="px-5 pt-4 pb-1 text-sm font-bold text-muted">איפה כולם</h2>
       <ul className="divide-y divide-line">
         {families.map((family) => (
           <li key={family.id} className="flex items-center justify-between gap-2 px-5 py-3">
@@ -572,50 +523,18 @@ function Circle({
             {/* No WhatsApp mark here. One on every row of a ten-family list is
                 noise, and the two places worth writing from — the host you are
                 going to, and the families coming to you — carry one. */}
-            {editing ? (
-              <form action={atHoliday} className="shrink-0">
-                <input type="hidden" name="holidayKey" value={holidayKey} />
-                <input type="hidden" name="householdId" value={family.id} />
-                <input type="hidden" name="member" value="no" />
-                <button type="submit" className={quietButton}>
-                  לא הפעם
-                </button>
-              </form>
-            ) : (
-              <span
-                className={
-                  family.kind === 'none'
-                    ? 'shrink-0 text-sm text-muted'
-                    : 'shrink-0 text-sm font-semibold text-brand'
-                }
-              >
-                {said(family.kind, family.hostName)}
-              </span>
-            )}
+            <span
+              className={
+                family.kind === 'none'
+                  ? 'shrink-0 text-sm text-muted'
+                  : 'shrink-0 text-sm font-semibold text-brand'
+              }
+            >
+              {said(family.kind, family.hostName)}
+            </span>
           </li>
         ))}
       </ul>
-
-      {away.length > 0 && (
-        <div className="border-t border-line px-5 py-3">
-          <p className="text-xs text-muted">לא איתנו במועד הזה — במעגל כרגיל:</p>
-          <ul className="mt-1 flex flex-col gap-1">
-            {away.map((family) => (
-              <li key={family.id} className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate text-sm text-muted">{family.name}</span>
-                <form action={atHoliday} className="shrink-0">
-                  <input type="hidden" name="holidayKey" value={holidayKey} />
-                  <input type="hidden" name="householdId" value={family.id} />
-                  <input type="hidden" name="member" value="yes" />
-                  <button type="submit" className="text-xs font-bold text-brand underline underline-offset-4">
-                    בכל זאת איתנו
-                  </button>
-                </form>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </section>
   );
 }

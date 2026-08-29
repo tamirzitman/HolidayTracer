@@ -57,27 +57,19 @@ sheet.Answers = [
   ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone', 'for_household_id'],
   ['2026-04-01T15:00:00.000Z', 'erev_pesach_2026', 'guest', 'hh_a', '+972501234567', ''],
 ];
-// Two circles, because one is not the shape of a family: everybody sits in the
-// big one, and a smaller one holds the households from the other side — the two
-// would never sit at the same table.
+// Everyone who was here before circles saw everyone, so link them all.
 const active = sheet.Households.slice(1).filter((r) => r[2] === 'TRUE').map((r) => r[0]);
 const now = new Date().toISOString();
-sheet.Circles = [
-  ['circle_id', 'name', 'created_by', 'created_at'],
-  ['c_family', 'המשפחה שלנו', active[0], now],
-  ['c_other', 'הצד השני', active[0], now],
-];
-sheet.Members = [['circle_id', 'household_id', 'action', 'at', 'holiday_key']];
-for (const household of active) sheet.Members.push(['c_family', household, 'add', now, '']);
-for (const household of [active[0], 'hh_sister']) {
-  sheet.Members.push(['c_other', household, 'add', now, '']);
+sheet.Connections = [['household_id', 'connected_to', 'action', 'at']];
+for (const a of active) {
+  for (const b of active) {
+    if (a !== b) sheet.Connections.push([a, b, 'add', now]);
+  }
 }
-
-sheet.Invites = [['token', 'created_by', 'kind', 'created_at', 'circle_id']];
+sheet.Invites = [['token', 'created_by', 'kind', 'created_at']];
 
 delete sheet.Conflicts;
-delete sheet.Connections;
 
 writeFileSync(FILE, `${JSON.stringify(sheet, null, 2)}\n`, 'utf8');
-console.log(`reset Households, People, Answers and the circle in ${FILE}`);
+console.log(`reset Households, People and Answers in ${FILE}`);
 console.log(sheet.Holidays ? `${sheet.Holidays.length - 1} holiday rows kept` : 'run: npm run seed:holidays');

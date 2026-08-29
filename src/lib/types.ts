@@ -62,44 +62,7 @@ export type Answer = StoredAnswer & { householdId: string };
  * Append-only like the answers, because a tab that gets rewritten can lose rows
  * when two people act at the same moment.
  */
-/**
- * A circle: a set of households that could plausibly sit down together. The two
- * sides of a family are two circles, and a household belongs to as many as it
- * needs — this is the thing the whole app is arranged around.
- */
-export type Circle = {
-  id: string;
-  name: string;
-  createdBy: string;
-  createdAt: string;
-};
-
-/**
- * A household's standing in a circle, append-only like everything else.
- *  - `add`      in the circle
- *  - `remove`   left it
- *  - `declined` was suggested it and said no, so it is not offered again
- */
-export type Membership = {
-  circleId: string;
-  householdId: string;
-  action: 'add' | 'remove' | 'declined';
-  at: string;
-  /**
-   * Empty for a standing change. Set to a holiday key when it applies to that
-   * holiday alone — the cousins are in the circle, just not at this seder.
-   */
-  holidayKey: string;
-};
-
 export type Connection = {
-  /**
-   * Which circle this link belongs to. A household sits in several — one for
-   * each side of the family — and they do not mix: the two sides of your
-   * parents' families would never sit at one table and do not share so much as
-   * a WhatsApp group. Empty on links made before circles had names.
-   */
-  circle: string;
   householdId: string;
   connectedTo: string;
   action: 'add' | 'remove';
@@ -113,8 +76,6 @@ export type Connection = {
  * Reusable: one link can go in a WhatsApp group and bring in several families.
  */
 export type Invite = {
-  /** The circle this link joins somebody to. */
-  circleId: string;
   token: string;
   createdBy: string;
   kind: 'family' | 'household';
@@ -127,8 +88,6 @@ export const TABS = {
   people: 'People',
   answers: 'Answers',
   conflicts: 'Conflicts',
-  circles: 'Circles',
-  members: 'Members',
   connections: 'Connections',
   invites: 'Invites',
 } as const;
@@ -144,8 +103,6 @@ export const HEADERS = {
     'timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone', 'for_household_id',
   ],
   conflicts: ['holiday_key', 'household_id', 'host_household_id', 'status', 'at'],
-  circles: ['circle_id', 'name', 'created_by', 'created_at'],
-  members: ['circle_id', 'household_id', 'action', 'at', 'holiday_key'],
-  connections: ['household_id', 'connected_to', 'action', 'at', 'circle'],
-  invites: ['token', 'created_by', 'kind', 'created_at', 'circle_id'],
+  connections: ['household_id', 'connected_to', 'action', 'at'],
+  invites: ['token', 'created_by', 'kind', 'created_at'],
 } as const;
