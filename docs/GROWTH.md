@@ -201,6 +201,12 @@ households that sit in the circles of families you are connected to but not in y
 how many of your families know each one. That count *is* the overlap, measured rather than asked
 for, and it is read straight off `Connections` — nobody does anything to keep it current.
 
+**Two families have to vouch.** One family's acquaintance is theirs, not yours, and offering it
+turns the list into noise. The exception is a circle too small to reach two: somebody who has just
+added their first family would otherwise get nothing back, and that first suggestion is what starts
+them off. A suggestion turned down is turned down for good — the families you have decided against
+are exactly the ones your families will keep vouching for.
+
 ### Contacts
 Families can be picked out of the phone's address book: numbers already in the app are connected
 on the spot, and the rest come back as a WhatsApp invite addressed to that person. Nothing from the

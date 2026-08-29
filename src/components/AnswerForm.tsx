@@ -436,7 +436,18 @@ export function AnswerForm({
         </div>
       )}
 
-      {!answered && choosingHost && <AddFamilyInline />}
+      {!answered && choosingHost && (
+        <AddFamilyInline
+          inviteUrl={inviteUrl}
+          onAdded={(householdId) => {
+            // Straight into the dropdown they were looking in: adding a family
+            // and then having to find it again is the friction this removes.
+            const select = hostSelect.current;
+            if (select) select.value = householdId;
+            router.refresh();
+          }}
+        />
+      )}
 
       {answered && circleStatus.length > 0 && <Circle families={circleStatus} />}
 

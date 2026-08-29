@@ -31,6 +31,14 @@ import type { AnswerKind } from '@/lib/types';
 
 export type ActionResult = { error?: string; savedAt?: string };
 
+/** What a newly added family came out as, so the screen can go on using it. */
+export type AddedFamily = ActionResult & {
+  householdId?: string;
+  name?: string;
+  /** A number we hold for them, and nobody has signed in with — so, invitable. */
+  invitePhone?: string;
+};
+
 export async function signIn(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const phone = normalizePhone(String(formData.get('phone') ?? ''));
   if (!phone) return { error: 'מספר הטלפון לא נראה תקין' };
@@ -64,8 +72,12 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
   const invite = token ? await readInvite(token) : undefined;
   if (token && !invite) return { error: 'הקישור כבר לא תקף — אפשר להירשם בלעדיו' };
 
-  const name = String(formData.get('name') ?? '').trim();
-  if (!name) return { error: 'צריך שם' };
+  // Your own name, in the two halves the form asks for.
+  const name = familyName(
+    String(formData.get('firstName') ?? ''),
+    String(formData.get('surname') ?? ''),
+  );
+  if (!name) return { error: 'צריך שם פרטי ושם משפחה' };
 
   let householdId: string;
   if (invite?.kind === 'household') {
@@ -83,11 +95,9 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
       }
       householdId = claiming;
     } else {
-      const named = familyName(
-        String(formData.get('firstNames') ?? ''),
-        String(formData.get('surname') ?? ''),
-      );
-      if (!named) return { error: 'צריך שם למשפחה' };
+      // Offered as your two names joined, and editable into whatever the
+      // family actually goes by.
+      const named = String(formData.get('householdName') ?? '').trim() || name;
       householdId = await addHousehold(named);
     }
   }
@@ -201,9 +211,9 @@ export async function connectContacts(
  * is attached. Only the person who added it is connected: nothing is inherited.
  */
 export async function addFamilyNow(
-  _prev: ActionResult,
+  _prev: AddedFamily,
   formData: FormData,
-): Promise<ActionResult> {
+): Promise<AddedFamily> {
   const me = await currentHousehold();
   if ('error' in me) return me;
 
@@ -216,21 +226,31 @@ export async function addFamilyNow(
 
   // A number we already know belongs to a household — connect, never duplicate.
   const known = phone ? await findPerson(phone) : undefined;
+  let householdId: string;
   if (known) {
     if (known.householdId === me.householdId) return { error: 'זו המשפחה שלכם' };
     if (!(await isConnected(me.householdId, known.householdId))) {
       await connect(me.householdId, known.householdId);
     }
+    householdId = known.householdId;
   } else {
     if (!name) return { error: 'צריך שם למשפחה' };
-    const householdId = await addHousehold(name);
+    householdId = await addHousehold(name);
     if (phone) await addPerson({ phone, name, householdId });
     await connect(me.householdId, householdId);
   }
 
   revalidatePath('/');
   revalidatePath('/families');
-  return {};
+
+  // Handed back so the screen can select them straight away, and offer to invite
+  // them if the number we hold is one nobody has actually signed in with.
+  return {
+    householdId,
+    name: (await getHousehold(householdId))?.name ?? name,
+    invitePhone: known ? '' : phone || '',
+    savedAt: new Date().toISOString(),
+  };
 }
 
 /**

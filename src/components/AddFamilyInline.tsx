@@ -1,20 +1,65 @@
 'use client';
 
-import { useActionState, useState } from 'react';
-import { addFamilyNow, type ActionResult } from '@/app/actions';
+import { useActionState, useEffect, useState } from 'react';
+import { addFamilyNow, type AddedFamily } from '@/app/actions';
+import { WhatsAppMark } from './WhatsApp';
 import { contactPickerAvailable, pickContacts } from '@/lib/contacts';
+import { inviteVia } from '@/lib/whatsapp';
 import { formatPhone } from '@/lib/phone';
-import { ErrorNote, card, field, quietButton, secondaryButton } from './ui';
+import { ErrorNote, card, field, primaryButton, quietButton, secondaryButton } from './ui';
 
 /**
  * For the moment somebody is answering and their host simply is not in the list.
  * Adding here is deliberately small: a name is enough, a number is better.
+ *
+ * The family you just added is the one you were about to answer at, so it is
+ * chosen for you the moment it exists — going back to hunt for it in the
+ * dropdown was the whole friction this was meant to remove. And a family with a
+ * number nobody has signed in with is one you can invite on the spot.
  */
-export function AddFamilyInline() {
-  const [state, formAction, pending] = useActionState<ActionResult, FormData>(addFamilyNow, {});
+export function AddFamilyInline({ onAdded, inviteUrl }: {
+  onAdded?: (householdId: string) => void;
+  inviteUrl: string;
+}) {
+  const [state, formAction, pending] = useActionState<AddedFamily, FormData>(addFamilyNow, {});
   const [open, setOpen] = useState(false);
   const [picker] = useState(contactPickerAvailable);
   const [picked, setPicked] = useState<{ name: string; phone: string } | null>(null);
+
+  useEffect(() => {
+    if (state.householdId) onAdded?.(state.householdId);
+  }, [state.savedAt, state.householdId, onAdded]);
+
+  if (state.householdId) {
+    return (
+      <div className={`${card} flex flex-col gap-3 text-center`}>
+        <p className="font-display text-xl font-bold text-ink">
+          {state.name} נוספו, וכבר נבחרו
+        </p>
+        {state.invitePhone ? (
+          <>
+            <p className="text-sm text-muted">
+              הם עוד לא באפליקציה. שלחו להם קישור ויוכלו לענות בעצמם.
+            </p>
+            <a
+              href={inviteVia(inviteUrl, state.invitePhone)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${primaryButton} inline-flex items-center justify-center gap-2`}
+            >
+              <WhatsAppMark />
+              הזמנה בוואטסאפ
+            </a>
+          </>
+        ) : (
+          <p className="text-sm text-muted">אפשר להמשיך ולאשר את התשובה.</p>
+        )}
+        <button type="button" onClick={() => setOpen(false)} className={quietButton}>
+          סגירה
+        </button>
+      </div>
+    );
+  }
 
   if (!open) {
     return (

@@ -519,7 +519,14 @@ export async function suggestionsFor(
     }
   }
 
+  // Two families vouching is evidence; one is that family's own acquaintance,
+  // which says nothing about you. The exception is a circle too small to reach
+  // two — somebody who has just added their first family would otherwise get
+  // nothing back, and that first suggestion is what gets them started.
+  const enough = Math.min(2, mine.length);
+
   return [...seenBy.entries()]
+    .filter(([, count]) => count >= enough)
     .map(([id, count]) => ({ household: sheet.households.find((h) => h.id === id), seenBy: count }))
     .filter((s): s is { household: Household; seenBy: number } => s.household !== undefined)
     .sort((a, b) => b.seenBy - a.seenBy || a.household.name.localeCompare(b.household.name, 'he'));

@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react';
 import { register, type ActionResult } from '@/app/actions';
 import { formatPhone } from '@/lib/phone';
 import { CirclePicker } from './CirclePicker';
+import { familyName } from '@/lib/names';
 import { ErrorNote, Title, card, field, primaryButton, quietButton } from './ui';
 
 /**
@@ -30,6 +31,14 @@ export function JoinForm({
 }) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(register, {});
   const [claim, setClaim] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [surname, setSurname] = useState('');
+  // Follows the two name fields until it is edited, and then stops following.
+  const [touched, setTouched] = useState(false);
+  const suggested = familyName(firstName, surname);
+  const [typed, setHouseholdRaw] = useState('');
+  const household = touched ? typed : suggested;
+  const setHousehold = (value: string) => setHouseholdRaw(value);
   // Ticked to begin with: most invitations go to people whose list would look
   // almost exactly like the inviter's — a parent's can be all of it. Trimming a
   // few is less work than picking a dozen, and there is one tap for the rest.
@@ -53,21 +62,66 @@ export function JoinForm({
         </p>
       </div>
 
-      <label className="flex flex-col gap-2">
-        <span className="text-sm font-semibold text-muted">איך קוראים לכם?</span>
-        <input name="name" type="text" autoComplete="name" required className={field} />
-      </label>
+      {/* One question about names, not two. Asking "what are you called?" and
+          then "what will your family be called?" left people answering the same
+          thing twice and unsure which was which. Your own name is asked in its
+          two halves, and the family name follows from them — already filled in,
+          and yours to change into whatever the family actually goes by. */}
+      <div className="flex gap-2">
+        <label className="flex grow flex-col gap-2">
+          <span className="text-sm font-semibold text-muted">שם פרטי</span>
+          <input
+            name="firstName"
+            type="text"
+            autoComplete="given-name"
+            required
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            className={field}
+          />
+        </label>
+        <label className="flex grow flex-col gap-2">
+          <span className="text-sm font-semibold text-muted">שם משפחה</span>
+          <input
+            name="surname"
+            type="text"
+            autoComplete="family-name"
+            required
+            value={surname}
+            onChange={(e) => setSurname(e.target.value)}
+            className={field}
+          />
+        </label>
+      </div>
 
       {kind === 'family' && (
         <>
-          {/* Somebody has very likely added this family already, so they could
-              be answered at. Saying so here is what keeps one family from
-              becoming two rows nobody can tell apart — and it works whatever
-              number this person signs up with, which matching on the phone
-              cannot. */}
+          {!claim && (
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-muted">
+                איך המשפחה שלכם תיקרא לאחרים?
+              </span>
+              <input
+                name="householdName"
+                type="text"
+                required
+                value={household}
+                onChange={(e) => {
+                  setTouched(true);
+                  setHousehold(e.target.value);
+                }}
+                placeholder="דנה ויוסי כהן"
+                className={field}
+              />
+              <span className="text-xs text-muted">
+                אפשר לשנות — למשל להוסיף את בן או בת הזוג.
+              </span>
+            </label>
+          )}
+
           {claimable.length > 0 && (
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-muted">המשפחה שלכם כבר ברשימה?</span>
+              <span className="text-sm font-semibold text-muted">או שאתם כבר ברשימה?</span>
               <select
                 name="claimHouseholdId"
                 value={claim}
@@ -75,9 +129,9 @@ export function JoinForm({
                 className={field}
               >
                 <option value="">לא, אנחנו משפחה חדשה</option>
-                {claimable.map((household) => (
-                  <option key={household.id} value={household.id}>
-                    {household.name}
+                {claimable.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name}
                   </option>
                 ))}
               </select>
@@ -85,35 +139,6 @@ export function JoinForm({
                 אם מישהו כבר הוסיף אתכם — בחרו בשם שלכם, כדי שלא ייווצרו שתי משפחות נפרדות.
               </span>
             </label>
-          )}
-
-          {!claim && (
-            <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-sm font-semibold text-muted">
-                איך המשפחה שלכם תופיע לאחרים?
-              </legend>
-              <div className="flex gap-2">
-                <input
-                  name="firstNames"
-                  type="text"
-                  required
-                  placeholder="שמות פרטיים"
-                  aria-label="שמות פרטיים"
-                  className={`${field} grow`}
-                />
-                <input
-                  name="surname"
-                  type="text"
-                  required
-                  placeholder="שם משפחה"
-                  aria-label="שם משפחה"
-                  className={`${field} grow`}
-                />
-              </div>
-              <span className="text-xs text-muted">
-                יופיע כשם אחד — למשל «דנה ויוסי כהן».
-              </span>
-            </fieldset>
           )}
 
           {/* The whole point of arriving on somebody's invite: their list is

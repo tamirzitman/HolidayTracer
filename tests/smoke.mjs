@@ -36,15 +36,15 @@ const stranger = await open();
 await stranger.goto(BASE);
 await stranger.fill('input[name=phone]', '058-777-1234');
 await stranger.click('button[type=submit]');
-await stranger.waitForSelector('input[name=firstNames]');
+await stranger.waitForSelector('input[name=firstName]');
 check('an unknown number is asked who it is, not turned away',
-  await stranger.isVisible('input[name=firstNames]'));
+  await stranger.isVisible('input[name=firstName]'));
 check('and is offered a way back if it was a typo',
   await stranger.isVisible('text=זה לא המספר שלי'));
 
-await stranger.fill('input[name=name]', 'רן');
-await stranger.fill('input[name=firstNames]', 'רן ומיכל');
+await stranger.fill('input[name=firstName]', 'רן');
 await stranger.fill('input[name=surname]', 'ברק');
+await stranger.fill('input[name=householdName]', 'רן ומיכל ברק');
 await stranger.click('form button[type=submit]');
 await stranger.waitForSelector('text=איפה אתם בחג?');
 check('registering with no invite works', rows('Households').some((r) => r[1] === 'רן ומיכל ברק'));
@@ -65,9 +65,15 @@ const beforeCold = rows('Households').length;
 await stranger.fill('input[name=familyFirstNames]', 'אבא ואמא');
 await stranger.fill('input[name=familyPhone]', DAD);
 await stranger.click('form:has(input[name=familyFirstNames]) button[type=submit]');
-await stranger.waitForTimeout(1800);
+await stranger.waitForSelector('text=נוספו, וכבר נבחרו');
+await stranger.waitForTimeout(1500);
 check('a typed number that is known makes no second household',
   rows('Households').length === beforeCold);
+check('and the family just added is already chosen',
+  (await stranger.$eval('select[name=hostHouseholdId]', (el) =>
+    el.selectedOptions[0].textContent.trim())) === 'אבא ואמא');
+check('a number somebody already signed in with needs no invite',
+  !(await stranger.isVisible('text=הזמנה בוואטסאפ')));
 
 await stranger.goto(BASE);
 await stranger.click('text=מתארחים אצל…');
@@ -130,11 +136,11 @@ const newcomer = await open();
 await newcomer.goto(`${BASE}/join/${token}`);
 await newcomer.fill('input[name=phone]', NEWCOMER);
 await newcomer.click('button[type=submit]');
-await newcomer.waitForSelector('input[name=firstNames]');
+await newcomer.waitForSelector('input[name=firstName]');
 check('the invite names who invited them', await newcomer.isVisible('text=אבא ואמא'));
 check('and asks for no phone number', !(await newcomer.isVisible('input[name=joinPhone]')));
-check('the family name is asked for in two parts',
-  (await newcomer.$$('input[name=firstNames], input[name=surname]')).length === 2);
+check('your own name is asked once, in two halves',
+  (await newcomer.$$('input[name=firstName], input[name=surname]')).length === 2);
 
 // ── the inviter's circle is offered, ticked, and can be trimmed ──────────────
 const offeredAtJoin = await newcomer.$$eval('input[name=share]', (els) =>
@@ -147,9 +153,11 @@ await newcomer.uncheck('input[name=share][value=hh_sister]');
 check('and one can be dropped',
   !(await newcomer.isChecked('input[name=share][value=hh_sister]')));
 
-await newcomer.fill('input[name=name]', 'דנה');
-await newcomer.fill('input[name=firstNames]', 'דנה ויוסי');
+await newcomer.fill('input[name=firstName]', 'דנה');
 await newcomer.fill('input[name=surname]', 'לוי');
+check('the family name is filled in from them',
+  (await newcomer.inputValue('input[name=householdName]')) === 'דנה לוי');
+await newcomer.fill('input[name=householdName]', 'דנה ויוסי לוי');
 const joinButtons = await newcomer.$$eval('form button[type=submit]', (els) =>
   els.map((e) => e.textContent.trim()),
 );
@@ -354,7 +362,9 @@ const knownAlready = await newcomer.$$eval('section li p.font-semibold', (els) =
 check(`the overlap is offered back (${suggestions[0] ?? `none; knows ${knownAlready.join(', ')}`})`,
   suggestions.some((t) => t.includes('אחות ובעלה')));
 check('with how many of your families know them',
-  suggestions.some((t) => /\d+ מהמשפחות שלכם רואות אותם|משפחה אחת שלכם רואה אותם/.test(t)));
+  suggestions.some((t) => /\d+ מהמשפחות שלכם רואות אותם/.test(t)));
+check('and never on the word of a single family',
+  suggestions.every((t) => !/משפחה אחת/.test(t)));
 
 const beforeSuggest = rows('Connections').length;
 await newcomer.click('li:has-text("אחות ובעלה") >> text=הוספה');
@@ -401,6 +411,22 @@ await dad.click('button[type=submit]');
 await dad.waitForSelector('nav');
 check('signing back in takes one number and no code', await dad.isVisible('nav'));
 
+// ── adding a family nobody has: chosen at once, and invitable ────────────────
+await dad.goto(BASE);
+if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
+await dad.click('text=מתארחים אצל…');
+await dad.click('text=לא מוצאים? הוסיפו משפחה');
+await dad.fill('input[name=familyFirstNames]', 'שכנים');
+await dad.fill('input[name=familyPhone]', '054-777-8888');
+await dad.click('form:has(input[name=familyFirstNames]) button[type=submit]');
+await dad.waitForSelector('text=נוספו, וכבר נבחרו');
+check('a new family is chosen the moment it exists',
+  (await dad.$eval('select[name=hostHouseholdId]', (el) =>
+    el.selectedOptions[0].textContent.trim())) === 'שכנים');
+const inviteNow = await dad.getAttribute('a:has-text("הזמנה בוואטסאפ")', 'href');
+check(`and can be invited on the spot (${inviteNow?.slice(0, 26)}…)`,
+  Boolean(inviteNow?.startsWith('https://wa.me/972547778888')));
+
 // ── saying you are coming says your host is hosting ──────────────────────────
 // The implication only runs one way: a guest at a third family says nothing
 // about anybody else, which is why only the host's answer is written.
@@ -439,9 +465,8 @@ const friend = await open();
 await friend.goto(`${BASE}/join/${token}`);
 await friend.fill('input[name=phone]', '058-111-2222');
 await friend.click('button[type=submit]');
-await friend.waitForSelector('input[name=firstNames]');
-await friend.fill('input[name=name]', 'חבר');
-await friend.fill('input[name=firstNames]', 'חבר');
+await friend.waitForSelector('input[name=firstName]');
+await friend.fill('input[name=firstName]', 'חבר');
 await friend.fill('input[name=surname]', 'סקרן');
 await friend.click('text=רק להירשם, בלי להתחבר לאף אחד');
 await friend.waitForSelector('text=איפה אתם בחג?');
@@ -534,7 +559,8 @@ const offered = await first.$$eval('select[name=claimHouseholdId] option', (els)
 );
 check(`a newcomer is offered the families already on the list (${offered.length})`,
   offered.includes('רות ואורי לוי'));
-await first.fill('input[name=name]', 'רות');
+await first.fill('input[name=firstName]', 'רות');
+await first.fill('input[name=surname]', 'לוי');
 await first.selectOption('select[name=claimHouseholdId]', { label: 'רות ואורי לוי' });
 check('and claiming one replaces being asked to name a new family',
   !(await first.isVisible('input[name=householdName]')));
@@ -553,7 +579,8 @@ const stillOffered = await second.$$eval('select[name=claimHouseholdId] option',
 );
 check('a family somebody already joined is still offered to the next one',
   stillOffered.includes('רות ואורי לוי'));
-await second.fill('input[name=name]', 'אורי');
+await second.fill('input[name=firstName]', 'אורי');
+await second.fill('input[name=surname]', 'לוי');
 await second.selectOption('select[name=claimHouseholdId]', { label: 'רות ואורי לוי' });
 await second.click('text=/^סיום/');
 await second.waitForTimeout(1500);
