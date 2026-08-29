@@ -10,10 +10,14 @@ remembered in a browser cookie so you only ever type it once. You start with nob
 and every family you add brings the families it knows along as suggestions. **A Google Sheet is the entire database**, and everything is
 managed by hand in it. Hebrew, right-to-left.
 
-Four screens, on a tab bar: the question, **המשפחות** (your circle, and invites), **היסטוריה**
-(what happened, and correcting it), and **מועדים** — occasions a family adds for itself, a birthday
-or a memorial. An occasion is **private to the family that added it**: it joins their round of the
-year and nobody else's list grows because of it.
+Three screens on a tab bar — the question, **המעגלים** (your families, and invites), and
+**היסטוריה** (what happened, and correcting it) — plus **המועדים שלנו**, reached from the household
+menu at the top. An occasion is a date this family gathers on and others don't; it goes out to your
+circle unless you narrow it, and only the families it reaches are asked about it.
+
+The household name sits at the top of every screen and opens a small menu: your occasions, a plain
+**share of the app** for a friend who just likes the idea — no invite, no connection — and the way
+out.
 
 Answering steps through the whole year: swipe sideways, or use the arrows, to reach any holiday from
 the next one up to that same holiday a year later.

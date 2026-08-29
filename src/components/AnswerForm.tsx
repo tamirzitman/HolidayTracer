@@ -14,8 +14,6 @@ import { DatePill, ErrorNote, Title, card, field, primaryButton, quietButton, se
 type Props = {
   holiday: Holiday;
   households: Household[];
-  /** Which family the person answering belongs to — so nobody answers for the wrong one. */
-  householdName: string;
   current: Answer | undefined;
   /** Resolved from the id on the answer — the log itself stores no names. */
   host: { id: string; name: string; members: Member[] } | undefined;
@@ -63,7 +61,6 @@ function whenLabel(daysAway: number): string {
 export function AnswerForm({
   holiday,
   households,
-  householdName,
   current,
   host,
   daysAway,
@@ -231,26 +228,6 @@ export function AnswerForm({
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      {/* Who you are, and adding a date of your own. Both hold still while the
-          holidays travel past them. */}
-      <div className="flex w-full flex-wrap items-center justify-center gap-2">
-        {householdName && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand-wash px-4 py-2.5 text-sm font-bold text-brand">
-            <span aria-hidden="true">🏡</span>
-            {householdName}
-          </span>
-        )}
-        <Link
-          href="/occasions"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line px-4 py-2.5 text-sm font-bold text-muted transition hover:border-brand/40 hover:text-brand"
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-            <path d="M12 5.5v13M5.5 12h13" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-          </svg>
-          מועד
-        </Link>
-      </div>
-
       {/*
         Only this panel travels: the holiday and the answer that belongs to it.
         Everything around it — who you are, the pager, the tab bar — stays where

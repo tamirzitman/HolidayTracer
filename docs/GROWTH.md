@@ -171,6 +171,12 @@ It costs the inviter nothing — the same link they already send — and every n
 the inviter's circle when the form is submitted, so a hand-made request cannot connect a household
 to a family nobody offered it.
 
+### Sharing the app without sharing your circle
+
+The invite link is a connection: opening it puts two families on each other's lists. That is wrong
+for the friend who merely likes the idea, so the household menu carries a second, plainer thing —
+the address and a sentence, no token, introducing nobody to anybody.
+
 ### Families your families know, and you don't
 
 The checklist covers the first minute; it does not cover the drift afterwards, when your uncle adds

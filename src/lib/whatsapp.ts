@@ -20,3 +20,13 @@ export const inviteText = (url: string): string =>
  */
 export const inviteVia = (url: string, phone?: string): string =>
   `https://wa.me/${phone ? digits(phone) : ''}?text=${encodeURIComponent(inviteText(url))}`;
+
+/**
+ * Telling somebody about the app without introducing them to anybody. An invite
+ * carries a token and connects two families; this is only the address, for the
+ * friend who might like the idea but has no business in your circle.
+ */
+export const shareApp = (url: string): string =>
+  `https://wa.me/?text=${encodeURIComponent(
+    `אנחנו עוקבים ככה אחרי מי מארח בכל חג — שאלה אחת, שתי נגיעות:\n${url}`,
+  )}`;

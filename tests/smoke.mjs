@@ -544,9 +544,18 @@ check('and then nobody else sees it',
 const beforeRemove = rows('Holidays').length;
 await dad.click('text=הסרה');
 await dad.waitForSelector('text=יום הולדת לסבתא', { state: 'detached' });
+await dad.waitForTimeout(1500);
 check('removing it leaves the list', !(await dad.isVisible('text=יום הולדת לסבתא')));
-check('and erases nothing — the tab only grew',
-  rows('Holidays').length === beforeRemove + 1);
+
+// The property, not an exact delta: how many rows earlier edits appended is
+// beside the point, and counting them made this fail on timing rather than on
+// anything being erased.
+const afterRemove = rows('Holidays');
+check(`and erases nothing — the tab only grew (${beforeRemove} → ${afterRemove.length})`,
+  afterRemove.length > beforeRemove);
+const gone = afterRemove.at(-1);
+check(`removal is a row, not a deletion (include=${gone[5]})`,
+  gone[0] === occasionKey && gone[5] === 'FALSE');
 
 // ── the log stays keys-only ──────────────────────────────────────────────────
 const a = rows('Answers').at(-1);

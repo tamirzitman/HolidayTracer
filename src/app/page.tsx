@@ -130,7 +130,6 @@ export default async function Page({
       key={holiday.key}
       holiday={holiday}
       households={circle}
-      householdName={households.find((h) => h.id === person.householdId)?.name ?? ''}
       current={current}
       host={host}
       daysAway={daysUntil(holiday.date)}

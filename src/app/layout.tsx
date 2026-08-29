@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import { BottomNav } from '@/components/BottomNav';
-import { findPerson } from '@/lib/data';
+import { HouseholdMenu } from '@/components/HouseholdMenu';
+import { findPerson, getHousehold } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 import './globals.css';
 
@@ -18,7 +20,12 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // The tab bar only makes sense once there is somewhere to go.
   const phone = await getSessionPhone();
-  const signedIn = phone ? Boolean(await findPerson(phone)) : false;
+  const person = phone ? await findPerson(phone) : undefined;
+  const household = person ? await getHousehold(person.householdId) : undefined;
+  const signedIn = Boolean(person);
+
+  const head = await headers();
+  const appUrl = `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
 
   return (
     <html lang="he" dir="rtl">
@@ -39,9 +46,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             סביבת ניסיון · הנתונים כאן לא אמיתיים
           </p>
         )}
+        {/* Who you are, in the same place on every screen — not only on the one
+            that happens to ask a question. */}
+        {signedIn && (
+          <div className="mx-auto flex w-full max-w-md justify-center px-5 pt-5">
+            <HouseholdMenu householdName={household?.name ?? ''} appUrl={appUrl} />
+          </div>
+        )}
         <main
-          className={`mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 pt-10 ${
-            signedIn ? 'pb-28' : 'pb-10'
+          className={`mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 ${
+            signedIn ? 'pt-4 pb-28' : 'pt-10 pb-10'
           }`}
         >
           {children}

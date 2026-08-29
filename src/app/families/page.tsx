@@ -1,7 +1,5 @@
 import { redirect } from 'next/navigation';
-import { signOut } from '@/app/actions';
 import { FamiliesManager } from '@/components/FamiliesManager';
-import { quietButton } from '@/components/ui';
 import { headers } from 'next/headers';
 import { circleOf, findPerson, getHousehold, inviteFor, membersByHousehold, suggestionsFor } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
@@ -42,15 +40,6 @@ export default async function FamiliesPage() {
           seenBy: s.seenBy,
         }))}
       />
-
-      {/* Sign-in is a phone number and nothing else, so signing out is the whole
-          of switching to another person — which is how you see the app as
-          somebody else without borrowing their phone. */}
-      <form action={signOut} className="pb-2 text-center">
-        <button type="submit" className={quietButton}>
-          יציאה ({mine?.name || 'לא מזוהה'})
-        </button>
-      </form>
     </div>
   );
 }
