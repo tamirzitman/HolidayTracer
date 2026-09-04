@@ -6,12 +6,25 @@ import { useActionState, useEffect, useOptimistic, useRef, useState } from 'reac
 import { answer, answerFor, type ActionResult } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { NextStep } from './NextStep';
-import { FamilyWhatsApp, type Member } from './WhatsApp';
+import { FamilyWhatsApp, WhatsAppMark, type Member } from './WhatsApp';
+import { remindAbout } from '@/lib/whatsapp';
 import type { NextStep as Step } from '@/lib/next-step';
 import type { Answer, Holiday, Household } from '@/lib/types';
 import { formatDayAndDate } from '@/lib/dates';
 import { holidayEmoji } from '@/lib/holiday-emoji';
-import { DatePill, ErrorNote, Title, card, chipButton, field, primaryButton, quietButton, secondaryButton } from './ui';
+import {
+  BackButton,
+  DatePill,
+  ErrorNote,
+  Title,
+  card,
+  chipButton,
+  field,
+  primaryButton,
+  quietButton,
+  secondaryButton,
+  sectionHeading,
+} from './ui';
 
 type Props = {
   holiday: Holiday;
@@ -41,6 +54,8 @@ type Props = {
   }[];
   /** How many families are on our list, for what to promise before answering. */
   circleSize: number;
+  /** The app's own address, for a reminder that carries a way in. */
+  appUrl: string;
   /** The one thing worth doing next, or nothing when there is nothing. */
   nextStep: Step;
   /** Set when our host answered that they are not hosting. */
@@ -80,6 +95,7 @@ export function AnswerForm({
   guests,
   circleStatus,
   circleSize,
+  appUrl,
   nextStep,
   hostDisagrees,
   earlierKey,
@@ -446,6 +462,15 @@ export function AnswerForm({
         </div>
       )}
 
+      {/* A family's own date is a holiday like any other, so the way to them is
+          among the holidays rather than behind our own name. */}
+      <Link
+        href="/occasions"
+        className="text-center text-sm font-bold text-brand underline underline-offset-4"
+      >
+        המועדים שלנו →
+      </Link>
+
       {/* Before answering, say what answering is *for*. Only with a circle to
           reveal: promising to show where everybody is, to somebody who has
           nobody on their list yet, is a promise the next screen cannot keep. */}
@@ -470,6 +495,27 @@ export function AnswerForm({
 
       {answered && circleStatus.length > 0 && (
         <Circle families={circleStatus} holidayKey={holiday.key} hosts={households} />
+      )}
+
+      {/* A nudge for the family's group chat. Counts rather than names: this
+          gets pasted where everyone can read it, and who has not answered yet
+          is not the same thing to say out loud as how many have. */}
+      {circleSize > 0 && (
+        <a
+          href={remindAbout(
+            holiday.nameHe,
+            formatDayAndDate(holiday.date),
+            circleStatus.filter((f) => f.kind !== 'none').length + (answered ? 1 : 0),
+            circleStatus.length + 1,
+            appUrl,
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${secondaryButton} inline-flex items-center justify-center gap-2`}
+        >
+          <WhatsAppMark />
+          תזכורת בוואטסאפ
+        </a>
       )}
 
       {/* A way to reach adding and inviting from here, without a second copy of
@@ -564,7 +610,7 @@ function Circle({
 
   return (
     <section className={`${card} flex flex-col gap-1 p-0`}>
-      <h2 className="px-5 pt-4 pb-1 text-sm font-bold text-muted">איפה כולם</h2>
+      <h2 className={`px-5 pt-4 pb-1 ${sectionHeading}`}>איפה כולם</h2>
       <ul className="divide-y divide-line">
         {families.map((family) => (
           <li key={family.id} className="flex flex-col gap-2 px-5 py-3">
@@ -645,7 +691,10 @@ function AnswerForThem({
     <form action={formAction} className="flex flex-col gap-2 rounded-2xl bg-brand-wash p-3">
       <input type="hidden" name="holidayKey" value={holidayKey} />
       <input type="hidden" name="householdId" value={family.id} />
-      <p className="text-xs text-muted">איפה {family.name} בחג הזה?</p>
+      <div className="flex items-center gap-2">
+        <BackButton onClick={() => setOpen(false)} />
+        <p className="text-xs text-muted">איפה {family.name} בחג הזה?</p>
+      </div>
       {asGuest ? (
         <>
           <input type="hidden" name="kind" value="guest" />
@@ -677,9 +726,7 @@ function AnswerForThem({
           <button type="submit" name="kind" value="away" disabled={pending} className={chipButton}>
             לא מגיעים
           </button>
-          <button type="button" onClick={() => setOpen(false)} className={quietButton}>
-            ביטול
-          </button>
+
         </div>
       )}
       <ErrorNote>{state.error}</ErrorNote>

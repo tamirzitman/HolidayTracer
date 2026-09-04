@@ -5,7 +5,16 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import { editHistory, type ActionResult } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { formatDayAndDate } from '@/lib/dates';
-import { ErrorNote, card, chipButton, field, primaryButton, quietButton, secondaryButton } from './ui';
+import {
+  BackButton,
+  ErrorNote,
+  card,
+  chipButton,
+  field,
+  primaryButton,
+  quietButton,
+  secondaryButton,
+} from './ui';
 
 type Entry = {
   key: string;
@@ -74,16 +83,20 @@ export function HistoryList({
                   {entry.byName && ` · ענו: ${entry.byName}`}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setAsGuest(entry.kind === 'guest');
-                  setEditing(open ? null : entry.key);
-                }}
-                className={entry.kind || open ? `${quietButton} shrink-0` : chipButton}
-              >
-                {open ? 'ביטול' : entry.kind ? 'עריכה' : 'מילוי'}
-              </button>
+              {open ? (
+                <BackButton onClick={() => setEditing(null)} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAsGuest(entry.kind === 'guest');
+                    setEditing(entry.key);
+                  }}
+                  className={entry.kind ? `${quietButton} shrink-0` : chipButton}
+                >
+                  {entry.kind ? 'עריכה' : 'מילוי'}
+                </button>
+              )}
             </div>
 
             {open && (

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { newInviteLink, signOut } from '@/app/actions';
 import { WhatsAppMark } from './WhatsApp';
-import { inviteVia, shareApp } from '@/lib/whatsapp';
+import { inviteVia } from '@/lib/whatsapp';
 
 /**
  * Who you are signed in as, in the same place on every screen, and the few
@@ -17,14 +17,12 @@ import { inviteVia, shareApp } from '@/lib/whatsapp';
 export function HouseholdMenu({
   householdName,
   personName,
-  appUrl,
   phone,
 }: {
   householdName: string;
   /** Which of us is signed in. The household name alone leaves that unsaid on a
    *  phone two people share, and it is the first thing worth knowing. */
   personName: string;
-  appUrl: string;
   /** Our own number, for a link that lets this same person in on another device. */
   phone: string;
 }) {
@@ -33,6 +31,22 @@ export function HouseholdMenu({
   // A link aimed at our own number. Signing in elsewhere needs somebody to
   // vouch, and the nearest somebody is us, from the phone that is already in.
   const [deviceLink, setDeviceLink] = useState<'idle' | 'busy' | string>('idle');
+
+  // Bringing a partner or a grown child into our house. Ours to do, so it
+  // belongs under our own name rather than on a row in a list of families.
+  const [houseLink, setHouseLink] = useState<'idle' | 'busy'>('idle');
+
+  async function addToOurHouse() {
+    setHouseLink('busy');
+    const made = await newInviteLink('household', '');
+    if (!made.token) {
+      setHouseLink('idle');
+      return;
+    }
+    // One tap through to WhatsApp: a window opened after the wait would be
+    // blocked as a pop-up, so navigate instead.
+    window.location.href = inviteVia(`${window.location.origin}/join/${made.token}`);
+  }
 
   async function linkForAnotherDevice() {
     setDeviceLink('busy');
@@ -85,20 +99,18 @@ export function HouseholdMenu({
             המועדים שלנו
           </Link>
 
-          {/* Not an invite: no token, so it introduces nobody to anybody. */}
-          <a
-            href={shareApp(appUrl)}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setOpen(false)}
+          <button
+            type="button"
+            onClick={addToOurHouse}
+            disabled={houseLink === 'busy'}
             className={`${item} border-t border-line`}
             role="menuitem"
           >
             <span className="text-whatsapp">
               <WhatsAppMark />
             </span>
-            שיתוף האפליקציה
-          </a>
+            {houseLink === 'busy' ? 'רגע…' : 'הוספת בן בית'}
+          </button>
 
           {deviceLink === 'idle' || deviceLink === 'busy' ? (
             <button

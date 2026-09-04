@@ -42,3 +42,30 @@ export function ErrorNote({ children }: { children?: string }) {
     </p>
   );
 }
+
+/**
+ * The one way back out of anything opened in place — a disclosure, a form, a
+ * link that has been made. An arrow reads as "back" without a word for it, and
+ * one shape everywhere means it never has to be read twice.
+ */
+export function BackButton({ onClick, label = 'חזרה' }: { onClick: () => void; label?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line text-ink transition active:scale-95"
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+        <path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
+/**
+ * A section's name. One size for all of them: the same kind of thing was
+ * appearing at two weights with no rule saying which, so a heading's size read
+ * as meaning something it did not.
+ */
+export const sectionHeading = 'text-sm font-bold text-muted';

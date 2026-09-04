@@ -6,7 +6,16 @@ import { WhatsAppMark } from './WhatsApp';
 import { contactPickerAvailable, pickContacts } from '@/lib/contacts';
 import { inviteVia } from '@/lib/whatsapp';
 import { formatPhone } from '@/lib/phone';
-import { ErrorNote, card, field, primaryButton, quietButton, secondaryButton } from './ui';
+import {
+  BackButton,
+  ErrorNote,
+  card,
+  field,
+  primaryButton,
+  quietButton,
+  secondaryButton,
+  sectionHeading,
+} from './ui';
 
 /**
  * For the moment somebody is answering and their host simply is not in the list.
@@ -98,7 +107,10 @@ export function AddFamilyInline({ onAdded, inviteUrl }: {
 
   return (
     <form action={formAction} className={`${card} flex flex-col gap-3`}>
-      <h2 className="font-display text-xl font-bold text-ink">הוספת משפחה</h2>
+      <div className="flex items-center gap-2">
+        <BackButton onClick={() => setOpen(false)} />
+        <h2 className={sectionHeading}>הוספת משפחה</h2>
+      </div>
 
       {picker && (
         <button type="button" onClick={choose} className={secondaryButton}>
@@ -158,9 +170,7 @@ export function AddFamilyInline({ onAdded, inviteUrl }: {
       <button type="submit" disabled={pending} className={secondaryButton}>
         {pending ? 'רגע…' : 'הוספה'}
       </button>
-      <button type="button" onClick={() => setOpen(false)} className={quietButton}>
-        ביטול
-      </button>
+
     </form>
   );
 }

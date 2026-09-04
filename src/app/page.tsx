@@ -168,6 +168,7 @@ export default async function Page({
         members: whoIsIn(c.household.id),
       }))}
       circleSize={circle.length}
+      appUrl={base}
       hostDisagrees={Boolean(conflict)}
       earlierKey={at > 0 ? upcoming[at - 1].key : undefined}
       laterKey={at < upcoming.length - 1 ? upcoming[at + 1].key : undefined}

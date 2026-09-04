@@ -9,6 +9,7 @@ import { WhatsAppMark, type Member } from './WhatsApp';
 import { normalizePhone } from '@/lib/phone';
 import { inviteVia } from '@/lib/whatsapp';
 import {
+  BackButton,
   ErrorNote,
   Title,
   card,
@@ -17,6 +18,7 @@ import {
   primaryButton,
   quietButton,
   secondaryButton,
+  sectionHeading,
 } from './ui';
 
 type Family = { id: string; name: string; members: Member[] };
@@ -57,6 +59,7 @@ export function FamiliesManager({
     ? [...ownMembers, ...circlePeople].find((m) => m.phone === typed)
     : undefined;
   const [adding, setAdding] = useState<string | null>(null);
+  const [hiding, setHiding] = useState<string | null>(null);
   const router = useRouter();
 
   async function makeLink(kind: 'family' | 'household') {
@@ -125,7 +128,7 @@ export function FamiliesManager({
       {suggested.length > 0 && (
         <section className={`${card} flex flex-col gap-1 p-0`}>
           <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
-            <h2 className="text-sm font-bold text-muted">מוצע להוספה</h2>
+            <h2 className={sectionHeading}>מוצע להוספה</h2>
             {/* The case a parent's invitation makes: their list is all of yours,
                 and taking it one row at a time is work for nothing. */}
             {suggested.length > 1 && (
@@ -176,26 +179,40 @@ export function FamiliesManager({
                   </button>
                   {/* Turned down for good. Without this the families you have
                       decided against are exactly the ones that keep coming
-                      back, because your families keep vouching for them. */}
-                  <button
-                    type="button"
-                    disabled={adding === family.id}
-                    aria-label={`להסיר את ${family.name} מההצעות`}
-                    title="לא להציע שוב"
-                    onClick={async () => {
-                      setAdding(family.id);
-                      try {
-                        await dismissSuggested(family.id);
-                      } finally {
-                        setAdding(null);
-                      }
-                    }}
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted transition active:scale-95"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-                    </svg>
-                  </button>
+                      back, because your families keep vouching for them.
+                      Asked first, like everything else that takes away — this
+                      one sits a thumb's width from "הוספה". */}
+                  {hiding === family.id ? (
+                    <button
+                      type="button"
+                      disabled={adding === family.id}
+                      onClick={async () => {
+                        setAdding(family.id);
+                        try {
+                          await dismissSuggested(family.id);
+                        } finally {
+                          setAdding(null);
+                          setHiding(null);
+                        }
+                      }}
+                      className={quietButton}
+                    >
+                      {adding === family.id ? 'רגע…' : 'כן, להסתיר'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={adding === family.id}
+                      aria-label={`להסיר את ${family.name} מההצעות`}
+                      title="לא להציע שוב"
+                      onClick={() => setHiding(family.id)}
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted transition active:scale-95"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                        <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </li>
             ))}
@@ -206,7 +223,7 @@ export function FamiliesManager({
       {/* Our own house, for the same reason: the person to invite into it is a
           row, not a kind of invitation to pick out of a list. */}
       <section className={`${card} flex flex-col gap-1 p-0`}>
-        <h2 className="px-5 pt-4 pb-1 text-sm font-bold text-muted">הבית שלנו</h2>
+        <h2 className={`px-5 pt-4 pb-1 ${sectionHeading}`}>הבית שלנו</h2>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3.5">
           <div className="min-w-0 grow basis-40">
             <p className="font-semibold break-words text-ink">{ownName}</p>
@@ -214,7 +231,10 @@ export function FamiliesManager({
               {ownMembers.length === 0 ? 'רק אתם' : ownMembers.map((m) => m.name).join(', ')}
             </span>
           </div>
-          <RowInvite householdId="" members={ownMembers} kind="household" />
+          {/* Bringing somebody into our own house is not a row's errand: it is
+              ours, and it lives in the menu under our own name. What is left
+              here is the way back in for whoever is already in it. */}
+          <RowInvite householdId="" members={ownMembers} />
         </div>
       </section>
 
@@ -222,20 +242,8 @@ export function FamiliesManager({
 
       <div id="invite" className={`${card} flex flex-col gap-3`}>
         <div className="flex items-center gap-2">
-          {/* A way back that reads as one: an arrow, not a sentence. */}
-          {link && (
-            <button
-              type="button"
-              onClick={() => setLink('')}
-              aria-label="חזרה"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line text-ink transition active:scale-95"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                <path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          )}
-          <h2 className="font-display text-xl font-bold text-ink">הזמנה</h2>
+          {link && <BackButton onClick={() => setLink('')} />}
+          <h2 className={sectionHeading}>הזמנה</h2>
         </div>
 
         {link ? (
@@ -318,7 +326,7 @@ function HiddenSuggestions({ hidden }: { hidden: { id: string; name: string }[] 
   return (
     <section className={`${card} flex flex-col gap-1 p-0`}>
       <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
-        <h2 className="text-sm font-bold text-muted">מוסתרות מההצעות</h2>
+        <h2 className={sectionHeading}>מוסתרות מההצעות</h2>
         <button
           type="button"
           onClick={() => setOpen(false)}
@@ -369,110 +377,96 @@ function HiddenSuggestions({ hidden }: { hidden: { id: string; name: string }[] 
 function RowInvite({
   householdId,
   members,
-  kind = 'family',
 }: {
   householdId: string;
   members: Member[];
-  kind?: 'family' | 'household';
 }) {
-  const [state, setState] = useState<'idle' | 'busy' | { link: string } | { error: string }>('idle');
-  const [who, setWho] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [menu, setMenu] = useState(false);
 
-  // Our own house always offers to bring somebody new into it; a family on the
-  // list offers that only while nobody from it has signed in.
-  const invites = kind === 'household' || members.length === 0;
-  const done = typeof state === 'object' && 'link' in state;
-
-  async function make(forPhone: string, forHouseholdId: string) {
-    setState('busy');
-    const made = await newInviteLink(kind, forPhone, forHouseholdId);
-    setState(
-      made.token
-        ? { link: `${window.location.origin}/join/${made.token}` }
-        : { error: made.error ?? 'משהו השתבש' },
-    );
+  /**
+   * One tap, all the way to WhatsApp. The link has to be made first, and a
+   * window opened after that wait is blocked as a pop-up — so this navigates
+   * the tab instead, which is not. WhatsApp takes over, and Back returns here.
+   */
+  async function send(forPhone: string, forHouseholdId: string) {
+    setBusy(true);
+    setError('');
+    const made = await newInviteLink('family', forPhone, forHouseholdId);
+    if (!made.token) {
+      setError(made.error ?? 'משהו השתבש');
+      setBusy(false);
+      return;
+    }
+    window.location.href = inviteVia(`${window.location.origin}/join/${made.token}`, forPhone);
   }
 
-  if (done) {
-    const link = (state as { link: string }).link;
+  // Nobody has signed in from this family: the errand is an invitation, and it
+  // is the only one, so it is the button rather than something behind a menu.
+  if (members.length === 0) {
     return (
-      <div className="flex w-full flex-wrap items-center gap-3">
-        <a
-          href={inviteVia(link, who)}
-          target="_blank"
-          rel="noreferrer"
+      <div className="flex flex-col items-start gap-1">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => send('', householdId)}
           className={`${chipButton} inline-flex items-center gap-2`}
         >
           <WhatsAppMark />
-          שליחה
-        </a>
-        <button
-          type="button"
-          onClick={() => navigator.clipboard.writeText(link).catch(() => {})}
-          className="text-xs font-semibold text-brand underline underline-offset-4"
-        >
-          העתקה
+          {busy ? 'רגע…' : 'הזמנה בוואטסאפ'}
         </button>
-        <span className="basis-full text-xs text-muted">הקישור נסגר אחרי שימוש אחד.</span>
+        <ErrorNote>{error}</ErrorNote>
       </div>
     );
   }
 
+  // They are already in the app, so the only thing left is a way back in on a
+  // new phone — rare enough that it belongs behind the menu rather than beside
+  // every name on the screen.
   return (
-    <div className="flex flex-col items-start gap-1">
-      <div className="flex flex-wrap items-center gap-2">
-        {invites && (
-          <button
-            type="button"
-            disabled={state === 'busy'}
-            onClick={() => make('', householdId)}
-            className={chipButton}
-          >
-            {state === 'busy' ? 'רגע…' : kind === 'household' ? 'הזמנה לבית' : 'הזמנה'}
-          </button>
-        )}
-        {members.length === 1 && (
-          <button
-            type="button"
-            disabled={state === 'busy'}
-            onClick={() => {
-              setWho(members[0].phone);
-              return make(members[0].phone, '');
-            }}
-            className={quietButton}
-          >
-            {state === 'busy' ? 'רגע…' : 'קישור כניסה'}
-          </button>
-        )}
-        {members.length > 1 && (
-          // Styled as the same plain text link as the one-person case, and one
-          // tap: picking a name fires the link immediately rather than leaving
-          // a second button waiting to be pressed. A native select disguised
-          // this way still opens the system picker, so it costs nothing on a
-          // small screen.
-          <select
-            aria-label="קישור כניסה למי"
-            disabled={state === 'busy'}
-            value=""
-            onChange={(e) => {
-              if (!e.target.value) return;
-              setWho(e.target.value);
-              make(e.target.value, '');
-            }}
-            className={`${quietButton} cursor-pointer appearance-none border-0 bg-transparent p-0`}
-          >
-            <option value="" disabled>
-              {state === 'busy' ? 'רגע…' : 'קישור כניסה ל…'}
-            </option>
-            {members.map((m) => (
-              <option key={m.phone} value={m.phone}>
-                קישור כניסה ל{m.name}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-      {typeof state === 'object' && 'error' in state && <ErrorNote>{state.error}</ErrorNote>}
+    <div className="relative flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={() => setMenu(!menu)}
+        aria-expanded={menu}
+        aria-haspopup="menu"
+        aria-label="עוד"
+        className="grid h-9 w-9 place-items-center rounded-full text-muted transition active:scale-95"
+      >
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+          <circle cx="12" cy="5" r="1.7" />
+          <circle cx="12" cy="12" r="1.7" />
+          <circle cx="12" cy="19" r="1.7" />
+        </svg>
+      </button>
+
+      {menu && (
+        <div
+          role="menu"
+          className="absolute top-10 z-40 w-56 overflow-hidden rounded-2xl border border-line bg-surface shadow-lg"
+        >
+          {members.map((m) => (
+            <button
+              key={m.phone}
+              type="button"
+              role="menuitem"
+              disabled={busy}
+              onClick={() => send(m.phone, '')}
+              className="flex w-full items-center gap-2 px-4 py-3 text-start text-sm font-semibold text-ink"
+            >
+              <span className="text-whatsapp">
+                <WhatsAppMark />
+              </span>
+              {busy ? 'רגע…' : `קישור כניסה ל${m.name}`}
+            </button>
+          ))}
+          <p className="border-t border-line px-4 py-2 text-xs text-muted">
+            למי שכבר באפליקציה ונכנס ממכשיר חדש. נסגר אחרי שימוש אחד.
+          </p>
+        </div>
+      )}
+      <ErrorNote>{error}</ErrorNote>
     </div>
   );
 }

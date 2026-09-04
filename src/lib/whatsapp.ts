@@ -41,3 +41,22 @@ export const askForLink = (phone: string): string =>
   `https://wa.me/?text=${encodeURIComponent(
     `היי, אני מנסה להיכנס לאפליקציה של החגים מטלפון חדש. אפשר לשלוח לי קישור כניסה מהאפליקציה? המספר שלי: ${phone}`,
   )}`;
+
+/**
+ * A nudge for one holiday, for the family's group chat. Counts, never names:
+ * a message pasted into a group is read by everyone in it, and "מעיין וגל עוד
+ * לא ענו" is a different thing to say than "ענו 3 מתוך 6".
+ */
+export const remindAbout = (
+  holidayName: string,
+  when: string,
+  answered: number,
+  total: number,
+  url: string,
+): string => {
+  const counted =
+    total > 1 ? `\nענו ${answered} מתוך ${total}.` : '';
+  return `https://wa.me/?text=${encodeURIComponent(
+    `${holidayName} · ${when}\nמי מארח? עונים בשתי נגיעות:${counted}\n${url}`,
+  )}`;
+};

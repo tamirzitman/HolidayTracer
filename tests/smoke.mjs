@@ -38,29 +38,51 @@ function check(label, ok) {
 }
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-const open = async () => (await browser.newContext({ viewport: { width: 390, height: 820 } })).newPage();
+const open = async () => {
+  const page = await (await browser.newContext({ viewport: { width: 390, height: 820 } })).newPage();
+  // Invitations now go straight out to WhatsApp, which the browser cannot
+  // follow here. Blocking it leaves the app where it was; what the link said
+  // is read from the sheet, which is where it matters anyway.
+  await page.route('https://wa.me/**', (route) => route.abort());
+  return page;
+};
 
 // A link aimed at one person, made from that family's row — the panel makes
 // only the general link now.
 const linkFromRow = async (page, familyName, personName) => {
   await page.goto(`${BASE}/families`);
   await page.waitForSelector('text=המעגלים שלי');
+  const before = rows('Invites').length;
   // What the row offers depends on whether anybody has signed in from that
-  // family — an invitation, or a way back in. Read the row rather than assume.
+  // family — one invitation, or a way back in tucked behind the menu.
   // Scoped to the families list: a suggestion row names the families that
   // vouch for it, so an unscoped search matches those too.
   const row = page.locator('#families li').filter({ hasText: familyName }).last();
-  const picker = row.locator('select[aria-label="קישור כניסה למי"]');
-  const back = row.getByRole('button', { name: 'קישור כניסה' });
-  if (personName && (await picker.count())) {
-    // One tap: picking a name fires the link immediately, no separate confirm.
-    await picker.selectOption({ label: personName });
-  } else if (await back.count()) {
-    await back.click();
+  const menu = row.getByRole('button', { name: 'עוד' });
+  if (await menu.count()) {
+    await menu.click();
+    // The items carry role="menuitem", so they are not buttons to a locator.
+    await row.getByText(new RegExp(`קישור כניסה ל${personName || ''}`)).click();
   } else {
-    await row.getByRole('button', { name: /^הזמנה/ }).click();
+    await row.getByRole('button', { name: /הזמנה בוואטסאפ/ }).click();
   }
-  await page.waitForSelector('text=הקישור נסגר אחרי שימוש אחד');
+  // The tap leaves for WhatsApp, so the link's arrival is read from the sheet.
+  for (let i = 0; i < 40 && rows('Invites').length === before; i += 1) {
+    await page.waitForTimeout(250);
+  }
+  return rows('Invites').at(-1);
+};
+
+/** Bringing somebody into our own house — from the menu under our own name. */
+const addToOurHouse = async (page) => {
+  await page.goto(BASE);
+  await page.waitForSelector('nav');
+  const before = rows('Invites').length;
+  await page.click('button[aria-haspopup="menu"]');
+  await page.click('text=הוספת בן בית');
+  for (let i = 0; i < 40 && rows('Invites').length === before; i += 1) {
+    await page.waitForTimeout(250);
+  }
   return rows('Invites').at(-1);
 };
 
@@ -133,7 +155,12 @@ check(`one family added brings the rest as suggestions (${coldSuggested.length})
 // A suggestion turned down should not come back: the families you decided
 // against are exactly the ones your families keep vouching for.
 const dropped = coldSuggested[0];
+// Asked first: the X sits a thumb's width from "הוספה", so it arms rather
+// than acts.
 await stranger.click(`li:has-text("${dropped}") >> [aria-label^="להסיר את"]`);
+check('hiding a suggestion asks before it does it',
+  await stranger.isVisible(`li:has-text("${dropped}") >> text=כן, להסתיר`));
+await stranger.click(`li:has-text("${dropped}") >> text=כן, להסתיר`);
 await stranger.waitForTimeout(1500);
 await stranger.reload();
 await stranger.waitForSelector('text=המעגלים שלי');
@@ -566,7 +593,7 @@ await afterAdd.getByRole('button', { name: 'התארחנו אצל…' }).click()
 const historyHosts = await afterAdd.locator('select[name=hostHouseholdId] option').allTextContents();
 check(`and they are pickable straight away (${historyHosts.length})`,
   historyHosts.some((t) => t.includes('שגיא')));
-await afterAdd.getByRole('button', { name: 'ביטול' }).click();
+await afterAdd.getByRole('button', { name: 'חזרה' }).click();
 
 const beforeEdit = rows('Answers').length;
 const pastRow = dad.locator('li', { hasText: 'ערב פסח' });
@@ -622,8 +649,10 @@ await forwarded.close();
 // The general link is untouched by any of that.
 await dad.goto(`${BASE}/families`);
 await dad.waitForSelector('text=המעגלים שלי');
-check('our own house is invited from its own row',
-  await dad.isVisible('section:has-text("הבית שלנו") >> text=הזמנה לבית'));
+await dad.click('button[aria-haspopup="menu"]');
+check('our own house is invited from the menu under our own name',
+  await dad.isVisible('text=הוספת בן בית'));
+await dad.keyboard.press('Escape');
 if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
 await dad.click('text=קישור הזמנה');
 await dad.waitForSelector('text=שליחה בוואטסאפ');
@@ -809,11 +838,7 @@ check('joining through it opens no second household',
 // The point of the whole thing: this number is not the one on file.
 // The second person in that family is invited into it by the one already in,
 // from their own house's row — not out of anybody else's list.
-await first.goto(`${BASE}/families`);
-await first.waitForSelector('text=המעגלים שלי');
-await first.click('section:has-text("הבית שלנו") >> text=הזמנה לבית');
-await first.waitForSelector('text=הקישור נסגר אחרי שימוש אחד');
-const forSecond = rows('Invites').at(-1)[0];
+const forSecond = (await addToOurHouse(first))[0];
 
 const second = await open();
 await second.goto(`${BASE}/join/${forSecond}`);
@@ -919,7 +944,11 @@ check('and then nobody else sees it',
   !(await newcomer.innerText('header')).includes('יום הולדת לסבתא'));
 
 const beforeRemove = rows('Holidays').length;
+// Asked first, like every other thing that takes something away.
 await dad.click('text=הסרה');
+check('removing an occasion asks before it does it',
+  await dad.isVisible('text=כן, להסיר'));
+await dad.click('text=כן, להסיר');
 await dad.waitForSelector('text=יום הולדת לסבתא', { state: 'detached' });
 await dad.waitForTimeout(1500);
 check('removing it leaves the list', !(await dad.isVisible('text=יום הולדת לסבתא')));

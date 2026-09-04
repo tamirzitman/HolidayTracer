@@ -9,7 +9,16 @@ import {
 } from '@/app/actions';
 import { CirclePicker } from './CirclePicker';
 import { formatDayAndDate } from '@/lib/dates';
-import { ErrorNote, Title, card, chipButton, field, primaryButton, quietButton } from './ui';
+import {
+  BackButton,
+  ErrorNote,
+  Title,
+  card,
+  chipButton,
+  field,
+  primaryButton,
+  quietButton,
+} from './ui';
 
 type Family = { id: string; name: string };
 type Occasion = { key: string; name: string; date: string; sharedWith: string[] };
@@ -113,6 +122,7 @@ function Row({
 }) {
   const [state, shareAction, saving] = useActionState<ActionResult, FormData>(shareOccasionWith, {});
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [chosen, setChosen] = useState<string[]>(occasion.sharedWith);
 
   // Close on the way back from a save, so the button stops looking unpressed.
@@ -129,17 +139,32 @@ function Row({
           <p className="text-xs text-muted">{audience}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {circle.length > 0 && (
-            <button type="button" onClick={() => setOpen(!open)} className={chipButton}>
-              {open ? 'ביטול' : 'מי רואה'}
-            </button>
-          )}
-          <form action={removeAction}>
-            <input type="hidden" name="holidayKey" value={occasion.key} />
-            <button type="submit" className={`${quietButton} shrink-0`}>
+          {circle.length > 0 &&
+            (open ? (
+              <BackButton onClick={() => setOpen(false)} />
+            ) : (
+              <button type="button" onClick={() => setOpen(true)} className={chipButton}>
+                מי רואה
+              </button>
+            ))}
+          {/* Asked first, like every other thing that takes something away. */}
+          {confirming ? (
+            <form action={removeAction} className="flex items-center gap-2">
+              <input type="hidden" name="holidayKey" value={occasion.key} />
+              <button type="submit" className={`${quietButton} shrink-0`}>
+                כן, להסיר
+              </button>
+              <BackButton onClick={() => setConfirming(false)} label="ביטול" />
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className={`${quietButton} shrink-0`}
+            >
               הסרה
             </button>
-          </form>
+          )}
         </div>
       </div>
 

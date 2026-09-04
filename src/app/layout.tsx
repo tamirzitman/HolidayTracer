@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
 import { BottomNav } from '@/components/BottomNav';
 import { HouseholdMenu } from '@/components/HouseholdMenu';
+import { ShareApp } from '@/components/ShareApp';
 import { findPerson, getHousehold, suggestionsFor, unansweredUpcoming } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 import './globals.css';
@@ -65,7 +66,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <HouseholdMenu
               householdName={household?.name ?? ''}
               personName={person?.name ?? ''}
-              appUrl={appUrl}
               phone={person?.phone ?? ''}
             />
           </div>
@@ -76,6 +76,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           }`}
         >
           {children}
+          {signedIn && <ShareApp appUrl={appUrl} />}
         </main>
         {signedIn && <BottomNav waiting={waiting} />}
       </body>
