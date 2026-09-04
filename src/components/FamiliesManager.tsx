@@ -445,31 +445,31 @@ function RowInvite({
           </button>
         )}
         {members.length > 1 && (
-          <>
-            <select
-              aria-label="קישור כניסה למי"
-              value={who}
-              onChange={(e) => setWho(e.target.value)}
-              className={`${field} w-auto py-2 text-sm`}
-            >
-              <option value="">קישור כניסה ל…</option>
-              {members.map((m) => (
-                <option key={m.phone} value={m.phone}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-            {who && (
-              <button
-                type="button"
-                disabled={state === 'busy'}
-                onClick={() => make(who, '')}
-                className={quietButton}
-              >
-                {state === 'busy' ? 'רגע…' : 'יצירה'}
-              </button>
-            )}
-          </>
+          // Styled as the same plain text link as the one-person case, and one
+          // tap: picking a name fires the link immediately rather than leaving
+          // a second button waiting to be pressed. A native select disguised
+          // this way still opens the system picker, so it costs nothing on a
+          // small screen.
+          <select
+            aria-label="קישור כניסה למי"
+            disabled={state === 'busy'}
+            value=""
+            onChange={(e) => {
+              if (!e.target.value) return;
+              setWho(e.target.value);
+              make(e.target.value, '');
+            }}
+            className={`${quietButton} cursor-pointer appearance-none border-0 bg-transparent p-0`}
+          >
+            <option value="" disabled>
+              {state === 'busy' ? 'רגע…' : 'קישור כניסה ל…'}
+            </option>
+            {members.map((m) => (
+              <option key={m.phone} value={m.phone}>
+                קישור כניסה ל{m.name}
+              </option>
+            ))}
+          </select>
         )}
       </div>
       {typeof state === 'object' && 'error' in state && <ErrorNote>{state.error}</ErrorNote>}

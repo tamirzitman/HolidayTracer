@@ -2,8 +2,12 @@
  * End-to-end smoke test, against a real browser.
  *
  *   npm run seed:holidays        # once, if .dev-sheet.json has no Holidays
- *   npm run build && SESSION_SECRET=test npm start -- --port 3111
+ *   npm run build && SESSION_SECRET=test SHEET_TTL_MS=100 npm start -- --port 3111
  *   npm run test:smoke
+ *
+ * SHEET_TTL_MS on the server (not this script) turns two ~20s waits below into
+ * near-instant ones; see the constant below. Fine to omit — the suite reads
+ * whatever the server was actually started with and waits that long instead.
  */
 import { chromium } from 'playwright';
 import { execFileSync } from 'node:child_process';
@@ -14,6 +18,12 @@ import { readFileSync, writeFileSync } from 'node:fs';
 execFileSync(process.execPath, ['scripts/dev-fixtures.mjs'], { stdio: 'ignore' });
 
 const BASE = process.env.SMOKE_URL ?? 'http://localhost:3111';
+// The server's in-memory copy of the sheet outlives a write by this long — set
+// by SHEET_TTL_MS on the server the suite is run against. Two checks below
+// have to outlast it to see a write reflected with no cache to invalidate it
+// (a stale sheet edited by hand, an invite backdated by hand). A little slack
+// on top absorbs the gap between the two processes' clocks.
+const SHEET_TTL_MS = (Number(process.env.SHEET_TTL_MS) || 20_000) + 1_000;
 const SHEET = '.dev-sheet.json';
 const DAD = '050-123-4567';
 const NEWCOMER = `05${String(Date.now()).slice(-8)}`;
@@ -43,8 +53,8 @@ const linkFromRow = async (page, familyName, personName) => {
   const picker = row.locator('select[aria-label="קישור כניסה למי"]');
   const back = row.getByRole('button', { name: 'קישור כניסה' });
   if (personName && (await picker.count())) {
+    // One tap: picking a name fires the link immediately, no separate confirm.
     await picker.selectOption({ label: personName });
-    await row.getByRole('button', { name: 'יצירה' }).click();
   } else if (await back.count()) {
     await back.click();
   } else {
@@ -507,7 +517,7 @@ marked.Holidays = marked.Holidays.map((r, i) =>
   i && r[0] === 'rosh_hashana_2026' ? Object.assign([...r], { [emojiCol]: '🐟' }) : r,
 );
 writeFileSync(SHEET, `${JSON.stringify(marked, null, 2)}\n`, 'utf8');
-await dad.waitForTimeout(21000);
+await dad.waitForTimeout(SHEET_TTL_MS);
 await dad.goto(`${BASE}?h=rosh_hashana_2026`);
 const withOwnMark = await dad.innerText('main');
 check('and a mark typed into the sheet wins over it',
@@ -690,7 +700,7 @@ aged.Invites = aged.Invites.map((r, i) =>
   i && r[0] === token ? [r[0], r[1], r[2], '2020-01-01T00:00:00.000Z'] : r,
 );
 writeFileSync(SHEET, `${JSON.stringify(aged, null, 2)}\n`, 'utf8');
-await dad.waitForTimeout(21000);
+await dad.waitForTimeout(SHEET_TTL_MS);
 const late = await open();
 await late.goto(`${BASE}/join/${token}`);
 await late.waitForSelector('input[name=phone]');

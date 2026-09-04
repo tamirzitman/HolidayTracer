@@ -63,8 +63,12 @@ const TAB_LIST = [
  * One batched request for the whole spreadsheet, held briefly in memory. Five
  * separate round trips to Google was most of the wait after pressing a button.
  * Any write clears it, so nobody ever sees their own answer go missing.
+ *
+ * Configurable because the smoke suite otherwise has to sleep out the real
+ * delay to test what happens after it — SHEET_TTL_MS=100 turns two 21-second
+ * waits into two 100-millisecond ones. Never worth changing in production.
  */
-const TTL_MS = 20_000;
+const TTL_MS = Number(process.env.SHEET_TTL_MS) || 20_000;
 let memo: { at: number; sheet: Sheet } | undefined;
 
 export function invalidateSheet(): void {
