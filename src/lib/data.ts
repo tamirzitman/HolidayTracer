@@ -160,7 +160,7 @@ async function fetchSheet(): Promise<Sheet> {
       .map((row) => ({
         householdId: cell(row, connectionsTab.headers, 'household_id'),
         connectedTo: cell(row, connectionsTab.headers, 'connected_to'),
-        action: (cell(row, connectionsTab.headers, 'action') || 'add') as 'add' | 'remove',
+        action: (cell(row, connectionsTab.headers, 'action') || 'add') as Connection['action'],
         at: cell(row, connectionsTab.headers, 'at'),
       }))
       .filter((c) => c.householdId && c.connectedTo),
@@ -489,8 +489,11 @@ async function appendRow(tab: string, headers: readonly string[], row: string[])
 // ── circles ───────────────────────────────────────────────────────────────────
 
 /** Latest event wins. Rows are only ever appended, never rewritten. */
-function connectionState(connections: Connection[], householdId: string): Map<string, 'add' | 'remove'> {
-  const state = new Map<string, 'add' | 'remove'>();
+function connectionState(
+  connections: Connection[],
+  householdId: string,
+): Map<string, Connection['action']> {
+  const state = new Map<string, Connection['action']>();
   for (const c of connections) {
     if (c.householdId === householdId) state.set(c.connectedTo, c.action);
   }
@@ -549,25 +552,29 @@ export async function claimableIn(
  */
 export async function suggestionsFor(
   householdId: string,
-): Promise<{ household: Household; seenBy: number }[]> {
+): Promise<{ household: Household; seenBy: string[] }[]> {
   const sheet = await loadSheet();
   const mine = await circleOf(householdId);
   const state = connectionState(sheet.connections, householdId);
 
   // Turned down before, so don't offer it again. A suggestion that keeps coming
   // back is worse than no suggestion: the families you have decided against are
-  // exactly the ones your families will keep vouching for.
+  // exactly the ones your families will keep vouching for. `reconsider` is not
+  // here: that is a hiding undone, and they belong back among the offers.
   const known = new Set([
     householdId,
     ...mine.map((h) => h.id),
     ...[...state.entries()].filter(([, action]) => action === 'remove').map(([id]) => id),
   ]);
 
-  const seenBy = new Map<string, number>();
+  // Who vouches, by name. A count answers "how many" when the useful question
+  // is "who" — and with a handful of families the names are shorter to read
+  // than the number is to interpret.
+  const seenBy = new Map<string, string[]>();
   for (const family of mine) {
     for (const theirs of await circleOf(family.id)) {
       if (known.has(theirs.id)) continue;
-      seenBy.set(theirs.id, (seenBy.get(theirs.id) ?? 0) + 1);
+      seenBy.set(theirs.id, [...(seenBy.get(theirs.id) ?? []), family.name]);
     }
   }
 
@@ -578,10 +585,42 @@ export async function suggestionsFor(
   const enough = Math.min(2, mine.length);
 
   return [...seenBy.entries()]
-    .filter(([, count]) => count >= enough)
-    .map(([id, count]) => ({ household: sheet.households.find((h) => h.id === id), seenBy: count }))
-    .filter((s): s is { household: Household; seenBy: number } => s.household !== undefined)
-    .sort((a, b) => b.seenBy - a.seenBy || a.household.name.localeCompare(b.household.name, 'he'));
+    .filter(([, who]) => who.length >= enough)
+    .map(([id, who]) => ({
+      household: sheet.households.find((h) => h.id === id),
+      seenBy: [...who].sort((a, b) => a.localeCompare(b, 'he')),
+    }))
+    .filter((s): s is { household: Household; seenBy: string[] } => s.household !== undefined)
+    .sort(
+      (a, b) =>
+        b.seenBy.length - a.seenBy.length ||
+        a.household.name.localeCompare(b.household.name, 'he'),
+    );
+}
+
+/**
+ * Families hidden from the suggestions. Kept reachable because dismissing one
+ * is a tap next to "הוספה" and the two are easy to confuse — a hiding nobody
+ * can see is a mistake nobody can undo.
+ */
+export async function hiddenSuggestions(householdId: string): Promise<Household[]> {
+  const sheet = await loadSheet();
+  const state = connectionState(sheet.connections, householdId);
+  return [...state.entries()]
+    .filter(([, action]) => action === 'remove')
+    .map(([id]) => sheet.households.find((h) => h.id === id))
+    .filter((h): h is Household => h !== undefined && h.active)
+    .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+}
+
+/** Undoing a hiding: back among the suggestions, still not connected. */
+export async function restoreSuggestion(householdId: string, other: string): Promise<void> {
+  await appendRow(TABS.connections, HEADERS.connections, [
+    householdId,
+    other,
+    'reconsider',
+    new Date().toISOString(),
+  ]);
 }
 
 /**
@@ -597,7 +636,7 @@ export async function knownToOthers(householdId: string): Promise<boolean> {
 
   // Newest row per pair, in either direction: a connection is written both ways
   // when made, but a one-way remove exists too.
-  const state = new Map<string, 'add' | 'remove'>();
+  const state = new Map<string, Connection['action']>();
   for (const c of sheet.connections) {
     if (c.householdId === householdId || c.connectedTo === householdId) {
       state.set(`${c.householdId}→${c.connectedTo}`, c.action);

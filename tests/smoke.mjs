@@ -109,6 +109,33 @@ const afterDismiss = await stranger.$$eval('section:has-text("מוצע להוס�
 check(`a dismissed suggestion stays gone (${dropped} → ${afterDismiss.length} left)`,
   !afterDismiss.includes(dropped) && afterDismiss.length === coldSuggested.length - 1);
 
+// Who vouches, by name — the useful question is "who", not "how many".
+const vouching = await stranger.innerText('section:has-text("מוצע להוספה")');
+check(`a suggestion names who knows them (${vouching.split('\n').find((l) => l.startsWith('מכירים אותם')) ?? '—'})`,
+  /מכירים אותם: \S/.test(vouching));
+
+// Hiding is one tap from adding, so it must not be a one-way door.
+check('a hidden family is still reachable',
+  await stranger.isVisible('text=/מוסתר/'));
+await stranger.click('text=/מוסתר/');
+await stranger.waitForSelector('text=מוסתרות מההצעות');
+const hiddenList = stranger.locator('section:has-text("מוסתרות מההצעות") li', { hasText: dropped });
+check(`and named there (${dropped})`, await hiddenList.isVisible());
+await hiddenList.getByText('להציע שוב').click();
+await stranger.waitForTimeout(1800);
+await stranger.reload();
+await stranger.waitForSelector('text=המעגלים שלי');
+const backAgain = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
+  els.map((e) => e.innerText.split('\n')[0].trim()),
+);
+check(`putting one back returns it to the offers (${backAgain.length})`,
+  backAgain.includes(dropped));
+// Restored, not connected: an undo of a hiding is not an introduction.
+const hostsNow = await stranger.$$eval('select[name=hostHouseholdId] option', (els) =>
+  els.map((e) => e.textContent.trim()),
+).catch(() => []);
+check('without connecting them', !hostsNow.includes(dropped));
+
 // Taking one up is the other half: a mutual connection, usable at once.
 const takeUp = afterDismiss[0];
 const beforeSuggest = rows('Connections').length;

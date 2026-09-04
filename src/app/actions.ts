@@ -11,6 +11,8 @@ import {
   connect,
   createInvite,
   dismissSuggestion,
+  hiddenSuggestions,
+  restoreSuggestion,
   findPerson,
   getHousehold,
   getLatestAnswer,
@@ -415,6 +417,22 @@ export async function addSuggested(householdId: string): Promise<ActionResult> {
 }
 
 /** Turning down a suggestion, so it stops being offered. */
+/**
+ * Putting back a family hidden from the suggestions. It does not connect them —
+ * they simply return to being offered, which is what an undo of a hiding means.
+ */
+export async function restoreSuggested(householdId: string): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const hidden = await hiddenSuggestions(me.householdId);
+  if (!hidden.some((h) => h.id === householdId)) return { error: 'המשפחה הזו לא מוסתרת' };
+
+  await restoreSuggestion(me.householdId, householdId);
+  revalidatePath('/families');
+  return { savedAt: new Date().toISOString() };
+}
+
 export async function dismissSuggested(householdId: string): Promise<ActionResult> {
   const me = await currentHousehold();
   if ('error' in me) return me;

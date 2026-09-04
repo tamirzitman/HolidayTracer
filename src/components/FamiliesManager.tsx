@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { addSuggested, dismissSuggested, newInviteLink } from '@/app/actions';
+import { addSuggested, dismissSuggested, newInviteLink, restoreSuggested } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { ContactPicker } from './ContactPicker';
 import { WhatsAppMark, type Member } from './WhatsApp';
@@ -25,14 +25,17 @@ export function FamiliesManager({
   ownMembers,
   inviteUrl,
   suggested,
+  hidden,
 }: {
   families: Family[];
   /** The people in our own household, for a link that lets one of them in elsewhere. */
   ownMembers: Member[];
   /** This family's standing join link, for the families nobody has joined yet. */
   inviteUrl: string;
-  /** Families your families know and you don't, with how many of them know each. */
-  suggested: { id: string; name: string; seenBy: number }[];
+  /** Families your families know and you don't, with which of them vouch. */
+  suggested: { id: string; name: string; seenBy: string[] }[];
+  /** Families turned down before, so a mistaken tap can be taken back. */
+  hidden: { id: string; name: string }[];
 }) {
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
@@ -139,10 +142,11 @@ export function FamiliesManager({
               <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">
                 <div className="min-w-0 grow">
                   <p className="truncate font-semibold text-ink">{family.name}</p>
-                  <p className="text-sm text-muted">
-                    {family.seenBy === 1
-                      ? 'משפחה אחת שלכם רואה אותם'
-                      : `${family.seenBy} מהמשפחות שלכם רואות אותם`}
+                  {/* Who vouches, not how many: with a handful of families the
+                      names are quicker to read than a count is to interpret. */}
+                  <p className="truncate text-sm text-muted">
+                    מכירים אותם: {family.seenBy.slice(0, 2).join(', ')}
+                    {family.seenBy.length > 2 && ` ועוד ${family.seenBy.length - 2}`}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -189,6 +193,8 @@ export function FamiliesManager({
           </ul>
         </section>
       )}
+
+      <HiddenSuggestions hidden={hidden} />
 
       <div id="invite" className={`${card} flex flex-col gap-3`}>
         <div className="flex items-center gap-2">
@@ -344,5 +350,71 @@ export function FamiliesManager({
       </div>
 
     </div>
+  );
+}
+
+/**
+ * The families turned down before. Folded away by default — it is a correction,
+ * not a list anybody needs — and one line when there is nothing to correct.
+ *
+ * It exists because dismissing sits one tap from adding: the two are easy to
+ * confuse, and a hiding nobody can see is a mistake nobody can undo.
+ */
+function HiddenSuggestions({ hidden }: { hidden: { id: string; name: string }[] }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  if (hidden.length === 0) return null;
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="self-center text-xs font-semibold text-muted underline underline-offset-4"
+      >
+        {hidden.length === 1 ? 'משפחה אחת מוסתרת' : `${hidden.length} משפחות מוסתרות`}
+      </button>
+    );
+  }
+
+  return (
+    <section className={`${card} flex flex-col gap-1 p-0`}>
+      <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
+        <h2 className="text-sm font-bold text-muted">מוסתרות מההצעות</h2>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="shrink-0 text-xs font-bold text-brand underline underline-offset-4"
+        >
+          סגירה
+        </button>
+      </div>
+      <ul className="divide-y divide-line">
+        {hidden.map((family) => (
+          <li key={family.id} className="flex items-center gap-3 px-5 py-3">
+            <p className="min-w-0 grow truncate text-ink">{family.name}</p>
+            <button
+              type="button"
+              disabled={busy === family.id}
+              onClick={async () => {
+                setBusy(family.id);
+                try {
+                  await restoreSuggested(family.id);
+                } finally {
+                  setBusy(null);
+                }
+              }}
+              className={chipButton}
+            >
+              {busy === family.id ? 'רגע…' : 'להציע שוב'}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="px-5 pb-3 text-xs text-muted">
+        להציע שוב לא מחבר אתכם — הן פשוט חוזרות לרשימת ההצעות.
+      </p>
+    </section>
   );
 }

@@ -71,7 +71,16 @@ export type Answer = StoredAnswer & { householdId: string };
 export type Connection = {
   householdId: string;
   connectedTo: string;
-  action: 'add' | 'remove';
+  /**
+   *  - `add`         on each other's lists
+   *  - `remove`      hidden: turned down as a suggestion, so it is not offered again
+   *  - `reconsider`  the hiding undone — not connected, but suggestible once more
+   *
+   * `reconsider` exists because hiding must not be a one-way door. Appending an
+   * `add` to undo it would connect two families that were only ever suggested,
+   * which is a different thing entirely.
+   */
+  action: 'add' | 'remove' | 'reconsider';
   at: string;
 };
 

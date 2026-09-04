@@ -7,6 +7,7 @@ import {
   findPerson,
   inviteFor,
   membersByHousehold,
+  hiddenSuggestions,
   suggestionsFor,
   unansweredUpcoming,
 } from '@/lib/data';
@@ -21,13 +22,14 @@ export default async function FamiliesPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [circle, members, token, head, suggested, unanswered] = await Promise.all([
+  const [circle, members, token, head, suggested, unanswered, hidden] = await Promise.all([
     circleOf(person.householdId),
     membersByHousehold(),
     inviteFor(person.householdId),
     headers(),
     suggestionsFor(person.householdId),
     unansweredUpcoming(person.householdId),
+    hiddenSuggestions(person.householdId),
   ]);
 
   const base = `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
@@ -57,6 +59,7 @@ export default async function FamiliesPage() {
           name: s.household.name,
           seenBy: s.seenBy,
         }))}
+        hidden={hidden.map((h) => ({ id: h.id, name: h.name }))}
       />
       <NextStep step={step} />
     </div>
