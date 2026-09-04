@@ -179,6 +179,12 @@ await newcomer.click('text=המשפחה שלנו כבר ברשימה');
 await newcomer.waitForSelector('select[name=claimHouseholdId]');
 check('claiming an existing family is a line away, not in the way',
   await newcomer.isVisible('select[name=claimHouseholdId]'));
+// The one family they certainly are not is the one that sent the link.
+const claimNames = await newcomer.$$eval('select[name=claimHouseholdId] option', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`the family that invited them is not on the list (${claimNames.join(' · ')})`,
+  !claimNames.includes('אבא ואמא'));
 
 await newcomer.fill('input[name=firstName]', 'דנה');
 await newcomer.fill('input[name=surname]', 'לוי');
@@ -406,6 +412,30 @@ check(`three counts are shown (${stats.join(' / ')})`, stats.length === 3);
 check('holidays with no answer are marked as missing', await dad.isVisible('text=חסר'));
 check('a past date carries its weekday', /(יום \S+|שבת) · \d/.test(await dad.innerText('li')));
 
+// A blank row is blank because that family was never added, so adding one has
+// to be reachable from here — not on another screen, with this row to find again.
+const gapRow = dad.locator('li', { hasText: 'ערב שבועות' });
+await gapRow.getByText('מילוי').click();
+await gapRow.getByRole('button', { name: 'התארחנו אצל…' }).click();
+check('a family can be added while filling in history',
+  await gapRow.getByText('לא מוצאים? הוסיפו משפחה').isVisible());
+const beforeHistoryAdd = rows('Households').length;
+await gapRow.getByText('לא מוצאים? הוסיפו משפחה').click();
+await gapRow.locator('input[name=familySurname]').fill('שגיא');
+await gapRow.getByRole('button', { name: 'הוספה', exact: true }).click();
+await dad.waitForTimeout(1800);
+check('and adding one from history opens a household',
+  rows('Households').length === beforeHistoryAdd + 1);
+await dad.reload();
+await dad.waitForSelector('text=איפה היינו');
+const afterAdd = dad.locator('li', { hasText: 'ערב שבועות' });
+await afterAdd.getByText('מילוי').click();
+await afterAdd.getByRole('button', { name: 'התארחנו אצל…' }).click();
+const historyHosts = await afterAdd.locator('select[name=hostHouseholdId] option').allTextContents();
+check(`and they are pickable straight away (${historyHosts.length})`,
+  historyHosts.some((t) => t.includes('שגיא')));
+await afterAdd.getByRole('button', { name: 'ביטול' }).click();
+
 const beforeEdit = rows('Answers').length;
 const pastRow = dad.locator('li', { hasText: 'ערב פסח' });
 await pastRow.getByText('עריכה').click();
@@ -482,6 +512,10 @@ await dad.goto(`${BASE}/families`);
 const marks = await dad.$$eval('section a[href*="wa.me"], section button[aria-label*="וואטסאפ"]',
   (els) => els.length);
 check(`the circles list carries no per-family marks (${marks})`, marks === 0);
+// The contact picker is Chrome-on-Android only, so without this the families
+// screen offers an iPhone no way to add anybody at all.
+check('and a family can be added by name from the families screen',
+  await dad.isVisible('text=לא מוצאים? הוסיפו משפחה'));
 check('the household name is not repeated under the header',
   (await dad.$$('main [aria-hidden="true"]:text("🏡")')).length === 0);
 
@@ -525,6 +559,11 @@ const offered = await first.$$eval('select[name=claimHouseholdId] option', (els)
 );
 check(`a newcomer is offered the families already on the list (${offered.length})`,
   offered.includes('רות ואורי לוי'));
+const groups = await first.$$eval('select[name=claimHouseholdId] optgroup', (els) =>
+  els.map((g) => g.label),
+);
+check(`and told apart from the ones already in the app (${groups.join(' · ')})`,
+  groups.includes('נוספו בשם, ועוד לא נרשמו'));
 await first.fill('input[name=firstName]', 'רות');
 await first.fill('input[name=surname]', 'לוי');
 await first.selectOption('select[name=claimHouseholdId]', { label: 'רות ואורי לוי' });
@@ -547,6 +586,12 @@ const stillOffered = await second.$$eval('select[name=claimHouseholdId] option',
 );
 check('a family somebody already joined is still offered to the next one',
   stillOffered.includes('רות ואורי לוי'));
+const secondGroups = await second.$$eval(
+  'optgroup:has(option:text-is("רות ואורי לוי"))',
+  (els) => els.map((g) => g.label),
+);
+check(`and now sits under the group that says so (${secondGroups.join(' · ')})`,
+  secondGroups.includes('כבר באפליקציה — תצטרפו אליהם'));
 await second.fill('input[name=firstName]', 'אורי');
 await second.fill('input[name=surname]', 'לוי');
 await second.selectOption('select[name=claimHouseholdId]', { label: 'רות ואורי לוי' });

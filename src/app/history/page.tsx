@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { HistoryList } from '@/components/HistoryList';
 import { Title } from '@/components/ui';
-import { circleOf, findPerson, getHouseholds, historyFor } from '@/lib/data';
+import { headers } from 'next/headers';
+import { circleOf, findPerson, getHouseholds, historyFor, inviteFor } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -13,11 +14,14 @@ export default async function HistoryPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [past, households, circle] = await Promise.all([
+  const [past, households, circle, token, head] = await Promise.all([
     historyFor(person.householdId),
     getHouseholds(),
     circleOf(person.householdId),
+    inviteFor(person.householdId),
+    headers(),
   ]);
+  const base = `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
   const nameOf = (id: string) => households.find((h) => h.id === id)?.name ?? id;
 
   const answered = past.filter((entry) => entry.answer !== undefined);
@@ -52,6 +56,7 @@ export default async function HistoryPage() {
               byName,
             }))}
             families={circle.map((h) => ({ id: h.id, name: h.name }))}
+            inviteUrl={`${base}/join/${token}`}
           />
         </>
       )}

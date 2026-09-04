@@ -62,7 +62,11 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       invitedBy={invite.household.name}
       kind={invite.kind}
       onLeave={signOut}
-      claimable={(await claimableIn(invite.household.id)).map((h) => ({ id: h.id, name: h.name }))}
+      claimable={(await claimableIn(invite.household.id)).map((c) => ({
+        id: c.household.id,
+        name: c.household.name,
+        joined: c.joined,
+      }))}
     />
   );
 }

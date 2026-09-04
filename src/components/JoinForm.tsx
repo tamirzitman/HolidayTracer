@@ -23,7 +23,12 @@ export function JoinForm({
   invitedBy: string;
   kind: 'family' | 'household';
   /** Families already on the inviter's list, which this newcomer may belong to. */
-  claimable: { id: string; name: string }[];
+  /**
+   * Families the inviter knows that this person might be. `joined` separates
+   * the two quite different cases: a family added by name that nobody has
+   * signed into, and a family a relative is already signed into.
+   */
+  claimable: { id: string; name: string; joined: boolean }[];
   /**
    * Leaving half-way. Refreshing keeps the cookie, so without this a number
    * typed one digit wrong is a screen there is no way off.
@@ -128,14 +133,36 @@ export function JoinForm({
                   className={field}
                 >
                   <option value="">אנחנו משפחה חדשה</option>
-                  {claimable.map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.name}
-                    </option>
-                  ))}
+                  {/* Two groups, because they are two different things: being
+                      the first of your family in, or joining somebody who is
+                      already here. Unlabelled they read as one list of names. */}
+                  {claimable.some((h) => !h.joined) && (
+                    <optgroup label="נוספו בשם, ועוד לא נרשמו">
+                      {claimable
+                        .filter((h) => !h.joined)
+                        .map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.name}
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+                  {claimable.some((h) => h.joined) && (
+                    <optgroup label="כבר באפליקציה — תצטרפו אליהם">
+                      {claimable
+                        .filter((h) => h.joined)
+                        .map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.name}
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
                 </select>
                 <span className="text-xs text-muted">
-                  כך לא ייווצרו שתי רשומות לאותה משפחה.
+                  {claim && claimable.find((h) => h.id === claim)?.joined
+                    ? 'מישהו מהמשפחה כבר נרשם — אתם מצטרפים אליו, ותראו את אותן התשובות.'
+                    : 'כך לא ייווצרו שתי רשומות לאותה משפחה.'}
                 </span>
               </label>
             ) : (

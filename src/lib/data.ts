@@ -481,15 +481,26 @@ export async function circleOf(householdId: string): Promise<Household[]> {
  * on the list and can simply say which one is theirs; joining then appends them
  * to that household rather than opening a second row beside it.
  *
- * Families that nobody has signed into yet come first: those are the ones added
- * by name alone, and the likeliest thing a newcomer is here to claim.
+ * The two kinds mean different things and are told apart by `joined`:
+ * a family nobody has signed into is one added by name, and claiming it means
+ * being the first of them here; a family somebody has already signed into means
+ * joining a relative who beat you to it.
+ *
+ * The inviting household is deliberately not among them. They are the ones who
+ * sent the link, so they are the one family the opener certainly is not — and
+ * picking them would have quietly filed a cousin inside somebody else's
+ * household. Joining the inviter's own household is a different invitation
+ * (`kind: 'household'`), which never reaches this list.
  */
-export async function claimableIn(householdId: string): Promise<Household[]> {
+export async function claimableIn(
+  householdId: string,
+): Promise<{ household: Household; joined: boolean }[]> {
   const sheet = await loadSheet();
   const joined = new Set(sheet.people.map((p) => p.householdId));
-  const inviter = sheet.households.find((h) => h.id === householdId);
-  const all = inviter ? [inviter, ...(await circleOf(householdId))] : await circleOf(householdId);
-  return [...all.filter((h) => !joined.has(h.id)), ...all.filter((h) => joined.has(h.id))];
+  return (await circleOf(householdId))
+    .map((household) => ({ household, joined: joined.has(household.id) }))
+    // Added by name and never signed into: the likeliest thing to be claimed.
+    .sort((a, b) => Number(a.joined) - Number(b.joined));
 }
 
 /**

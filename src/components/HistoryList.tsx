@@ -1,7 +1,9 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { editHistory, type ActionResult } from '@/app/actions';
+import { AddFamilyInline } from './AddFamilyInline';
 import { formatDayAndDate } from '@/lib/dates';
 import { ErrorNote, card, chipButton, field, primaryButton, quietButton, secondaryButton } from './ui';
 
@@ -21,13 +23,18 @@ type Entry = {
 export function HistoryList({
   entries,
   families,
+  inviteUrl,
 }: {
   entries: Entry[];
   families: { id: string; name: string }[];
+  /** Our standing join link, for a family added here that is not in the app. */
+  inviteUrl: string;
 }) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(editHistory, {});
   const [editing, setEditing] = useState<string | null>(null);
   const [asGuest, setAsGuest] = useState(false);
+  const hostSelect = useRef<HTMLSelectElement>(null);
+  const router = useRouter();
 
   // A save came back: close the row rather than leaving "שמירה" sitting there.
   useEffect(() => {
@@ -86,6 +93,7 @@ export function HistoryList({
                   <>
                     <input type="hidden" name="kind" value="guest" />
                     <select
+                      ref={hostSelect}
                       name="hostHouseholdId"
                       required
                       defaultValue={entry.hostId}
@@ -134,6 +142,27 @@ export function HistoryList({
                 )}
                 <ErrorNote>{state.error}</ErrorNote>
               </form>
+            )}
+
+            {/* Filling in a year of history runs into families nobody has added
+                yet — the whole reason a row is blank. Being sent to another
+                screen to add one, and then having to find your way back to this
+                row, is where people give up.
+
+                Outside the form above, not inside it: this renders a form of its
+                own, and a form nested in a form is dropped by the browser, which
+                would leave its button quietly submitting the wrong one. */}
+            {open && asGuest && (
+              <div className="pt-1">
+                <AddFamilyInline
+                  inviteUrl={inviteUrl}
+                  onAdded={(householdId) => {
+                    const select = hostSelect.current;
+                    if (select) select.value = householdId;
+                    router.refresh();
+                  }}
+                />
+              </div>
             )}
           </li>
         );

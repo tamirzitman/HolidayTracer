@@ -1,7 +1,9 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { addSuggested, dismissSuggested, newInviteLink } from '@/app/actions';
+import { AddFamilyInline } from './AddFamilyInline';
 import { ContactPicker } from './ContactPicker';
 import { WhatsAppMark, type Member } from './WhatsApp';
 import { inviteText } from '@/lib/whatsapp';
@@ -24,6 +26,7 @@ export function FamiliesManager({
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<'family' | 'household' | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
+  const router = useRouter();
 
   async function makeLink(kind: 'family' | 'household') {
     setBusy(kind);
@@ -208,7 +211,12 @@ export function FamiliesManager({
               כל מי שנכנס דרך הקישור פותח משפחה משלו, ומתחבר אליכם.
             </p>
 
-            <div className="mt-1 border-t border-line pt-3">
+            {/* Adding a family by name, on the screen that is about families.
+                Until now this lived only beside the holiday question, and the
+                contact picker beneath it is Chrome-on-Android only — so half
+                the family had no way to add anybody from here at all. */}
+            <div className="mt-1 flex flex-col gap-3 border-t border-line pt-3">
+              <AddFamilyInline inviteUrl={inviteUrl} onAdded={() => router.refresh()} />
               <ContactPicker />
             </div>
           </>

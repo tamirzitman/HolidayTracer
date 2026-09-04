@@ -90,7 +90,7 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
     const claiming = invite ? String(formData.get('claimHouseholdId') ?? '').trim() : '';
     if (claiming && invite) {
       const claimable = await claimableIn(invite.household.id);
-      if (!claimable.some((h) => h.id === claiming)) {
+      if (!claimable.some((c) => c.household.id === claiming)) {
         return { error: 'המשפחה הזו לא ברשימה של מי שהזמין אתכם' };
       }
       householdId = claiming;

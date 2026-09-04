@@ -50,6 +50,14 @@ sheet.Holidays ??= [HOLIDAY_HEADER];
 sheet.Holidays[0] = HOLIDAY_HEADER;
 // Occasions added by a previous run would otherwise pile up.
 sheet.Holidays = sheet.Holidays.filter((r, i) => i === 0 || !r[6]);
+// And a mark a previous run typed into a cell would still be there, so the
+// fallback to the code's own mark would never be what is on screen. Blank is
+// the known state; the seeder is what fills this column on a real sheet.
+const emojiAt = HOLIDAY_HEADER.indexOf('emoji');
+for (const row of sheet.Holidays.slice(1)) {
+  while (row.length <= emojiAt) row.push('');
+  row[emojiAt] = '';
+}
 for (const row of [PAST, GAP]) {
   if (!sheet.Holidays.some((r) => r[0] === row[0])) sheet.Holidays.push(row);
 }
