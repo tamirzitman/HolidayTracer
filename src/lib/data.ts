@@ -326,8 +326,14 @@ export type CircleAnswer = {
   household: Household;
   kind: AnswerKind | 'none';
   hostName: string;
-  /** Which person in that family actually answered. Empty when nobody has. */
+  /** Which person actually answered. Empty when nobody has. */
   byName: string;
+  /**
+   * The answer was given on their behalf by somebody in the circle, not by
+   * them. It can be corrected by anyone in the circle; an answer a family gave
+   * itself cannot.
+   */
+  byProxy: boolean;
 };
 
 export async function circleAnswers(
@@ -353,6 +359,7 @@ export async function circleAnswers(
       kind: answer?.kind ?? 'none',
       hostName: answer?.hostHouseholdId ? nameOf(answer.hostHouseholdId) : '',
       byName: answer ? personName(sheet, answer.byPhone) : '',
+      byProxy: Boolean(answer?.forHouseholdId),
     };
   });
 }

@@ -163,6 +163,7 @@ export default async function Page({
         kind: c.kind,
         hostName: c.hostName,
         byName: c.byName,
+        byProxy: c.byProxy,
         members: whoIsIn(c.household.id),
       }))}
       circleSize={circle.length}

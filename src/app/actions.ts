@@ -562,6 +562,88 @@ export async function answer(_prev: ActionResult, formData: FormData): Promise<A
   return {};
 }
 
+/**
+ * Answering for a family that has not — the grandfather who will never open
+ * the app, the uncle who does not do phones. Anyone in the circle can, the
+ * way anyone in the family group chat would say "saba is with us".
+ *
+ * It fills a gap or corrects what somebody else said on their behalf. It never
+ * replaces an answer a family gave itself: that one is theirs, and the way to
+ * change it is to write to them. The row is credited to whoever actually
+ * spoke, and marked as being for the other family.
+ */
+export async function answerFor(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const phone = await getSessionPhone();
+  if (!phone) return { error: 'הכניסה פגה, נסו שוב' };
+  const person = await findPerson(phone);
+  if (!person) return { error: 'עוד לא סיימתם להירשם' };
+
+  const forId = String(formData.get('householdId') ?? '').trim();
+  if (!forId || forId === person.householdId) return { error: 'זו המשפחה שלכם — ענו בעצמכם' };
+  if (!(await isConnected(person.householdId, forId))) return { error: 'המשפחה הזו לא במעגל שלכם' };
+
+  const holidayKey = String(formData.get('holidayKey') ?? '').trim();
+  const holiday = (await getUpcomingHolidays(forId)).find((h) => h.key === holidayKey);
+  if (!holiday) return { error: 'החג הזה לא פתוח לתשובות בשבילם' };
+
+  const latest = await getLatestAnswer(holiday.key, forId);
+  if (latest && !latest.forHouseholdId) {
+    return { error: 'הם ענו בעצמם — אם משהו השתנה, כתבו להם' };
+  }
+
+  const kind = String(formData.get('kind') ?? '') as AnswerKind;
+  if (!['hosting', 'guest', 'away'].includes(kind)) return { error: 'לא הבנתי את התשובה' };
+
+  let hostHouseholdId = '';
+  if (kind === 'guest') {
+    const hostId = String(formData.get('hostHouseholdId') ?? '').trim();
+    if (!hostId) return { error: 'צריך לבחור אצל מי הם מתארחים' };
+    if (hostId === forId) return { error: 'אי אפשר להתארח אצל עצמם' };
+    // At a family *they* could be at: the host has to be in their circle, not
+    // only in the circle of whoever is answering for them.
+    if (!(await isConnected(forId, hostId))) return { error: 'המשפחה הזו לא במעגל שלהם' };
+    hostHouseholdId = hostId;
+  }
+
+  await appendAnswer({
+    timestamp: new Date().toISOString(),
+    holidayKey: holiday.key,
+    kind,
+    hostHouseholdId,
+    byPhone: person.phone,
+    forHouseholdId: forId,
+  });
+
+  // The same implication as answering for yourself: saying they are going to
+  // somebody says that somebody is hosting, unless that somebody already said.
+  if (kind === 'guest' && hostHouseholdId) {
+    try {
+      if (!(await getLatestAnswer(holiday.key, hostHouseholdId))) {
+        await appendAnswer({
+          timestamp: new Date().toISOString(),
+          holidayKey: holiday.key,
+          kind: 'hosting',
+          hostHouseholdId: '',
+          byPhone: person.phone,
+          forHouseholdId: hostHouseholdId,
+        });
+      }
+    } catch (error) {
+      console.error('could not record the implied hosting answer', error);
+    }
+  }
+
+  try {
+    await recordConflicts();
+  } catch (error) {
+    console.error('could not record conflicts', error);
+  }
+
+  revalidatePath('/');
+  revalidatePath('/history');
+  return { savedAt: new Date().toISOString() };
+}
+
 export async function signOut(): Promise<void> {
   await clearSession();
   revalidatePath('/');

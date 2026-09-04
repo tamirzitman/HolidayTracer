@@ -187,6 +187,23 @@ await dad.click('text=אנחנו מארחים');
 await dad.waitForSelector('text=איפה כולם');
 check('answering reveals where everyone is', await dad.isVisible('text=איפה כולם'));
 check('and the circle lists the other families', await dad.isVisible('text=דנה ויוסי'));
+
+// ── answering for a family that will not open the app ───────────────────────
+// The grandfather, the uncle who does not do phones: anyone in the circle can
+// say where they are, the way anyone in the family group chat would.
+const sisterRow = dad.locator('section:has-text("איפה כולם") li', { hasText: 'אחות ובעלה' });
+check('a family that has not answered can be answered for',
+  await sisterRow.getByText('לענות בשבילם').isVisible());
+await sisterRow.getByText('לענות בשבילם').click();
+await sisterRow.getByRole('button', { name: 'לא מגיעים' }).click();
+await dad.waitForTimeout(1800);
+const proxied = rows('Answers').at(-1);
+check(`and it is written for them, credited to who said it (${proxied[5]} by ${proxied[4]})`,
+  proxied[5] === 'hh_sister' && proxied[4] === '+972501234567' && proxied[2] === 'away');
+check('the list shows it, and says it was said for them',
+  /לא מגיעים/.test(await sisterRow.innerText()) && /בשבילם/.test(await sisterRow.innerText()));
+check('and what was said for them can still be corrected',
+  await sisterRow.getByText('לתקן בשבילם').isVisible());
 // Reaching adding from here without a second copy of the thing itself.
 const toFamilies = await dad.getAttribute('a[href="/families#invite"]', 'href');
 check(`adding is a link from the holiday screen, not a second form (${toFamilies})`,
@@ -305,6 +322,10 @@ check('the newcomer can answer for the family that invited them',
 
 await dad.goto(BASE);
 check('and they show up as coming', await dad.isVisible('text=דנה ויוסי לוי'));
+// They answered themselves, so nobody else gets to change it.
+const ownRow = dad.locator('section:has-text("איפה כולם") li', { hasText: 'דנה ויוסי לוי' });
+check('an answer a family gave itself is not offered for correction',
+  !(await ownRow.getByText(/בשבילם/).isVisible().catch(() => false)));
 
 // ── both say they are at the other, and the sheet records it ─────────────────
 // The Conflicts tab is an event log now: rows are appended, never rewritten, so

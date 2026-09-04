@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useOptimistic, useRef, useState } from 'react';
-import { answer, type ActionResult } from '@/app/actions';
+import { answer, answerFor, type ActionResult } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { NextStep } from './NextStep';
 import { FamilyWhatsApp, type Member } from './WhatsApp';
@@ -11,7 +11,7 @@ import type { NextStep as Step } from '@/lib/next-step';
 import type { Answer, Holiday, Household } from '@/lib/types';
 import { formatDayAndDate } from '@/lib/dates';
 import { holidayEmoji } from '@/lib/holiday-emoji';
-import { DatePill, ErrorNote, Title, card, field, primaryButton, quietButton, secondaryButton } from './ui';
+import { DatePill, ErrorNote, Title, card, chipButton, field, primaryButton, quietButton, secondaryButton } from './ui';
 
 type Props = {
   holiday: Holiday;
@@ -35,6 +35,8 @@ type Props = {
     kind: string;
     hostName: string;
     byName: string;
+    /** Answered on their behalf by somebody in the circle — so it can be corrected. */
+    byProxy: boolean;
     members: Member[];
   }[];
   /** How many families are on our list, for what to promise before answering. */
@@ -466,7 +468,9 @@ export function AnswerForm({
         />
       )}
 
-      {answered && circleStatus.length > 0 && <Circle families={circleStatus} />}
+      {answered && circleStatus.length > 0 && (
+        <Circle families={circleStatus} holidayKey={holiday.key} hosts={households} />
+      )}
 
       {/* A way to reach adding and inviting from here, without a second copy of
           the thing itself: the families screen is where it lives, and two
@@ -536,8 +540,20 @@ function Step({
 /** Where the rest of the circle is — visible only once you have answered. */
 function Circle({
   families,
+  holidayKey,
+  hosts,
 }: {
-  families: { id: string; name: string; kind: string; hostName: string; byName: string }[];
+  families: {
+    id: string;
+    name: string;
+    kind: string;
+    hostName: string;
+    byName: string;
+    byProxy: boolean;
+  }[];
+  holidayKey: string;
+  /** Whom they might be at, for answering on their behalf. */
+  hosts: { id: string; name: string }[];
 }) {
   const said = (kind: string, hostName: string) => {
     if (kind === 'hosting') return 'מארחים';
@@ -551,27 +567,120 @@ function Circle({
       <h2 className="px-5 pt-4 pb-1 text-sm font-bold text-muted">איפה כולם</h2>
       <ul className="divide-y divide-line">
         {families.map((family) => (
-          <li key={family.id} className="flex items-center justify-between gap-2 px-5 py-3">
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-ink">{family.name}</p>
-              {family.byName && <p className="text-xs text-muted">ענו: {family.byName}</p>}
+          <li key={family.id} className="flex flex-col gap-2 px-5 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-ink">{family.name}</p>
+                {family.byName && (
+                  <p className="text-xs text-muted">
+                    ענו: {family.byName}
+                    {family.byProxy && ' · בשבילם'}
+                  </p>
+                )}
+              </div>
+              {/* No WhatsApp mark here. One on every row of a ten-family list is
+                  noise, and the two places worth writing from — the host you are
+                  going to, and the families coming to you — carry one. */}
+              <span
+                className={
+                  family.kind === 'none'
+                    ? 'shrink-0 text-sm text-muted'
+                    : 'shrink-0 text-sm font-semibold text-brand'
+                }
+              >
+                {said(family.kind, family.hostName)}
+              </span>
             </div>
-            {/* No WhatsApp mark here. One on every row of a ten-family list is
-                noise, and the two places worth writing from — the host you are
-                going to, and the families coming to you — carry one. */}
-            <span
-              className={
-                family.kind === 'none'
-                  ? 'shrink-0 text-sm text-muted'
-                  : 'shrink-0 text-sm font-semibold text-brand'
-              }
-            >
-              {said(family.kind, family.hostName)}
-            </span>
+            {/* A gap, or an answer somebody gave for them, can be filled in by
+                anyone here — the grandfather who will never open the app. An
+                answer they gave themselves is theirs, and is not offered. */}
+            {(family.kind === 'none' || family.byProxy) && (
+              <AnswerForThem
+                family={family}
+                holidayKey={holidayKey}
+                hosts={hosts.filter((h) => h.id !== family.id)}
+              />
+            )}
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+/** Three answers on somebody else's behalf, behind one quiet line. */
+function AnswerForThem({
+  family,
+  holidayKey,
+  hosts,
+}: {
+  family: { id: string; name: string; kind: string };
+  holidayKey: string;
+  hosts: { id: string; name: string }[];
+}) {
+  const [state, formAction, pending] = useActionState<ActionResult, FormData>(answerFor, {});
+  const [open, setOpen] = useState(false);
+  const [asGuest, setAsGuest] = useState(false);
+
+  useEffect(() => {
+    if (state.savedAt) setOpen(false);
+  }, [state.savedAt]);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="self-start text-xs font-bold text-brand underline underline-offset-4"
+      >
+        {family.kind === 'none' ? 'לענות בשבילם' : 'לתקן בשבילם'}
+      </button>
+    );
+  }
+
+  return (
+    <form action={formAction} className="flex flex-col gap-2 rounded-2xl bg-brand-wash p-3">
+      <input type="hidden" name="holidayKey" value={holidayKey} />
+      <input type="hidden" name="householdId" value={family.id} />
+      <p className="text-xs text-muted">איפה {family.name} בחג הזה?</p>
+      {asGuest ? (
+        <>
+          <input type="hidden" name="kind" value="guest" />
+          <select name="hostHouseholdId" required defaultValue="" className={field}>
+            <option value="" disabled>
+              אצל מי?
+            </option>
+            {hosts.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.name}
+              </option>
+            ))}
+          </select>
+          <button type="submit" disabled={pending} className={chipButton}>
+            {pending ? 'רגע…' : 'שמירה'}
+          </button>
+          <button type="button" onClick={() => setAsGuest(false)} className={quietButton}>
+            חזרה
+          </button>
+        </>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" name="kind" value="hosting" disabled={pending} className={chipButton}>
+            מארחים
+          </button>
+          <button type="button" onClick={() => setAsGuest(true)} className={chipButton}>
+            אצל…
+          </button>
+          <button type="submit" name="kind" value="away" disabled={pending} className={chipButton}>
+            לא מגיעים
+          </button>
+          <button type="button" onClick={() => setOpen(false)} className={quietButton}>
+            ביטול
+          </button>
+        </div>
+      )}
+      <ErrorNote>{state.error}</ErrorNote>
+    </form>
   );
 }
 
