@@ -30,6 +30,30 @@ function check(label, ok) {
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const open = async () => (await browser.newContext({ viewport: { width: 390, height: 820 } })).newPage();
 
+// A link aimed at one person, made from that family's row — the panel makes
+// only the general link now.
+const linkFromRow = async (page, familyName, personName) => {
+  await page.goto(`${BASE}/families`);
+  await page.waitForSelector('text=המעגלים שלי');
+  // What the row offers depends on whether anybody has signed in from that
+  // family — an invitation, or a way back in. Read the row rather than assume.
+  // Scoped to the families list: a suggestion row names the families that
+  // vouch for it, so an unscoped search matches those too.
+  const row = page.locator('#families li').filter({ hasText: familyName }).last();
+  const picker = row.locator('select[aria-label="קישור כניסה למי"]');
+  const back = row.getByRole('button', { name: 'קישור כניסה' });
+  if (personName && (await picker.count())) {
+    await picker.selectOption({ label: personName });
+    await row.getByRole('button', { name: 'יצירה' }).click();
+  } else if (await back.count()) {
+    await back.click();
+  } else {
+    await row.getByRole('button', { name: /^הזמנה/ }).click();
+  }
+  await page.waitForSelector('text=הקישור נסגר אחרי שימוש אחד');
+  return rows('Invites').at(-1);
+};
+
 // ── an unknown number cannot let itself in ───────────────────────────────────
 // ── signing up needs nobody's permission ─────────────────────────────────────
 const stranger = await open();
@@ -157,17 +181,17 @@ await stranger.waitForSelector('text=המעגלים שלי');
 // Somebody has to vouch for the suite's own protagonist. The stranger just
 // connected to dad's household by typing its number, so the stranger can —
 // and the person is picked by name, not looked up.
-await stranger.selectOption('#invite select[aria-label="מהמעגל"]', { label: 'אבא · אבא ואמא' });
-check('a link for somebody known is a pick, not a number to look up',
-  (await stranger.inputValue('#invite input[type=tel]')) === '+972501234567');
-// Somebody already in the app gets one honest button, not a choice of invitations.
-check('and for somebody already in, the button says what the link is',
-  await stranger.isVisible('text=קישור כניסה לאבא'));
-check('rather than offering to invite them',
-  !(await stranger.isVisible('text=הזמנת משפחה')));
-await stranger.click('text=קישור כניסה לאבא');
-await stranger.waitForSelector('text=שליחה אליהם בוואטסאפ');
-const vouchForDad = rows('Invites').at(-1)[0];
+// The panel is one general link now — no number field, no kind to choose.
+check('the invite panel offers one link and no pickers',
+  (await stranger.$$('#invite input[type=tel]')).length === 0 &&
+    (await stranger.$$('#invite select')).length === 0);
+check('and says so in one button', await stranger.isVisible('text=קישור הזמנה'));
+
+// A way back in for a family already in the app is on their row, not in a form.
+const vouch = await linkFromRow(stranger, 'אבא ואמא', '');
+check(`a sign-in link is made from the family's own row (${vouch[4]})`,
+  vouch[4] === '+972501234567');
+const vouchForDad = vouch[0];
 await stranger.close();
 
 // ── the circle is hidden until you answer ────────────────────────────────────
@@ -243,23 +267,14 @@ await dad.click('nav >> text=המעגלים');
 await dad.waitForURL('**/families');
 check('the tab bar reaches the circles screen', await dad.isVisible('text=המעגלים שלי'));
 const beforeInvite = rows('Invites').length;
-await dad.click('text=הזמנת משפחה');
+await dad.click('text=קישור הזמנה');
 await dad.waitForSelector('text=שליחה בוואטסאפ');
 check('an invite link is created', rows('Invites').length === beforeInvite + 1);
 check('the invite is a family invite', rows('Invites').at(-1)[2] === 'family');
 const token = rows('Invites').at(-1)[0];
 
-// The newcomer gets a link of their own. A forwarded group link registers
-// anybody as a new family, but claiming a family already on the list — which
-// this newcomer is about to be offered — takes a link aimed at their number.
-await dad.click('#invite [aria-label="חזרה"]');
-await dad.fill('#invite input[type=tel]', NEWCOMER);
-await dad.click('text=הזמנת משפחה');
-await dad.waitForSelector('text=שליחה אליהם בוואטסאפ');
-const forNewcomer = rows('Invites').at(-1)[0];
-
 const newcomer = await open();
-await newcomer.goto(`${BASE}/join/${forNewcomer}`);
+await newcomer.goto(`${BASE}/join/${token}`);
 await newcomer.fill('input[name=phone]', NEWCOMER);
 await newcomer.click('button[type=submit]');
 await newcomer.waitForSelector('input[name=firstName]');
@@ -283,17 +298,12 @@ check('a way out exists for a number typed wrong',
 check('and judges nobody else on the way in',
   (await newcomer.$$('input[name=share]')).length === 0);
 
-// Claiming an existing family is there, one line away, for the rarer case.
-await newcomer.click('text=המשפחה שלנו כבר ברשימה');
-await newcomer.waitForSelector('select[name=claimHouseholdId]');
-check('claiming an existing family is a line away, not in the way',
-  await newcomer.isVisible('select[name=claimHouseholdId]'));
-// The one family they certainly are not is the one that sent the link.
-const claimNames = await newcomer.$$eval('select[name=claimHouseholdId] option', (els) =>
-  els.map((e) => e.textContent.trim()),
-);
-check(`the family that invited them is not on the list (${claimNames.join(' · ')})`,
-  !claimNames.includes('אבא ואמא'));
+// A link that names nobody says so, rather than offering a list of families
+// to pick yourself out of.
+check('a general link does not offer a family to claim',
+  !(await newcomer.isVisible('select[name=claimHouseholdId]')));
+check('and says what a link that does would be',
+  await newcomer.isVisible('text=צריך קישור אישי'));
 
 await newcomer.fill('input[name=firstName]', 'דנה');
 await newcomer.fill('input[name=surname]', 'לוי');
@@ -303,7 +313,6 @@ const joinButtons = await newcomer.$$eval('form button[type=submit]', (els) =>
 );
 check(`joining a circle is asked, not assumed (${joinButtons.length} answers)`,
   joinButtons.length === 2 && joinButtons.some((t) => t.includes('בלי להתחבר')));
-await newcomer.selectOption('select[name=claimHouseholdId]', '');
 await newcomer.click('text=/^סיום/');
 await newcomer.waitForSelector('text=איפה אתם בחג?');
 check('the newcomer is in', rows('Households').some((r) => r[1] === 'דנה ויוסי לוי'));
@@ -566,16 +575,8 @@ check(`the counts follow the correction (${stats.join('/')} → ${corrected.join
   Number(corrected[0]) === Number(stats[0]) + 1);
 
 // ── a link sent to one person is that person's alone ─────────────────────────
-await dad.goto(`${BASE}/families`);
-await dad.waitForSelector('text=המעגלים שלי');
-if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
-await dad.fill('#invite input[type=tel]', '058-900-1122');
-await dad.click('text=הזמנת משפחה');
-await dad.waitForSelector('text=שליחה אליהם בוואטסאפ');
-const personal = rows('Invites').at(-1);
-check(`a link can be aimed at one number (${personal[4]})`, personal[4] === '+972589001122');
-check('and says so, rather than looking like the general one',
-  await dad.isVisible('text=הקישור הזה אישי'));
+const personal = await linkFromRow(dad, 'אח ואשתו', '');
+check(`a link can be aimed at one family (${personal[6]})`, personal[6] === 'hh_brother');
 const personalToken = personal[0];
 
 const aimed = await open();
@@ -583,15 +584,20 @@ await aimed.goto(`${BASE}/join/${personalToken}`);
 await aimed.fill('input[name=phone]', '058-900-1122');
 await aimed.click('button[type=submit]');
 await aimed.waitForSelector('input[name=firstName]');
+// The link already said which family they are, so there is nothing to name.
+check('a link that names the family asks only who you are',
+  (await aimed.isVisible('text=נרשמים בתור')) &&
+    !(await aimed.isVisible('input[name=householdName]')));
 await aimed.fill('input[name=firstName]', 'נועה');
 await aimed.fill('input[name=surname]', 'אביב');
-await aimed.fill('input[name=householdName]', 'נועה ואיתי אביב');
 await aimed.click('text=/^סיום/');
 await aimed.waitForSelector('text=איפה אתם בחג?');
 await aimed.waitForTimeout(1500);
 await aimed.close();
 check('the link is spent once it is used',
   rows('Invites').filter((r) => r[0] === personalToken).some((r) => r[5]));
+check('and made them that family rather than a new one',
+  rows('People').some((r) => r[0] === '+972589001122' && r[2] === 'hh_brother'));
 
 // Forwarded on, it must bring nobody else — but it is still not a dead end.
 const forwarded = await open();
@@ -605,12 +611,11 @@ await forwarded.close();
 
 // The general link is untouched by any of that.
 await dad.goto(`${BASE}/families`);
+await dad.waitForSelector('text=המעגלים שלי');
+check('our own house is invited from its own row',
+  await dad.isVisible('section:has-text("הבית שלנו") >> text=הזמנה לבית'));
 if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
-// Checked before a link exists: once one does, the panel shows the link
-// instead of the buttons that make one.
-check('and an invitation to our own house is offered again',
-  await dad.isVisible('text=הזמנה לבית שלנו'));
-await dad.click('text=הזמנת משפחה');
+await dad.click('text=קישור הזמנה');
 await dad.waitForSelector('text=שליחה בוואטסאפ');
 check('a link with no number stays reusable',
   await dad.isVisible('text=הקישור פתוח לשבועיים'));
@@ -646,11 +651,8 @@ await friendAgain.close();
 // And it cannot mint a key for a family it is not part of.
 await friend.goto(`${BASE}/families`);
 await friend.waitForSelector('text=המעגלים שלי');
-await friend.fill('#invite input[type=tel]', DAD);
-await friend.click('text=הזמנת משפחה');
-await friend.waitForSelector('text=לא במשפחה שלכם');
-check('a stranger cannot aim a link at a number they are not connected to',
-  await friend.isVisible('text=המספר הזה לא במשפחה שלכם'));
+check('a stranger has no row for a family they are not connected to, so no link',
+  !(await friend.isVisible('text=אבא ואמא')));
 await friend.close();
 
 // The general link is not a key either: forwarded, it must not let anybody in
@@ -758,7 +760,7 @@ const theirHousehold = rows('Households').find((r) => r[1] === 'רות ואור�
 // claim as typing the family's number, and is held to the same standard.
 await dad.goto(`${BASE}/families`);
 if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
-await dad.click('text=הזמנת משפחה');
+await dad.click('text=קישור הזמנה');
 await dad.waitForSelector('text=העתקת הקישור');
 const shared = rows('Invites').at(-1)[0];
 const viaGroup = await open();
@@ -772,66 +774,46 @@ check('and says what would',
   await viaGroup.isVisible('text=צריך קישור אישי'));
 await viaGroup.close();
 
-// Aimed at their numbers, it can.
-const linkFor = async (number) => {
-  await dad.goto(`${BASE}/families`);
-  if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
-  await dad.fill('#invite input[type=tel]', number);
-  await dad.click('text=הזמנת משפחה');
-  await dad.waitForSelector('text=שליחה אליהם בוואטסאפ');
-  return rows('Invites').at(-1)[0];
-};
-const forFirst = await linkFor(FIRST_NUMBER);
+// Made from their own row, it says which family they are.
+const forFirst = (await linkFromRow(dad, 'רות ואורי לוי', ''))[0];
 
 const first = await open();
 await first.goto(`${BASE}/join/${forFirst}`);
 await first.fill('input[name=phone]', FIRST_NUMBER);
 await first.click('button[type=submit]');
 await first.waitForSelector('input[name=firstName]');
-await first.click('text=המשפחה שלנו כבר ברשימה');
-await first.waitForSelector('select[name=claimHouseholdId]');
-const offered = await first.$$eval('select[name=claimHouseholdId] option', (els) =>
-  els.map((e) => e.textContent.trim()),
-);
-check(`a newcomer is offered the families already on the list (${offered.length})`,
-  offered.includes('רות ואורי לוי'));
-const groups = await first.$$eval('select[name=claimHouseholdId] optgroup', (els) =>
-  els.map((g) => g.label),
-);
-check(`and told apart from the ones already in the app (${groups.join(' · ')})`,
-  groups.includes('נוספו בשם, ועוד לא נרשמו'));
+// The link was made on their row, so it already says which family they are.
+check('a link made on a family\'s row says so when it is opened',
+  (await first.innerText('main')).includes('נרשמים בתור רות ואורי לוי'));
+check('and asks for no family name',
+  !(await first.isVisible('input[name=householdName]')));
+check('nor for a family to pick themselves out of',
+  !(await first.isVisible('select[name=claimHouseholdId]')));
 await first.fill('input[name=firstName]', 'רות');
 await first.fill('input[name=surname]', 'לוי');
-await first.selectOption('select[name=claimHouseholdId]', { label: 'רות ואורי לוי' });
-check('and claiming one replaces being asked to name a new family',
-  !(await first.isVisible('input[name=householdName]')));
 await first.click('text=/^סיום/');
 await first.waitForTimeout(1500);
-check('claiming opens no second household', rows('Households').length === beforeJoin + 1);
+check('joining through it opens no second household',
+  rows('Households').length === beforeJoin + 1);
 
 // The point of the whole thing: this number is not the one on file.
-const forSecond = await linkFor(SECOND_NUMBER);
+// The second person in that family is invited into it by the one already in,
+// from their own house's row — not out of anybody else's list.
+await first.goto(`${BASE}/families`);
+await first.waitForSelector('text=המעגלים שלי');
+await first.click('section:has-text("הבית שלנו") >> text=הזמנה לבית');
+await first.waitForSelector('text=הקישור נסגר אחרי שימוש אחד');
+const forSecond = rows('Invites').at(-1)[0];
+
 const second = await open();
 await second.goto(`${BASE}/join/${forSecond}`);
 await second.fill('input[name=phone]', SECOND_NUMBER);
 await second.click('button[type=submit]');
 await second.waitForSelector('input[name=firstName]');
-await second.click('text=המשפחה שלנו כבר ברשימה');
-await second.waitForSelector('select[name=claimHouseholdId]');
-const stillOffered = await second.$$eval('select[name=claimHouseholdId] option', (els) =>
-  els.map((e) => e.textContent.trim()),
-);
-check('a family somebody already joined is still offered to the next one',
-  stillOffered.includes('רות ואורי לוי'));
-const secondGroups = await second.$$eval(
-  'optgroup:has(option:text-is("רות ואורי לוי"))',
-  (els) => els.map((g) => g.label),
-);
-check(`and now sits under the group that says so (${secondGroups.join(' · ')})`,
-  secondGroups.includes('כבר באפליקציה — תצטרפו אליהם'));
+check('joining a house asks who you are and nothing about the family',
+  !(await second.isVisible('input[name=householdName]')));
 await second.fill('input[name=firstName]', 'אורי');
 await second.fill('input[name=surname]', 'לוי');
-await second.selectOption('select[name=claimHouseholdId]', { label: 'רות ואורי לוי' });
 await second.click('text=/^סיום/');
 await second.waitForTimeout(1500);
 

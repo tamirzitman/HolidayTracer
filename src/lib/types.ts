@@ -105,6 +105,13 @@ export type Invite = {
   forPhone: string;
   /** When a personal link was used up. Empty while it still works. */
   usedAt: string;
+  /**
+   * The household this link makes somebody part of: a family already on the
+   * list by name, whose own people have never signed in. The link carries who
+   * they are, so opening it asks their name and nothing else — no list to find
+   * themselves in, no family name to invent. Single-use, like a personal link.
+   */
+  forHouseholdId: string;
 };
 
 export const TABS = {
@@ -129,5 +136,7 @@ export const HEADERS = {
   ],
   conflicts: ['holiday_key', 'household_id', 'host_household_id', 'status', 'at'],
   connections: ['household_id', 'connected_to', 'action', 'at'],
-  invites: ['token', 'created_by', 'kind', 'created_at', 'for_phone', 'used_at'],
+  invites: [
+    'token', 'created_by', 'kind', 'created_at', 'for_phone', 'used_at', 'for_household_id',
+  ],
 } as const;

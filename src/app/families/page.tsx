@@ -5,6 +5,7 @@ import { NextStep } from '@/components/NextStep';
 import {
   circleOf,
   findPerson,
+  getHousehold,
   inviteFor,
   membersByHousehold,
   hiddenSuggestions,
@@ -22,7 +23,7 @@ export default async function FamiliesPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [circle, members, token, head, suggested, unanswered, hidden] = await Promise.all([
+  const [circle, members, token, head, suggested, unanswered, hidden, own] = await Promise.all([
     circleOf(person.householdId),
     membersByHousehold(),
     inviteFor(person.householdId),
@@ -30,6 +31,7 @@ export default async function FamiliesPage() {
     suggestionsFor(person.householdId),
     unansweredUpcoming(person.householdId),
     hiddenSuggestions(person.householdId),
+    getHousehold(person.householdId),
   ]);
 
   const base = `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
@@ -60,6 +62,7 @@ export default async function FamiliesPage() {
           seenBy: s.seenBy,
         }))}
         hidden={hidden.map((h) => ({ id: h.id, name: h.name }))}
+        ownName={own?.name ?? 'הבית שלנו'}
       />
       <NextStep step={step} />
     </div>

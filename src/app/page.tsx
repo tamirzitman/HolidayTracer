@@ -77,6 +77,7 @@ export default async function Page({
         kind="family"
         claimable={[]}
         canClaim={false}
+        joiningAs=""
         onLeave={signOut}
       />
     );

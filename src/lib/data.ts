@@ -174,6 +174,7 @@ async function fetchSheet(): Promise<Sheet> {
         createdAt: cell(row, invitesTab.headers, 'created_at'),
         forPhone: cell(row, invitesTab.headers, 'for_phone'),
         usedAt: cell(row, invitesTab.headers, 'used_at'),
+        forHouseholdId: cell(row, invitesTab.headers, 'for_household_id'),
       }))
       .filter((i) => i.token && i.createdBy),
   };
@@ -676,6 +677,8 @@ export async function createInvite(
   kind: 'family' | 'household',
   /** Aimed at one number, which makes the link single-use. */
   forPhone = '',
+  /** Aimed at a family already on the list, which makes it single-use too. */
+  forHouseholdId = '',
 ): Promise<string> {
   const token = randomUUID().replace(/-/g, '').slice(0, 12);
   await appendRow(TABS.invites, HEADERS.invites, [
@@ -685,6 +688,7 @@ export async function createInvite(
     new Date().toISOString(),
     forPhone,
     '',
+    forHouseholdId,
   ]);
   return token;
 }
@@ -695,7 +699,9 @@ export async function createInvite(
  */
 export async function spendInvite(token: string): Promise<void> {
   const invite = latestInvite(await loadSheet(), token);
-  if (!invite || !invite.forPhone || invite.usedAt) return;
+  // Aimed at somebody — a number, or a family on the list — so it is theirs
+  // alone and is done once they are in. A general link is untouched.
+  if (!invite || invite.usedAt || (!invite.forPhone && !invite.forHouseholdId)) return;
   await appendRow(TABS.invites, HEADERS.invites, [
     invite.token,
     invite.createdBy,
@@ -703,6 +709,7 @@ export async function spendInvite(token: string): Promise<void> {
     invite.createdAt,
     invite.forPhone,
     new Date().toISOString(),
+    invite.forHouseholdId,
   ]);
 }
 
@@ -722,8 +729,9 @@ export async function inviteFor(householdId: string): Promise<string> {
       (i) =>
         i.createdBy === householdId &&
         i.kind === 'family' &&
-        // Never a personal one: those are spent by the person they were sent to.
+        // Never a targeted one: those are spent by whoever they were sent to.
         !i.forPhone &&
+        !i.forHouseholdId &&
         !expired(i),
     )
     .at(-1);
@@ -758,13 +766,39 @@ const expired = (invite: { createdAt: string }): boolean => {
 export async function readInvite(
   token: string,
 ): Promise<
-  { household: Household; kind: 'family' | 'household'; forPhone: string } | undefined
+  | {
+      household: Household;
+      kind: 'family' | 'household';
+      forPhone: string;
+      /** The family this link makes them, when it names one. */
+      forHousehold: Household | undefined;
+    }
+  | undefined
 > {
-  const sheet = await loadSheet();
-  const invite = latestInvite(sheet, token);
+  let sheet = await loadSheet();
+  let invite = latestInvite(sheet, token);
+  // A link is opened seconds after it is made, often from a different server
+  // than the one that wrote it — and each server keeps its own copy of the
+  // sheet for a short while. A token that is not in this copy is far more
+  // likely to be newer than the copy than to be made up, so look once more
+  // before calling it dead: a dead link falls back to sign-up, and a live one
+  // wrongly called dead would turn a person away.
+  if (!invite) {
+    invalidateSheet();
+    sheet = await loadSheet();
+    invite = latestInvite(sheet, token);
+  }
   if (!invite || expired(invite) || invite.usedAt) return undefined;
   const household = sheet.households.find((h) => h.id === invite.createdBy);
-  return household ? { household, kind: invite.kind, forPhone: invite.forPhone } : undefined;
+  if (!household) return undefined;
+  return {
+    household,
+    kind: invite.kind,
+    forPhone: invite.forPhone,
+    forHousehold: invite.forHouseholdId
+      ? sheet.households.find((h) => h.id === invite.forHouseholdId)
+      : undefined,
+  };
 }
 
 export async function addHousehold(name: string): Promise<string> {

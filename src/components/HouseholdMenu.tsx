@@ -16,10 +16,14 @@ import { inviteVia, shareApp } from '@/lib/whatsapp';
  */
 export function HouseholdMenu({
   householdName,
+  personName,
   appUrl,
   phone,
 }: {
   householdName: string;
+  /** Which of us is signed in. The household name alone leaves that unsaid on a
+   *  phone two people share, and it is the first thing worth knowing. */
+  personName: string;
   appUrl: string;
   /** Our own number, for a link that lets this same person in on another device. */
   phone: string;
@@ -62,7 +66,10 @@ export function HouseholdMenu({
         className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-brand/25 bg-brand-wash px-4 py-2 text-sm font-bold text-brand"
       >
         <span aria-hidden="true">🏡</span>
-        <span className="truncate">{householdName}</span>
+        <span className="truncate">
+          {personName ? `${personName.split(' ')[0]} · ` : ''}
+          {householdName}
+        </span>
         <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" fill="none" aria-hidden="true">
           <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>

@@ -10,12 +10,13 @@ import { ErrorNote, Title, card, field, primaryButton, quietButton } from './ui'
 export function SignInForm({ invitedBy, token }: { invitedBy?: string; token?: string } = {}) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(signIn, {});
   const [typed, setTyped] = useState('');
-  // Dismissing the turned-away screen: the same form again, with the number
-  // cleared, since the likeliest reason to be here is a digit typed wrong.
-  const [retry, setRetry] = useState(0);
+  // Dismissing the turned-away screen. The result object is what is dismissed,
+  // not a counter: each submit yields a fresh result, so a new refusal shows
+  // again, while typing into the form does not bring the old one back.
+  const [dismissed, setDismissed] = useState<ActionResult | null>(null);
 
-  if (state.blocked && retry === 0) {
-    return <KnownNumber phone={typed} onRetry={() => setRetry(1)} />;
+  if (state.blocked && dismissed !== state) {
+    return <KnownNumber phone={typed} onRetry={() => setDismissed(state)} />;
   }
 
   return (
@@ -34,7 +35,7 @@ export function SignInForm({ invitedBy, token }: { invitedBy?: string; token?: s
       <label className="flex flex-col gap-2">
         <span className="text-sm font-semibold text-muted">מספר טלפון</span>
         <input
-          key={retry}
+          key={dismissed ? 'again' : 'first'}
           name="phone"
           type="tel"
           inputMode="tel"
@@ -42,10 +43,7 @@ export function SignInForm({ invitedBy, token }: { invitedBy?: string; token?: s
           dir="ltr"
           required
           placeholder="050-123-4567"
-          onChange={(e) => {
-            setTyped(e.target.value);
-            setRetry(0);
-          }}
+          onChange={(e) => setTyped(e.target.value)}
           className={`${field} text-center`}
         />
       </label>
@@ -72,6 +70,13 @@ function KnownNumber({ phone, onRetry }: { phone: string; onRetry: () => void })
     <div className={`${card} flex flex-col gap-4 text-center`}>
       <span className="text-4xl" aria-hidden="true">🔐</span>
       <Title>המספר הזה כבר מוכר</Title>
+      {/* Which number. Without it there is no way to tell a refusal from a
+          digit typed wrong, and the way out is to notice it is not yours. */}
+      {phone && (
+        <p className="text-lg font-bold text-ink" dir="ltr">
+          {formatPhone(phone) || phone}
+        </p>
+      )}
       <p className="text-muted">
         כדי להיכנס ממכשיר חדש צריך קישור אישי ממישהו מהמשפחה — מי שגר איתכם, או
         מישהו מהמעגל שלכם. הם שולחים אותו מהאפליקציה, בנגיעה.

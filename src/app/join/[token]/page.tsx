@@ -1,9 +1,11 @@
 import { JoinForm } from '@/components/JoinForm';
 import { SignInForm } from '@/components/SignInForm';
 import { ConnectPrompt } from '@/components/ConnectPrompt';
-import { Title, card } from '@/components/ui';
+import Link from 'next/link';
+import { Title, card, primaryButton } from '@/components/ui';
+import { formatPhone } from '@/lib/phone';
 import { claimableIn, findPerson, isConnected, readInvite } from '@/lib/data';
-import { signOut } from '@/app/actions';
+import { signOut, switchAccount } from '@/app/actions';
 import { gateOpen } from '@/lib/gate';
 import { getSessionPhone } from '@/lib/session';
 import { redirect } from 'next/navigation';
@@ -44,6 +46,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
           kind="family"
           claimable={[]}
           canClaim={false}
+          joiningAs=""
           onLeave={signOut}
         />
       </div>
@@ -57,6 +60,31 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
   // so joining a circle is a decision, taken here.
   const person = await findPerson(phone);
   if (person) {
+    // A link meant for one number, opened on a phone signed in as somebody
+    // else — the household tablet, a parent's phone. Redirecting away would
+    // throw the link out, and it is the only thing that lets that person in.
+    if (invite.forPhone && invite.forPhone !== phone) {
+      return (
+        <div className={`${card} flex flex-col gap-4 text-center`}>
+          <span className="text-4xl" aria-hidden="true">👤</span>
+          <Title>הקישור הזה נשלח למישהו אחר</Title>
+          <p className="text-muted">
+            הטלפון הזה מחובר בתור {person.name}. הקישור נשלח למספר{' '}
+            <span dir="ltr">{formatPhone(invite.forPhone)}</span> — אפשר לצאת ולהיכנס איתו.
+          </p>
+          <form action={switchAccount}>
+            <input type="hidden" name="token" value={token} />
+            <button type="submit" className={primaryButton}>
+              יציאה וכניסה עם המספר הזה
+            </button>
+          </form>
+          <Link href="/" className="text-sm font-semibold text-muted underline underline-offset-4">
+            להישאר בתור {person.name}
+          </Link>
+        </div>
+      );
+    }
+
     const inviterId = invite.household.id;
     if (person.householdId === inviterId || (await isConnected(person.householdId, inviterId))) {
       redirect('/');
@@ -71,6 +99,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       invitedBy={invite.household.name}
       kind={invite.kind}
       canClaim={gateOpen() || invite.forPhone === phone}
+      joiningAs={invite.forHousehold?.name ?? ''}
       onLeave={signOut}
       claimable={(await claimableIn(invite.household.id)).map((c) => ({
         id: c.household.id,

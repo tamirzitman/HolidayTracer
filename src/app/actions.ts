@@ -26,6 +26,7 @@ import {
   suggestionsFor,
   claimableIn,
   knownToOthers,
+  membersByHousehold,
   spendInvite,
 } from '@/lib/data';
 import { familyName } from '@/lib/names';
@@ -112,6 +113,10 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
   if (invite?.kind === 'household') {
     // Joining the inviter's own household — a spouse, a grown child.
     householdId = invite.household.id;
+  } else if (invite?.forHousehold) {
+    // The link names the family they are. Nothing to choose and nothing to
+    // invent: it was sent to them *as* that family, and it is spent on use.
+    householdId = invite.forHousehold.id;
   } else {
     // Saying "that one is us" about a family already on the list is what keeps
     // one family from becoming two. It works whichever number they sign up
@@ -462,9 +467,22 @@ export type InviteLink = { token?: string; error?: string };
 export async function newInviteLink(
   kind: 'family' | 'household',
   forPhone = '',
+  /** A family already on our list, whose people have never signed in. */
+  forHouseholdId = '',
 ): Promise<InviteLink> {
   const me = await currentHousehold();
   if ('error' in me) return { error: me.error };
+
+  // Only a family we are connected to, and only one nobody has signed into:
+  // a link that makes somebody an existing family is a key to that family.
+  if (forHouseholdId) {
+    if (!(await isConnected(me.householdId, forHouseholdId))) {
+      return { error: 'המשפחה הזו לא במעגל שלכם' };
+    }
+    if ((await membersByHousehold()).get(forHouseholdId)?.length) {
+      return { error: 'מישהו מהמשפחה הזו כבר נרשם — שלחו לו קישור אישי' };
+    }
+  }
 
   // A number that will not parse must not quietly become a general link: the
   // sender would believe they had sent something single-use.
@@ -490,7 +508,7 @@ export async function newInviteLink(
       };
     }
   }
-  return { token: await createInvite(me.householdId, kind, phone) };
+  return { token: await createInvite(me.householdId, kind, phone, forHouseholdId) };
 }
 
 async function currentHousehold(): Promise<{ householdId: string } | ActionResult & { error: string }> {
@@ -666,6 +684,20 @@ export async function signOut(): Promise<void> {
   await clearSession();
   revalidatePath('/');
   redirect('/');
+}
+
+/**
+ * Signing out *back onto* an invite. A link sent to one person is often opened
+ * on a phone signed in as somebody else in the family — the household tablet,
+ * a parent's phone — and dropping them at the front door loses the link, which
+ * is the one thing that would have let them in.
+ */
+export async function switchAccount(formData: FormData): Promise<void> {
+  const token = String(formData.get('token') ?? '');
+  await clearSession();
+  const next = /^[A-Za-z0-9]+$/.test(token) ? `/join/${token}` : '/';
+  revalidatePath(next);
+  redirect(next);
 }
 
 /** Used by the answer screen: only families this household is connected to. */

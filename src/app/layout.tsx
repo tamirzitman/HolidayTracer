@@ -64,6 +64,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="mx-auto flex w-full max-w-md justify-center px-5 pt-5">
             <HouseholdMenu
               householdName={household?.name ?? ''}
+              personName={person?.name ?? ''}
               appUrl={appUrl}
               phone={person?.phone ?? ''}
             />

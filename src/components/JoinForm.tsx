@@ -17,12 +17,18 @@ export function JoinForm({
   kind,
   claimable,
   canClaim,
+  joiningAs,
   onLeave,
 }: {
   phone: string;
   token: string;
   invitedBy: string;
   kind: 'family' | 'household';
+  /**
+   * The family this link makes them. Set, there is nothing to ask about the
+   * family at all — the link already said which one, and it was sent to them.
+   */
+  joiningAs: string;
   /** Families already on the inviter's list, which this newcomer may belong to. */
   /**
    * Families the inviter knows that this person might be. `joined` separates
@@ -107,7 +113,13 @@ export function JoinForm({
 
       </fieldset>
 
-      {kind === 'family' && (
+      {kind === 'family' && joiningAs && (
+        <p className="rounded-2xl bg-brand-wash px-4 py-3 text-center text-sm text-ink">
+          נרשמים בתור <span className="font-bold">{joiningAs}</span> — כפי ש{invitedBy} רשמו אתכם.
+        </p>
+      )}
+
+      {kind === 'family' && !joiningAs && (
         <fieldset className="flex flex-col gap-3">
           <legend className="mb-2 text-sm font-semibold text-muted">המשפחה שלכם</legend>
 

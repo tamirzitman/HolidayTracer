@@ -568,9 +568,12 @@ function Circle({
       <ul className="divide-y divide-line">
         {families.map((family) => (
           <li key={family.id} className="flex flex-col gap-2 px-5 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-ink">{family.name}</p>
+            {/* Wraps rather than squeezes. With the text scaled up, a row that
+                insists on one line gives all its width to the status and
+                truncates the name to nothing — which is the half that matters. */}
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <div className="min-w-0 grow basis-40">
+                <p className="font-semibold break-words text-ink">{family.name}</p>
                 {family.byName && (
                   <p className="text-xs text-muted">
                     ענו: {family.byName}
@@ -584,8 +587,8 @@ function Circle({
               <span
                 className={
                   family.kind === 'none'
-                    ? 'shrink-0 text-sm text-muted'
-                    : 'shrink-0 text-sm font-semibold text-brand'
+                    ? 'text-sm text-muted'
+                    : 'text-sm font-semibold text-brand'
                 }
               >
                 {said(family.kind, family.hostName)}

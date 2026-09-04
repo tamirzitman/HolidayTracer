@@ -15,6 +15,7 @@ import {
   chipButton,
   field,
   primaryButton,
+  quietButton,
   secondaryButton,
 } from './ui';
 
@@ -26,6 +27,7 @@ export function FamiliesManager({
   inviteUrl,
   suggested,
   hidden,
+  ownName,
 }: {
   families: Family[];
   /** The people in our own household, for a link that lets one of them in elsewhere. */
@@ -36,6 +38,8 @@ export function FamiliesManager({
   suggested: { id: string; name: string; seenBy: string[] }[];
   /** Families turned down before, so a mistaken tap can be taken back. */
   hidden: { id: string; name: string }[];
+  /** What our own household is called. */
+  ownName: string;
 }) {
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
@@ -87,15 +91,15 @@ export function FamiliesManager({
         <p className="text-muted">רק המשפחות שכאן מופיעות כשאתם עונים על חג.</p>
       </header>
 
-      <section className={`${card} flex flex-col gap-1 p-0`}>
+      <section id="families" className={`${card} flex flex-col gap-1 p-0`}>
         {families.length === 0 ? (
           <p className="p-6 text-center text-muted">עדיין אין אף משפחה. הזמינו מישהו למטה.</p>
         ) : (
           <ul className="divide-y divide-line">
             {families.map((family) => (
-              <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">
-                <div className="min-w-0 grow">
-                  <p className="truncate font-semibold text-ink">{family.name}</p>
+              <li key={family.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3.5">
+                <div className="min-w-0 grow basis-40">
+                  <p className="font-semibold break-words text-ink">{family.name}</p>
                   {/* Say what the state actually is. "טרם הצטרפו" left people
                       guessing whether the family was missing something, when
                       all it means is that nobody from it has opened the app. */}
@@ -105,6 +109,11 @@ export function FamiliesManager({
                       : family.members.map((m) => m.name).join(', ')}
                   </span>
                 </div>
+                {/* The invitation belongs on the row of the family it is for.
+                    The link carries who they are, so opening it asks their name
+                    and nothing else — no list to find themselves in, and no
+                    family name to invent. */}
+                <RowInvite householdId={family.id} members={family.members} />
               </li>
             ))}
           </ul>
@@ -139,12 +148,12 @@ export function FamiliesManager({
           </div>
           <ul className="divide-y divide-line">
             {suggested.map((family) => (
-              <li key={family.id} className="flex items-center gap-3 px-5 py-3.5">
-                <div className="min-w-0 grow">
-                  <p className="truncate font-semibold text-ink">{family.name}</p>
+              <li key={family.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3.5">
+                <div className="min-w-0 grow basis-40">
+                  <p className="font-semibold break-words text-ink">{family.name}</p>
                   {/* Who vouches, not how many: with a handful of families the
                       names are quicker to read than a count is to interpret. */}
-                  <p className="truncate text-sm text-muted">
+                  <p className="text-sm text-muted">
                     מכירים אותם: {family.seenBy.slice(0, 2).join(', ')}
                     {family.seenBy.length > 2 && ` ועוד ${family.seenBy.length - 2}`}
                   </p>
@@ -194,6 +203,21 @@ export function FamiliesManager({
         </section>
       )}
 
+      {/* Our own house, for the same reason: the person to invite into it is a
+          row, not a kind of invitation to pick out of a list. */}
+      <section className={`${card} flex flex-col gap-1 p-0`}>
+        <h2 className="px-5 pt-4 pb-1 text-sm font-bold text-muted">הבית שלנו</h2>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3.5">
+          <div className="min-w-0 grow basis-40">
+            <p className="font-semibold break-words text-ink">{ownName}</p>
+            <span className="text-sm text-muted">
+              {ownMembers.length === 0 ? 'רק אתם' : ownMembers.map((m) => m.name).join(', ')}
+            </span>
+          </div>
+          <RowInvite householdId="" members={ownMembers} kind="household" />
+        </div>
+      </section>
+
       <HiddenSuggestions hidden={hidden} />
 
       <div id="invite" className={`${card} flex flex-col gap-3`}>
@@ -236,105 +260,18 @@ export function FamiliesManager({
           </>
         ) : (
           <>
-            {/* Who it is for, outside any dropdown: a number, or a pick from the
-                house or from the circle — each list named for what it holds,
-                because a list of people behind a label saying "another number"
-                is a list nobody expects. Optional, and empty by default: most
-                links go to a group. */}
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-muted">למי? (לא חובה)</span>
-              <input
-                value={sentTo}
-                onChange={(e) => setSentTo(e.target.value)}
-                type="tel"
-                inputMode="tel"
-                dir="ltr"
-                autoComplete="off"
-                placeholder="מספר טלפון"
-                aria-label="מספר טלפון"
-                className={field}
-              />
-              {(ownMembers.length > 0 || circlePeople.length > 0) && (
-                <div className="flex gap-2">
-                  {ownMembers.length > 0 && (
-                    <select
-                      aria-label="מהבית שלנו"
-                      value={known?.phone ?? ''}
-                      onChange={(e) => setSentTo(e.target.value)}
-                      className={`${field} min-w-0 grow`}
-                    >
-                      <option value="">מהבית שלנו…</option>
-                      {ownMembers.map((m) => (
-                        <option key={m.phone} value={m.phone}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {circlePeople.length > 0 && (
-                    <select
-                      aria-label="מהמעגל"
-                      value={known?.phone ?? ''}
-                      onChange={(e) => setSentTo(e.target.value)}
-                      className={`${field} min-w-0 grow`}
-                    >
-                      <option value="">מהמעגל…</option>
-                      {circlePeople.map((m) => (
-                        <option key={m.phone} value={m.phone}>
-                          {m.name} · {m.family}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {known ? (
-              /* Somebody already in the app needs no kind of invitation: the
-                 link is a key to their own account on another phone, so there
-                 is one honest button, not a choice that does not exist. */
-              <>
-                <button
-                  type="button"
-                  onClick={() => makeLink('family')}
-                  disabled={busy !== null}
-                  className={primaryButton}
-                >
-                  {busy ? 'רגע…' : `קישור כניסה ל${known.name}`}
-                </button>
-                <p className="text-center text-xs text-muted">
-                  {known.name} כבר באפליקציה. הקישור מכניס אותם ממכשיר חדש, ונסגר אחרי
-                  שימוש אחד.
-                </p>
-              </>
-            ) : (
-              /* Two things a newcomer can be, each said in the line beneath it. */
-              <>
-                <button
-                  type="button"
-                  onClick={() => makeLink('family')}
-                  disabled={busy !== null}
-                  className={primaryButton}
-                >
-                  {busy === 'family' ? 'רגע…' : 'הזמנת משפחה'}
-                </button>
-                <p className="-mt-1 text-center text-xs text-muted">
-                  למשפחה שעוד לא באפליקציה — פותחת להם משפחה משלהם ומחברת אתכם.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => makeLink('household')}
-                  disabled={busy !== null}
-                  className={secondaryButton}
-                >
-                  {busy === 'household' ? 'רגע…' : 'הזמנה לבית שלנו'}
-                </button>
-                <p className="-mt-1 text-center text-xs text-muted">
-                  לבן זוג או ילד בוגר — מצרפת אותם למשק הבית שלכם, ותראו את אותן התשובות.
-                </p>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={() => makeLink('family')}
+              disabled={busy !== null}
+              className={primaryButton}
+            >
+              {busy === 'family' ? 'רגע…' : 'קישור הזמנה'}
+            </button>
+            <p className="-mt-1 text-center text-xs text-muted">
+              לקבוצת המשפחה, או למי שעוד לא ברשימה למעלה. מי שפותח פותח משפחה
+              משלו ומתחבר אליכם. להזמין משפחה שכבר ברשימה — הכפתור על השורה שלה.
+            </p>
             <ErrorNote>{linkError}</ErrorNote>
 
             {/* Adding a family by name, on the screen that is about families.
@@ -392,8 +329,8 @@ function HiddenSuggestions({ hidden }: { hidden: { id: string; name: string }[] 
       </div>
       <ul className="divide-y divide-line">
         {hidden.map((family) => (
-          <li key={family.id} className="flex items-center gap-3 px-5 py-3">
-            <p className="min-w-0 grow truncate text-ink">{family.name}</p>
+          <li key={family.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3">
+            <p className="min-w-0 grow basis-40 break-words text-ink">{family.name}</p>
             <button
               type="button"
               disabled={busy === family.id}
@@ -416,5 +353,126 @@ function HiddenSuggestions({ hidden }: { hidden: { id: string; name: string }[] 
         להציע שוב לא מחבר אתכם — הן פשוט חוזרות לרשימת ההצעות.
       </p>
     </section>
+  );
+}
+
+/**
+ * The link for one row, whichever kind that row needs.
+ *
+ * A family nobody has signed in from needs an invitation, and the link carries
+ * which family they are, so opening it asks their name and nothing else. A
+ * family already in the app needs the other thing entirely — a way back in on a
+ * new phone — and that is a link aimed at one of their numbers. Both belong on
+ * the row, because the row is what says who is meant; neither is a kind of
+ * invitation to pick out of a list.
+ */
+function RowInvite({
+  householdId,
+  members,
+  kind = 'family',
+}: {
+  householdId: string;
+  members: Member[];
+  kind?: 'family' | 'household';
+}) {
+  const [state, setState] = useState<'idle' | 'busy' | { link: string } | { error: string }>('idle');
+  const [who, setWho] = useState('');
+
+  // Our own house always offers to bring somebody new into it; a family on the
+  // list offers that only while nobody from it has signed in.
+  const invites = kind === 'household' || members.length === 0;
+  const done = typeof state === 'object' && 'link' in state;
+
+  async function make(forPhone: string, forHouseholdId: string) {
+    setState('busy');
+    const made = await newInviteLink(kind, forPhone, forHouseholdId);
+    setState(
+      made.token
+        ? { link: `${window.location.origin}/join/${made.token}` }
+        : { error: made.error ?? 'משהו השתבש' },
+    );
+  }
+
+  if (done) {
+    const link = (state as { link: string }).link;
+    return (
+      <div className="flex w-full flex-wrap items-center gap-3">
+        <a
+          href={inviteVia(link, who)}
+          target="_blank"
+          rel="noreferrer"
+          className={`${chipButton} inline-flex items-center gap-2`}
+        >
+          <WhatsAppMark />
+          שליחה
+        </a>
+        <button
+          type="button"
+          onClick={() => navigator.clipboard.writeText(link).catch(() => {})}
+          className="text-xs font-semibold text-brand underline underline-offset-4"
+        >
+          העתקה
+        </button>
+        <span className="basis-full text-xs text-muted">הקישור נסגר אחרי שימוש אחד.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        {invites && (
+          <button
+            type="button"
+            disabled={state === 'busy'}
+            onClick={() => make('', householdId)}
+            className={chipButton}
+          >
+            {state === 'busy' ? 'רגע…' : kind === 'household' ? 'הזמנה לבית' : 'הזמנה'}
+          </button>
+        )}
+        {members.length === 1 && (
+          <button
+            type="button"
+            disabled={state === 'busy'}
+            onClick={() => {
+              setWho(members[0].phone);
+              return make(members[0].phone, '');
+            }}
+            className={quietButton}
+          >
+            {state === 'busy' ? 'רגע…' : 'קישור כניסה'}
+          </button>
+        )}
+        {members.length > 1 && (
+          <>
+            <select
+              aria-label="קישור כניסה למי"
+              value={who}
+              onChange={(e) => setWho(e.target.value)}
+              className={`${field} w-auto py-2 text-sm`}
+            >
+              <option value="">קישור כניסה ל…</option>
+              {members.map((m) => (
+                <option key={m.phone} value={m.phone}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            {who && (
+              <button
+                type="button"
+                disabled={state === 'busy'}
+                onClick={() => make(who, '')}
+                className={quietButton}
+              >
+                {state === 'busy' ? 'רגע…' : 'יצירה'}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      {typeof state === 'object' && 'error' in state && <ErrorNote>{state.error}</ErrorNote>}
+    </div>
   );
 }
