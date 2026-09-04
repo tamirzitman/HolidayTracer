@@ -104,6 +104,7 @@ async function fetchSheet(): Promise<Sheet> {
             include: isTrue(cell(row, holidaysTab.headers, 'include')),
             ownerHouseholdId: cell(row, holidaysTab.headers, 'owner_household_id'),
             sharedWith: splitIds(cell(row, holidaysTab.headers, 'shared_with')),
+            emoji: cell(row, holidaysTab.headers, 'emoji'),
           }))
           .filter((h) => h.key && h.date)
           .map((h) => [h.key, h] as const),
@@ -387,6 +388,8 @@ export async function addOccasion(
     'TRUE',
     householdId,
     joinIds(sharedWith),
+    // No mark chosen: the kind decides, until somebody types one in the sheet.
+    '',
   ]);
 }
 
@@ -413,6 +416,9 @@ export async function shareOccasion(
     'TRUE',
     householdId,
     joinIds(sharedWith),
+    // Carried, not dropped: an emoji typed into the sheet must survive a change
+    // of audience, or editing one thing would quietly undo the other.
+    holiday.emoji,
   ]);
 }
 
@@ -431,6 +437,7 @@ export async function removeOccasion(householdId: string, key: string): Promise<
     'FALSE',
     householdId,
     joinIds(holiday.sharedWith),
+    holiday.emoji,
   ]);
 }
 

@@ -349,12 +349,41 @@ check(`the invite is addressed to their number (${inviteHref?.slice(0, 24)}…)`
   Boolean(inviteHref?.startsWith('https://wa.me/972540001122?text=')));
 
 // ── stepping between holidays still works ────────────────────────────────────
+// Rosh Hashana is three meals on three consecutive days, and the arrow walks
+// them in order: the eve, the day after it, then the second eve.
 await dad.goto(BASE);
 const firstHoliday = (await dad.innerText('.font-display')).trim();
 await dad.click('[aria-label="החג הבא"]');
+await dad.waitForURL(/\?h=rosh_hashana_2026/);
+const secondHoliday = (await dad.innerText('.font-display')).trim();
+check(`the arrow moves to the next holiday (${firstHoliday} → ${secondHoliday})`,
+  secondHoliday !== firstHoliday);
+check('and the day of Rosh Hashana is the day after its eve',
+  firstHoliday.includes('ערב ראש השנה') && secondHoliday.includes('יום ראש השנה'));
+
+await dad.click('[aria-label="החג הבא"]');
 await dad.waitForURL(/\?h=rosh_hashana_ii_2026/);
-check(`the arrow moves to the next holiday (${firstHoliday} → ${(await dad.innerText('.font-display')).trim()})`,
-  (await dad.innerText('.font-display')).trim() !== firstHoliday);
+const thirdHoliday = (await dad.innerText('.font-display')).trim();
+check(`and the second eve is the day after that (${thirdHoliday})`,
+  thirdHoliday.includes('ערב ראש השנה ב'));
+
+// ── the mark beside a holiday comes from the sheet ───────────────────────────
+// Editing a cell is the whole configuration: no deploy, no code change.
+await dad.goto(`${BASE}?h=rosh_hashana_2026`);
+check('a holiday carries the mark its kind suggests',
+  (await dad.innerText('main')).includes('🍯'));
+
+const marked = sheet();
+const emojiCol = marked.Holidays[0].indexOf('emoji');
+marked.Holidays = marked.Holidays.map((r, i) =>
+  i && r[0] === 'rosh_hashana_2026' ? Object.assign([...r], { [emojiCol]: '🐟' }) : r,
+);
+writeFileSync(SHEET, `${JSON.stringify(marked, null, 2)}\n`, 'utf8');
+await dad.waitForTimeout(21000);
+await dad.goto(`${BASE}?h=rosh_hashana_2026`);
+const withOwnMark = await dad.innerText('main');
+check('and a mark typed into the sheet wins over it',
+  withOwnMark.includes('🐟') && !withOwnMark.includes('🍯'));
 
 // ── not coming at all ────────────────────────────────────────────────────────
 await newcomer.goto(BASE);

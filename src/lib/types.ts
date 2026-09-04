@@ -18,6 +18,12 @@ export type Holiday = {
   date: string; // YYYY-MM-DD
   year: string; // Gregorian
   include: boolean;
+  /**
+   * The mark shown beside the holiday. Read from the sheet, so it can be changed
+   * without a deploy; empty falls back to the one the code knows for this kind,
+   * and an unknown kind falls back again to a plain ✨.
+   */
+  emoji: string;
   /** Empty for the seeded holidays everyone shares; set for one family's own occasion. */
   ownerHouseholdId: string;
   /**
@@ -95,7 +101,7 @@ export const TABS = {
 export const HEADERS = {
   holidays: [
     'holiday_key', 'name_he', 'type', 'date', 'year', 'include',
-    'owner_household_id', 'shared_with',
+    'owner_household_id', 'shared_with', 'emoji',
   ],
   households: ['household_id', 'name', 'active'],
   people: ['phone', 'name', 'household_id'],

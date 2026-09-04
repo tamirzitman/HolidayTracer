@@ -248,7 +248,7 @@ export function AnswerForm({
       <div ref={slider} className="flex flex-col gap-6">
         <header className="flex flex-col items-center gap-1 text-center">
           <span className="text-5xl leading-none" aria-hidden="true">
-            {holidayEmoji(holiday.key)}
+            {holidayEmoji(holiday)}
           </span>
           <div className="mt-1 flex w-full items-center justify-between gap-2">
             <Step to={earlierKey} label="החג הקודם" points="earlier" onGo={pageTo} />

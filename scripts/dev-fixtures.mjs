@@ -37,14 +37,15 @@ sheet.People = [
 // something to show without waiting a year.
 const HOLIDAY_HEADER = [
   'holiday_key', 'name_he', 'type', 'date', 'year', 'include',
-  'owner_household_id', 'shared_with',
+  'owner_household_id', 'shared_with', 'emoji',
 ];
-// The last column is empty: a seeded holiday belongs to everybody. Only a family's
-// own occasion carries an owner.
-const PAST = ['erev_pesach_2026', 'ערב פסח', 'ערב חג', '2026-04-01', '2026', 'TRUE', '', ''];
+// owner_household_id is empty: a seeded holiday belongs to everybody, and only a
+// family's own occasion carries an owner. emoji is empty too, so these exercise
+// the fallback to the mark the code knows for the kind.
+const PAST = ['erev_pesach_2026', 'ערב פסח', 'ערב חג', '2026-04-01', '2026', 'TRUE', '', '', ''];
 // A second one, deliberately left unanswered, so the history screen has a gap to
 // mark as missing.
-const GAP = ['erev_shavuot_2026', 'ערב שבועות', 'ערב חג', '2026-05-21', '2026', 'TRUE', '', ''];
+const GAP = ['erev_shavuot_2026', 'ערב שבועות', 'ערב חג', '2026-05-21', '2026', 'TRUE', '', '', ''];
 sheet.Holidays ??= [HOLIDAY_HEADER];
 sheet.Holidays[0] = HOLIDAY_HEADER;
 // Occasions added by a previous run would otherwise pile up.

@@ -17,10 +17,26 @@ import { HebrewCalendar, flags, type Event } from '@hebcal/core';
 loadEnv();
 const { sheetStore } = await import('../src/lib/sheet.ts');
 const { HEADERS, TABS } = await import('../src/lib/types.ts');
+const { emojiForKind } = await import('../src/lib/holiday-emoji.ts');
+
+/**
+ * Where hebcal's own wording is not what gets said at the table.
+ *
+ * Rosh Hashana is three meals on three consecutive days — the eve, the day
+ * after it, and the eve of the second day after that — and naming them as
+ * hebcal does ("ראש השנה ב׳" for the third) hides the shape. Applied to rows
+ * already in the tab as well as to new ones, so a re-run brings every year into
+ * line rather than only the years still to come.
+ */
+const NAMES: Record<string, { name: string; type?: string }> = {
+  rosh_hashana: { name: 'יום ראש השנה' },
+  rosh_hashana_ii: { name: 'ערב ראש השנה ב׳', type: 'ערב חג' },
+};
 
 /** The kinds this family gathers for. Override with --kinds. */
 const DEFAULT_KINDS = [
   'erev_rosh_hashana',
+  'rosh_hashana',
   'rosh_hashana_ii',
   'erev_sukkot',
   'erev_pesach',
@@ -93,15 +109,22 @@ const all = HebrewCalendar.calendar({ start, end, il: true, sedrot: false, candl
     if (!type) return null;
     const date = ev.getDate().greg();
     const year = String(date.getFullYear());
+    const kind = slug(ev.getDesc());
+    const named = NAMES[kind];
     return {
-      kind: slug(ev.getDesc()),
+      kind,
       row: [
-        `${slug(ev.getDesc())}_${year}`,
-        stripYear(ev.render('he-x-NoNikud')),
-        type,
+        `${kind}_${year}`,
+        named?.name ?? stripYear(ev.render('he-x-NoNikud')),
+        named?.type ?? type,
         date.toISOString().slice(0, 10),
         year,
         'TRUE',
+        '',
+        '',
+        // Written into the row rather than left to the code, so the column
+        // arrives filled in and editing a mark is editing a cell.
+        emojiForKind(kind),
       ],
     };
   })
@@ -126,12 +149,53 @@ if (unknown.length > 0) {
 
 const existing = await sheetStore().read(TABS.holidays);
 const existingBody = existing.length > 1 ? existing.slice(1) : [];
+
+// Columns by header name: this tab is edited by hand, and the schema has grown.
+const header = existing[0] ?? [];
+const at = (name: string) => header.indexOf(name);
+const [KEY, NAME, TYPE, EMOJI] = ['holiday_key', 'name_he', 'type', 'emoji'].map(at);
+const kindOf = (key: string) => key.replace(/_\d{4}$/, '');
+const put = (row: string[], i: number, value: string) => {
+  if (i === -1) return false;
+  while (row.length <= i) row.push('');
+  if (row[i] === value) return false;
+  row[i] = value;
+  return true;
+};
+
+// Rows written before the emoji column existed have an empty cell there. Fill
+// in what the kind suggests, so the column reads as something to edit rather
+// than something to work out. A mark already typed is never overwritten.
+let filled = 0;
+if (EMOJI !== -1) {
+  for (const row of existingBody) {
+    while (row.length <= EMOJI) row.push('');
+    if (row[EMOJI].trim()) continue;
+    row[EMOJI] = emojiForKind(row[KEY === -1 ? 0 : KEY] ?? '');
+    filled += 1;
+  }
+}
+
+// The renames go across the board — every year already in the tab, not only the
+// ones still to come. The key never changes, so answers already given to these
+// holidays stay attached to them.
+let renamed = 0;
+for (const row of existingBody) {
+  const named = NAMES[kindOf(row[KEY === -1 ? 0 : KEY] ?? '')];
+  if (!named) continue;
+  let touched = put(row, NAME, named.name);
+  if (named.type) touched = put(row, TYPE, named.type) || touched;
+  if (touched) renamed += 1;
+}
+
 const known = new Set(existingBody.map((row) => row[0]));
 const added = candidates.filter((row) => !known.has(row[0]));
 const rows = [...existingBody, ...added].sort((a, b) => (a[3] ?? '').localeCompare(b[3] ?? ''));
 
 console.log(`${wanted.size} kind(s) over ${years} years ahead and ${back} back → ${candidates.length} rows`);
 console.log(`${existingBody.length} already in the tab, ${added.length} new`);
+if (filled > 0) console.log(`${filled} row(s) given the mark their kind suggests`);
+if (renamed > 0) console.log(`${renamed} row(s) renamed to what this family calls them`);
 
 if (process.argv.includes('--dry')) {
   for (const row of added.slice(0, 15)) console.log(row.join('\t'));
