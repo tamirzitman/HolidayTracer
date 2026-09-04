@@ -125,14 +125,50 @@ check('and they are pickable straight away',
   (await stranger.$$eval('select[name=hostHouseholdId] option', (els) =>
     els.map((e) => e.textContent.trim()))).includes(takeUp));
 await stranger.goto(`${BASE}/families`);
+await stranger.waitForSelector('text=המעגלים שלי');
+
+// Somebody has to vouch for the suite's own protagonist. The stranger just
+// connected to dad's household by typing its number, so the stranger can —
+// and the person is picked by name, not looked up.
+await stranger.selectOption('#invite select[aria-label="למי"]', { label: 'אבא' });
+check('a link for somebody known is a pick, not a number to look up',
+  (await stranger.inputValue('#invite input[type=tel]')) === '+972501234567');
+await stranger.click('text=הזמנת משפחה');
+await stranger.waitForSelector('text=שליחה אליהם בוואטסאפ');
+const vouchForDad = rows('Invites').at(-1)[0];
 await stranger.close();
 
 // ── the circle is hidden until you answer ────────────────────────────────────
+// ── a known number is not a key ─────────────────────────────────────────────
+// Dad's household is connected, so typing its number on a new device is what an
+// impostor would do. It is turned away — and told, without naming anyone, what
+// would let it in.
 const dad = await open();
 await dad.goto(BASE);
 await dad.fill('input[name=phone]', DAD);
 await dad.click('button[type=submit]');
+await dad.waitForSelector('text=המספר הזה כבר מוכר');
+check('a known, connected number is turned away on a new device',
+  await dad.isVisible('text=המספר הזה כבר מוכר'));
+check('and is not signed in', !(await dad.isVisible('nav')));
+const turnedAway = await dad.innerText('main');
+check('the turned-away screen names nobody',
+  !/דנה|יוסי|אח ואשתו|אחות ובעלה|רן ומיכל/.test(turnedAway));
+const ask = await dad.getAttribute('a[href^="https://wa.me/?text="]', 'href');
+check('and hands them a way to ask, with no recipient chosen for them',
+  Boolean(ask) && decodeURIComponent(ask).includes('קישור כניסה'));
+await dad.click('text=זה לא המספר שלי');
+await dad.waitForSelector('input[name=phone]');
+check('and a way back for a number typed wrong', await dad.isVisible('input[name=phone]'));
+
+// A link aimed at that number, from somebody connected to it, is the key.
+await dad.goto(`${BASE}/join/${vouchForDad}`);
+await dad.fill('input[name=phone]', DAD);
+await dad.click('button[type=submit]');
 await dad.waitForSelector('text=איפה אתם בחג?');
+check('a link aimed at the number lets them in', await dad.isVisible('text=איפה אתם בחג?'));
+check('and is spent doing it',
+  rows('Invites').filter((r) => r[0] === vouchForDad).some((r) => r[5]));
 check('a known number goes straight to the question', await dad.isVisible('text=איפה אתם בחג?'));
 // Saturday is "שבת", with no "יום" in front of it.
 check('the holiday carries its weekday', /(יום \S+|שבת) · \d/.test(await dad.innerText('header')));
@@ -164,8 +200,17 @@ check('an invite link is created', rows('Invites').length === beforeInvite + 1);
 check('the invite is a family invite', rows('Invites').at(-1)[2] === 'family');
 const token = rows('Invites').at(-1)[0];
 
+// The newcomer gets a link of their own. A forwarded group link registers
+// anybody as a new family, but claiming a family already on the list — which
+// this newcomer is about to be offered — takes a link aimed at their number.
+await dad.click('text=קישור אחר');
+await dad.fill('#invite input[type=tel]', NEWCOMER);
+await dad.click('text=הזמנת משפחה');
+await dad.waitForSelector('text=שליחה אליהם בוואטסאפ');
+const forNewcomer = rows('Invites').at(-1)[0];
+
 const newcomer = await open();
-await newcomer.goto(`${BASE}/join/${token}`);
+await newcomer.goto(`${BASE}/join/${forNewcomer}`);
 await newcomer.fill('input[name=phone]', NEWCOMER);
 await newcomer.click('button[type=submit]');
 await newcomer.waitForSelector('input[name=firstName]');
@@ -533,7 +578,56 @@ await friend.waitForTimeout(1500);
 const friendId = rows('Households').at(-1)[0];
 check('somebody who only wanted the app joins nobody',
   rows('Connections').every((r) => r[0] !== friendId && r[1] !== friendId));
+
+// Nobody knows this household, so there is nobody to impersonate it to: it is
+// not locked, and its own second device walks in.
+const friendAgain = await open();
+await friendAgain.goto(BASE);
+await friendAgain.fill('input[name=phone]', '058-111-2222');
+await friendAgain.click('button[type=submit]');
+await friendAgain.waitForSelector('text=איפה אתם בחג?');
+check('a household nobody knows is not locked out of its own second device',
+  await friendAgain.isVisible('text=איפה אתם בחג?'));
+await friendAgain.close();
+
+// And it cannot mint a key for a family it is not part of.
+await friend.goto(`${BASE}/families`);
+await friend.waitForSelector('text=המעגלים שלי');
+await friend.fill('#invite input[type=tel]', DAD);
+await friend.click('text=הזמנת משפחה');
+await friend.waitForSelector('text=לא במשפחה שלכם');
+check('a stranger cannot aim a link at a number they are not connected to',
+  await friend.isVisible('text=המספר הזה לא במשפחה שלכם'));
 await friend.close();
+
+// The general link is not a key either: forwarded, it must not let anybody in
+// as dad.
+const withGroupLink = await open();
+await withGroupLink.goto(`${BASE}/join/${token}`);
+await withGroupLink.fill('input[name=phone]', DAD);
+await withGroupLink.click('button[type=submit]');
+await withGroupLink.waitForSelector('text=המספר הזה כבר מוכר');
+check('the general link does not unlock a known number',
+  await withGroupLink.isVisible('text=המספר הזה כבר מוכר'));
+await withGroupLink.close();
+
+// Our own way onto a second device: a link for our own number, from the menu.
+await dad.goto(BASE);
+await dad.click('button[aria-haspopup="menu"]');
+await dad.click('text=כניסה ממכשיר נוסף');
+await dad.waitForSelector('text=שליחה לעצמי בוואטסאפ');
+const ownDevice = rows('Invites').at(-1);
+check(`the household menu makes a link for our own number (${ownDevice[4]})`,
+  ownDevice[4] === '+972501234567');
+const dadsTablet = await open();
+await dadsTablet.goto(`${BASE}/join/${ownDevice[0]}`);
+await dadsTablet.fill('input[name=phone]', DAD);
+await dadsTablet.click('button[type=submit]');
+// The tab bar, not the question: dad has answered this holiday by now, so the
+// signed-in screen shows the answer rather than asking again.
+await dadsTablet.waitForSelector('nav');
+check('and it lets the same person in elsewhere', await dadsTablet.isVisible('nav'));
+await dadsTablet.close();
 
 // A link that has gone stale is a way in, not a wall.
 const aged = sheet();
@@ -607,13 +701,37 @@ check('a family added by name is one new household',
   rows('Households').length === beforeJoin + 1);
 const theirHousehold = rows('Households').find((r) => r[1] === 'רות ואורי לוי')[0];
 
+// A forwarded group link cannot say "we are that family": that is the same
+// claim as typing the family's number, and is held to the same standard.
 await dad.goto(`${BASE}/families`);
+if (await dad.isVisible('text=קישור אחר')) await dad.click('text=קישור אחר');
 await dad.click('text=הזמנת משפחה');
 await dad.waitForSelector('text=העתקת הקישור');
 const shared = rows('Invites').at(-1)[0];
+const viaGroup = await open();
+await viaGroup.goto(`${BASE}/join/${shared}`);
+await viaGroup.fill('input[name=phone]', FIRST_NUMBER);
+await viaGroup.click('button[type=submit]');
+await viaGroup.waitForSelector('input[name=firstName]');
+check('a group link cannot claim a listed family',
+  !(await viaGroup.isVisible('text=המשפחה שלנו כבר ברשימה')));
+check('and says what would',
+  await viaGroup.isVisible('text=צריך קישור אישי'));
+await viaGroup.close();
+
+// Aimed at their numbers, it can.
+const linkFor = async (number) => {
+  await dad.goto(`${BASE}/families`);
+  if (await dad.isVisible('text=קישור אחר')) await dad.click('text=קישור אחר');
+  await dad.fill('#invite input[type=tel]', number);
+  await dad.click('text=הזמנת משפחה');
+  await dad.waitForSelector('text=שליחה אליהם בוואטסאפ');
+  return rows('Invites').at(-1)[0];
+};
+const forFirst = await linkFor(FIRST_NUMBER);
 
 const first = await open();
-await first.goto(`${BASE}/join/${shared}`);
+await first.goto(`${BASE}/join/${forFirst}`);
 await first.fill('input[name=phone]', FIRST_NUMBER);
 await first.click('button[type=submit]');
 await first.waitForSelector('input[name=firstName]');
@@ -639,8 +757,9 @@ await first.waitForTimeout(1500);
 check('claiming opens no second household', rows('Households').length === beforeJoin + 1);
 
 // The point of the whole thing: this number is not the one on file.
+const forSecond = await linkFor(SECOND_NUMBER);
 const second = await open();
-await second.goto(`${BASE}/join/${shared}`);
+await second.goto(`${BASE}/join/${forSecond}`);
 await second.fill('input[name=phone]', SECOND_NUMBER);
 await second.click('button[type=submit]');
 await second.waitForSelector('input[name=firstName]');

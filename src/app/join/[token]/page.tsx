@@ -4,6 +4,7 @@ import { ConnectPrompt } from '@/components/ConnectPrompt';
 import { Title, card } from '@/components/ui';
 import { claimableIn, findPerson, isConnected, readInvite } from '@/lib/data';
 import { signOut } from '@/app/actions';
+import { gateOpen } from '@/lib/gate';
 import { getSessionPhone } from '@/lib/session';
 import { redirect } from 'next/navigation';
 
@@ -36,7 +37,15 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
     return (
       <div className="flex flex-col gap-4">
         {stale}
-        <JoinForm phone={phone} token="" invitedBy="" kind="family" claimable={[]} onLeave={signOut} />
+        <JoinForm
+          phone={phone}
+          token=""
+          invitedBy=""
+          kind="family"
+          claimable={[]}
+          canClaim={false}
+          onLeave={signOut}
+        />
       </div>
     );
   }
@@ -61,6 +70,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       token={token}
       invitedBy={invite.household.name}
       kind={invite.kind}
+      canClaim={gateOpen() || invite.forPhone === phone}
       onLeave={signOut}
       claimable={(await claimableIn(invite.household.id)).map((c) => ({
         id: c.household.id,

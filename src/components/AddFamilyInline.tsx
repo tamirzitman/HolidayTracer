@@ -38,8 +38,8 @@ export function AddFamilyInline({ onAdded, inviteUrl }: {
     setPersonal('');
     if (!state.invitePhone) return;
     newInviteLink('family', state.invitePhone)
-      .then((token) => {
-        if (live) setPersonal(`${window.location.origin}/join/${token}`);
+      .then((made) => {
+        if (live && made.token) setPersonal(`${window.location.origin}/join/${made.token}`);
       })
       .catch(() => {});
     return () => {

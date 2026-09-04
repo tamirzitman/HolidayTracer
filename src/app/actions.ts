@@ -23,14 +23,25 @@ import {
   recordConflicts,
   suggestionsFor,
   claimableIn,
+  knownToOthers,
   spendInvite,
 } from '@/lib/data';
 import { familyName } from '@/lib/names';
 import { normalizePhone } from '@/lib/phone';
 import { clearSession, getSessionPhone, setSessionPhone } from '@/lib/session';
+import { gateOpen } from '@/lib/gate';
 import type { AnswerKind } from '@/lib/types';
 
-export type ActionResult = { error?: string; savedAt?: string };
+export type ActionResult = {
+  error?: string;
+  savedAt?: string;
+  /**
+   * The number is known and its household is known to others, and nothing
+   * vouched for this device. Not an error: the screen it produces says who can
+   * let them in, and how.
+   */
+  blocked?: boolean;
+};
 
 /** What a newly added family came out as, so the screen can go on using it. */
 export type AddedFamily = ActionResult & {
@@ -44,11 +55,26 @@ export async function signIn(_prev: ActionResult, formData: FormData): Promise<A
   const phone = normalizePhone(String(formData.get('phone') ?? ''));
   if (!phone) return { error: 'מספר הטלפון לא נראה תקין' };
 
-  await setSessionPhone(phone);
-
   // Signing in from an invite should land back on the invite, not the question.
   const next = String(formData.get('next') ?? '');
-  if (/^\/join\/[A-Za-z0-9]+$/.test(next)) {
+  const token = /^\/join\/([A-Za-z0-9]+)$/.exec(next)?.[1] ?? '';
+
+  // The gate. A number the sheet knows, belonging to a household somebody else
+  // knows, is not let in by being typed: that would make every relative's
+  // number a way to become them. It needs a link somebody in the family aimed
+  // at this very number. A household nobody knows is not locked — there is
+  // nothing to impersonate — and on the playground nothing is.
+  const person = await findPerson(phone);
+  if (person && !gateOpen() && (await knownToOthers(person.householdId))) {
+    const invite = token ? await readInvite(token) : undefined;
+    if (!invite || invite.forPhone !== phone) return { blocked: true };
+    // Vouched. The link was one person's, and that person is now in.
+    await spendInvite(token);
+  }
+
+  await setSessionPhone(phone);
+
+  if (token) {
     revalidatePath(next);
     redirect(next);
   }
@@ -90,6 +116,13 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
     // with, which matching on the phone alone cannot.
     const claiming = invite ? String(formData.get('claimHouseholdId') ?? '').trim() : '';
     if (claiming && invite) {
+      // Saying "we are that family" is the same claim as typing their number,
+      // and is held to the same standard: a link aimed at you, not one that was
+      // forwarded around. The general link still registers anybody — as a new
+      // family of their own.
+      if (!gateOpen() && invite.forPhone !== phone) {
+        return { error: 'כדי להצטרף למשפחה שכבר ברשימה צריך קישור אישי ממי שהוסיף אתכם' };
+      }
       const claimable = await claimableIn(invite.household.id);
       if (!claimable.some((c) => c.household.id === claiming)) {
         return { error: 'המשפחה הזו לא ברשימה של מי שהזמין אתכם' };
@@ -401,21 +434,45 @@ export async function dismissSuggested(householdId: string): Promise<ActionResul
  * use it; without one it is the family's general link, reusable until it ages
  * out — which is what a link pasted into a group chat has to be.
  */
+export type InviteLink = { token?: string; error?: string };
+
+/**
+ * Returns rather than throws: a thrown message from a server action reaches
+ * the browser redacted in production, and the reasons this can fail are ones
+ * the person needs to read.
+ */
 export async function newInviteLink(
   kind: 'family' | 'household',
   forPhone = '',
-): Promise<string> {
+): Promise<InviteLink> {
   const me = await currentHousehold();
-  if ('error' in me) throw new Error(me.error);
+  if ('error' in me) return { error: me.error };
+
   // A number that will not parse must not quietly become a general link: the
   // sender would believe they had sent something single-use.
   let phone = '';
   if (forPhone.trim()) {
     const parsed = normalizePhone(forPhone);
-    if (!parsed) throw new Error('מספר לא תקין');
+    if (!parsed) return { error: 'המספר לא נראה תקין — אפשר לתקן, או להשאיר ריק לקישור כללי' };
     phone = parsed;
+
+    // A link aimed at a number the sheet knows is a key to that person's
+    // account, so only somebody who knows them can make one: their own
+    // household, or a family connected to it. Without this, registering as a
+    // stranger and minting a link for a relative's number would open the gate
+    // from the inside.
+    const them = await findPerson(phone);
+    if (
+      them &&
+      them.householdId !== me.householdId &&
+      !(await isConnected(me.householdId, them.householdId))
+    ) {
+      return {
+        error: 'המספר הזה לא במשפחה שלכם — קישור למישהו שכבר באפליקציה יכול לשלוח רק מי שמחובר אליו',
+      };
+    }
   }
-  return createInvite(me.householdId, kind, phone);
+  return { token: await createInvite(me.householdId, kind, phone) };
 }
 
 async function currentHousehold(): Promise<{ householdId: string } | ActionResult & { error: string }> {

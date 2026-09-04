@@ -30,3 +30,14 @@ export const shareApp = (url: string): string =>
   `https://wa.me/?text=${encodeURIComponent(
     `אנחנו עוקבים ככה אחרי מי מארח בכל חג — שאלה אחת, שתי נגיעות:\n${url}`,
   )}`;
+
+/**
+ * Asking the family for a way in, from the screen that turned you away. No
+ * recipient: the person picks who to send it to, because naming who *could*
+ * help would show every family's names to anyone who typed the number. The
+ * number is included so whoever answers knows which one to aim the link at.
+ */
+export const askForLink = (phone: string): string =>
+  `https://wa.me/?text=${encodeURIComponent(
+    `היי, אני מנסה להיכנס לאפליקציה של החגים מטלפון חדש. אפשר לשלוח לי קישור כניסה מהאפליקציה? המספר שלי: ${phone}`,
+  )}`;

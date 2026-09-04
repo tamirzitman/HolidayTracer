@@ -6,7 +6,10 @@ A one-screen web app for a family. For each holiday it asks:
 > <span dir="rtl">מתארח אצל</span> + a family picked from a dropdown.
 
 Sign in with a phone number and a name — no password, no email, no code, and no invite needed —
-remembered in a browser cookie so you only ever type it once. You start with nobody on your list,
+remembered in a browser cookie so you only ever type it once. A number the sheet already knows is
+not let in by being typed, though: from a new device it needs a link somebody in the family aimed at
+it, so nobody can become a relative by knowing their number (see
+[docs/GOING-LIVE.md](docs/GOING-LIVE.md#the-sign-in-gate)). You start with nobody on your list,
 and every family you add brings the families it knows along as suggestions. **A Google Sheet is the entire database**, and everything is
 managed by hand in it. Hebrew, right-to-left.
 

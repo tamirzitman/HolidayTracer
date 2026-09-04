@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { signOut } from '@/app/actions';
+import { newInviteLink, signOut } from '@/app/actions';
 import { WhatsAppMark } from './WhatsApp';
-import { shareApp } from '@/lib/whatsapp';
+import { inviteVia, shareApp } from '@/lib/whatsapp';
 
 /**
  * Who you are signed in as, in the same place on every screen, and the few
@@ -14,9 +14,27 @@ import { shareApp } from '@/lib/whatsapp';
  * is not the only reason to open that page, and editing one through an "add"
  * button reads wrong.
  */
-export function HouseholdMenu({ householdName, appUrl }: { householdName: string; appUrl: string }) {
+export function HouseholdMenu({
+  householdName,
+  appUrl,
+  phone,
+}: {
+  householdName: string;
+  appUrl: string;
+  /** Our own number, for a link that lets this same person in on another device. */
+  phone: string;
+}) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  // A link aimed at our own number. Signing in elsewhere needs somebody to
+  // vouch, and the nearest somebody is us, from the phone that is already in.
+  const [deviceLink, setDeviceLink] = useState<'idle' | 'busy' | string>('idle');
+
+  async function linkForAnotherDevice() {
+    setDeviceLink('busy');
+    const made = await newInviteLink('household', phone);
+    setDeviceLink(made.token ? `${window.location.origin}/join/${made.token}` : 'idle');
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -74,6 +92,42 @@ export function HouseholdMenu({ householdName, appUrl }: { householdName: string
             </span>
             שיתוף האפליקציה
           </a>
+
+          {deviceLink === 'idle' || deviceLink === 'busy' ? (
+            <button
+              type="button"
+              onClick={linkForAnotherDevice}
+              disabled={deviceLink === 'busy'}
+              className={`${item} border-t border-line`}
+              role="menuitem"
+            >
+              <span aria-hidden="true">📱</span>
+              {deviceLink === 'busy' ? 'רגע…' : 'כניסה ממכשיר נוסף'}
+            </button>
+          ) : (
+            <div className="flex flex-col gap-2 border-t border-line px-4 py-3">
+              <p className="text-xs text-muted">
+                קישור אישי למספר שלכם. שלחו לעצמכם ופתחו מהמכשיר השני — נסגר אחרי שימוש אחד.
+              </p>
+              <a
+                href={inviteVia(deviceLink, phone)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setOpen(false)}
+                className="inline-flex items-center gap-2 text-sm font-bold text-whatsapp"
+              >
+                <WhatsAppMark />
+                שליחה לעצמי בוואטסאפ
+              </a>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard.writeText(deviceLink).catch(() => {})}
+                className="text-start text-sm font-semibold text-brand"
+              >
+                העתקת הקישור
+              </button>
+            </div>
+          )}
 
           <form action={signOut} className="border-t border-line">
             <button type="submit" className={`${item} text-muted`} role="menuitem">

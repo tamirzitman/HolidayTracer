@@ -564,6 +564,28 @@ export async function suggestionsFor(
     .sort((a, b) => b.seenBy - a.seenBy || a.household.name.localeCompare(b.household.name, 'he'));
 }
 
+/**
+ * Whether anybody else knows this household: a second person in it, or a
+ * connection in either direction. The sign-in gate protects relationships, not
+ * numbers — a household nobody knows has nothing to impersonate, so it is not
+ * locked, and somebody who registered alone an hour ago can still get in from
+ * their other phone. The moment they are connected to anyone, it locks.
+ */
+export async function knownToOthers(householdId: string): Promise<boolean> {
+  const sheet = await loadSheet();
+  if (sheet.people.filter((p) => p.householdId === householdId).length > 1) return true;
+
+  // Newest row per pair, in either direction: a connection is written both ways
+  // when made, but a one-way remove exists too.
+  const state = new Map<string, 'add' | 'remove'>();
+  for (const c of sheet.connections) {
+    if (c.householdId === householdId || c.connectedTo === householdId) {
+      state.set(`${c.householdId}→${c.connectedTo}`, c.action);
+    }
+  }
+  return [...state.values()].includes('add');
+}
+
 export async function isConnected(a: string, b: string): Promise<boolean> {
   return connectionState((await loadSheet()).connections, a).get(b) === 'add';
 }

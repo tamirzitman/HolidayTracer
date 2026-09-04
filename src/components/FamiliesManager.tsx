@@ -22,10 +22,13 @@ type Family = { id: string; name: string; members: Member[] };
 
 export function FamiliesManager({
   families,
+  ownMembers,
   inviteUrl,
   suggested,
 }: {
   families: Family[];
+  /** The people in our own household, for a link that lets one of them in elsewhere. */
+  ownMembers: Member[];
   /** This family's standing join link, for the families nobody has joined yet. */
   inviteUrl: string;
   /** Families your families know and you don't, with how many of them know each. */
@@ -44,11 +47,13 @@ export function FamiliesManager({
     setBusy(kind);
     setLinkError('');
     try {
-      const token = await newInviteLink(kind, sentTo);
-      setLink(`${window.location.origin}/join/${token}`);
-      setCopied(false);
-    } catch {
-      setLinkError('המספר לא נראה תקין — אפשר לתקן, או להשאיר ריק לקישור כללי');
+      const made = await newInviteLink(kind, sentTo);
+      if (made.token) {
+        setLink(`${window.location.origin}/join/${made.token}`);
+        setCopied(false);
+      } else {
+        setLinkError(made.error ?? 'משהו השתבש, נסו שוב');
+      }
     } finally {
       setBusy(null);
     }
@@ -210,10 +215,44 @@ export function FamiliesManager({
             {/* Optional, and empty by default: most links go to a group, and
                 asking for a number first would put a form in front of the
                 common case. Filled in, it makes the link that person's alone. */}
-            <label className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
               <span className="text-sm font-semibold text-muted">
                 למישהו מסוים? (לא חובה)
               </span>
+              {/* Everyone we already know, by name, so a link for a relative on a
+                  new phone is a pick and not a number to look up. The people in
+                  the circle are here because a link aimed at a known number can
+                  only come from somebody connected to it — which is us. */}
+              {(ownMembers.length > 0 || families.some((f) => f.members.length > 0)) && (
+                <select
+                  aria-label="למי"
+                  value={sentTo}
+                  onChange={(e) => setSentTo(e.target.value)}
+                  className={field}
+                >
+                  <option value="">מספר אחר…</option>
+                  {ownMembers.length > 0 && (
+                    <optgroup label="הבית שלנו">
+                      {ownMembers.map((m) => (
+                        <option key={m.phone} value={m.phone}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {families
+                    .filter((f) => f.members.length > 0)
+                    .map((f) => (
+                      <optgroup key={f.id} label={f.name}>
+                        {f.members.map((m) => (
+                          <option key={m.phone} value={m.phone}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                </select>
+              )}
               <input
                 value={sentTo}
                 onChange={(e) => setSentTo(e.target.value)}
@@ -222,12 +261,14 @@ export function FamiliesManager({
                 dir="ltr"
                 autoComplete="off"
                 placeholder="050-123-4567"
+                aria-label="מספר טלפון"
                 className={field}
               />
               <span className="text-xs text-muted">
-                עם מספר הקישור נשלח אליהם ישירות, ונסגר אחרי שהם נרשמים.
+                עם מספר הקישור נשלח אליהם ישירות ונסגר אחרי שימוש אחד. למישהו שכבר
+                באפליקציה זה מכניס אותו ממכשיר חדש.
               </span>
-            </label>
+            </div>
 
             <button
               type="button"

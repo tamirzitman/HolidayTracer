@@ -70,7 +70,15 @@ export default async function Page({
     // No invite needed. Signing up leaves you with nobody on your list, and the
     // families you add bring the families they know along as suggestions.
     return (
-      <JoinForm phone={phone} token="" invitedBy="" kind="family" claimable={[]} onLeave={signOut} />
+      <JoinForm
+        phone={phone}
+        token=""
+        invitedBy=""
+        kind="family"
+        claimable={[]}
+        canClaim={false}
+        onLeave={signOut}
+      />
     );
   }
 

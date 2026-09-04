@@ -50,6 +50,7 @@ export default async function FamiliesPage() {
     <div className="flex flex-col gap-6">
       <FamiliesManager
         families={families}
+        ownMembers={members.get(person.householdId) ?? []}
         inviteUrl={`${base}/join/${token}`}
         suggested={suggested.map((s) => ({
           id: s.household.id,

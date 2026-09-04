@@ -55,14 +55,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             is which. */}
         {process.env.PLAYGROUND && (
           <p className="sticky top-0 z-50 bg-brand px-4 py-1.5 text-center text-xs font-bold text-white">
-            סביבת ניסיון · הנתונים כאן לא אמיתיים
+            סביבת ניסיון · הנתונים כאן לא אמיתיים · אפשר להיכנס עם כל מספר
           </p>
         )}
         {/* Who you are, in the same place on every screen — not only on the one
             that happens to ask a question. */}
         {signedIn && (
           <div className="mx-auto flex w-full max-w-md justify-center px-5 pt-5">
-            <HouseholdMenu householdName={household?.name ?? ''} appUrl={appUrl} />
+            <HouseholdMenu
+              householdName={household?.name ?? ''}
+              appUrl={appUrl}
+              phone={person?.phone ?? ''}
+            />
           </div>
         )}
         <main

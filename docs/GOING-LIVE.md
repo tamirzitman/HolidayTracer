@@ -130,7 +130,25 @@ give it five variables on **all** environments:
 | `SESSION_SECRET` | any long random string |
 
 `PLAYGROUND` puts a standing <span dir="rtl">סביבת ניסיון</span> strip across the top, so the two
-URLs can never be mistaken for each other. The scratch sheet needs the same service account shared
+URLs can never be mistaken for each other. It also **switches off the sign-in gate** (below), so on
+the playground any number gets in — which is what trying the app out *as* other people needs.
+
+### The sign-in gate
+
+In production, a number the sheet already knows cannot simply be typed in. If the household behind
+it is known to anyone — a second person in it, or a connection to another family — signing in from
+a new device needs one of two things: the cookie from the device that signed in before, or a
+**personal link aimed at that number**, sent from the app by somebody in that household or a family
+connected to it. That is what stops anyone who knows a relative's number from becoming them.
+
+A household nobody knows is not locked: there is nothing to impersonate, and somebody who registered
+alone an hour ago can still get in from their other phone. The moment they are connected to anyone,
+it locks. The turned-away screen names nobody — it hands the person a WhatsApp message to send to
+whoever they choose — because whoever *could* help is exactly the list of their family, and the
+screen is shown to anyone who types the number.
+
+Your own way in from a second device is <span dir="rtl">כניסה ממכשיר נוסף</span> in the household
+menu: a link aimed at your own number, to send to yourself. The scratch sheet needs the same service account shared
 with it as an Editor, and its own `npm run setup` and `npm run seed:holidays`.
 
 A deployment with no `SHEET_ID` refuses to start rather than falling back to a local file and coming
