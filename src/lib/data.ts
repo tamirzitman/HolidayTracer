@@ -284,15 +284,28 @@ function latestByHousehold(answers: Answer[], holidayKey: string): Map<string, A
 }
 
 /**
- * Upcoming holidays this household has not answered, nearest first. What the
- * "next step" line counts, and what the tab bar marks.
+ * How far ahead an unanswered holiday is worth a nudge. A seder two months
+ * away is not something anybody has decided about yet, and a mark that sits
+ * on the tab for two months is a mark nobody reads.
+ */
+const NUDGE_DAYS = 30;
+
+/**
+ * Upcoming holidays this household has not answered, nearest first — only the
+ * ones close enough to be worth asking about. What the "next step" line counts,
+ * and what the tab bar marks.
  */
 export async function unansweredUpcoming(householdId: string): Promise<Holiday[]> {
   const sheet = await loadSheet();
   const answered = new Set(
     sheet.answers.filter((a) => a.householdId === householdId).map((a) => a.holidayKey),
   );
-  return (await getUpcomingHolidays(householdId)).filter((h) => !answered.has(h.key));
+  const horizon = new Date(Date.parse(`${todayInIsrael()}T00:00:00Z`) + NUDGE_DAYS * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  return (await getUpcomingHolidays(householdId)).filter(
+    (h) => !answered.has(h.key) && h.date <= horizon,
+  );
 }
 
 /** Households that said they are coming to this one. */

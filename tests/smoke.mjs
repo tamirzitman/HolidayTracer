@@ -130,10 +130,15 @@ await stranger.waitForSelector('text=המעגלים שלי');
 // Somebody has to vouch for the suite's own protagonist. The stranger just
 // connected to dad's household by typing its number, so the stranger can —
 // and the person is picked by name, not looked up.
-await stranger.selectOption('#invite select[aria-label="למי"]', { label: 'אבא' });
+await stranger.selectOption('#invite select[aria-label="מהמעגל"]', { label: 'אבא · אבא ואמא' });
 check('a link for somebody known is a pick, not a number to look up',
   (await stranger.inputValue('#invite input[type=tel]')) === '+972501234567');
-await stranger.click('text=הזמנת משפחה');
+// Somebody already in the app gets one honest button, not a choice of invitations.
+check('and for somebody already in, the button says what the link is',
+  await stranger.isVisible('text=קישור כניסה לאבא'));
+check('rather than offering to invite them',
+  !(await stranger.isVisible('text=הזמנת משפחה')));
+await stranger.click('text=קישור כניסה לאבא');
 await stranger.waitForSelector('text=שליחה אליהם בוואטסאפ');
 const vouchForDad = rows('Invites').at(-1)[0];
 await stranger.close();
@@ -203,7 +208,7 @@ const token = rows('Invites').at(-1)[0];
 // The newcomer gets a link of their own. A forwarded group link registers
 // anybody as a new family, but claiming a family already on the list — which
 // this newcomer is about to be offered — takes a link aimed at their number.
-await dad.click('text=קישור אחר');
+await dad.click('#invite [aria-label="חזרה"]');
 await dad.fill('#invite input[type=tel]', NEWCOMER);
 await dad.click('text=הזמנת משפחה');
 await dad.waitForSelector('text=שליחה אליהם בוואטסאפ');
@@ -515,7 +520,7 @@ check(`the counts follow the correction (${stats.join('/')} → ${corrected.join
 // ── a link sent to one person is that person's alone ─────────────────────────
 await dad.goto(`${BASE}/families`);
 await dad.waitForSelector('text=המעגלים שלי');
-if (await dad.isVisible('text=קישור אחר')) await dad.click('text=קישור אחר');
+if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
 await dad.fill('#invite input[type=tel]', '058-900-1122');
 await dad.click('text=הזמנת משפחה');
 await dad.waitForSelector('text=שליחה אליהם בוואטסאפ');
@@ -552,7 +557,7 @@ await forwarded.close();
 
 // The general link is untouched by any of that.
 await dad.goto(`${BASE}/families`);
-if (await dad.isVisible('text=קישור אחר')) await dad.click('text=קישור אחר');
+if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
 // Checked before a link exists: once one does, the panel shows the link
 // instead of the buttons that make one.
 check('and an invitation to our own house is offered again',
@@ -704,7 +709,7 @@ const theirHousehold = rows('Households').find((r) => r[1] === 'רות ואור�
 // A forwarded group link cannot say "we are that family": that is the same
 // claim as typing the family's number, and is held to the same standard.
 await dad.goto(`${BASE}/families`);
-if (await dad.isVisible('text=קישור אחר')) await dad.click('text=קישור אחר');
+if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
 await dad.click('text=הזמנת משפחה');
 await dad.waitForSelector('text=העתקת הקישור');
 const shared = rows('Invites').at(-1)[0];
@@ -722,7 +727,7 @@ await viaGroup.close();
 // Aimed at their numbers, it can.
 const linkFor = async (number) => {
   await dad.goto(`${BASE}/families`);
-  if (await dad.isVisible('text=קישור אחר')) await dad.click('text=קישור אחר');
+  if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
   await dad.fill('#invite input[type=tel]', number);
   await dad.click('text=הזמנת משפחה');
   await dad.waitForSelector('text=שליחה אליהם בוואטסאפ');

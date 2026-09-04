@@ -6,6 +6,7 @@ import { addSuggested, dismissSuggested, newInviteLink } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { ContactPicker } from './ContactPicker';
 import { WhatsAppMark, type Member } from './WhatsApp';
+import { normalizePhone } from '@/lib/phone';
 import { inviteVia } from '@/lib/whatsapp';
 import {
   ErrorNote,
@@ -14,7 +15,6 @@ import {
   chipButton,
   field,
   primaryButton,
-  quietButton,
   secondaryButton,
 } from './ui';
 
@@ -40,6 +40,15 @@ export function FamiliesManager({
   // Empty means a general link. A number makes it one person's, and single-use.
   const [sentTo, setSentTo] = useState('');
   const [linkError, setLinkError] = useState('');
+  const circlePeople = families.flatMap((f) =>
+    f.members.map((m) => ({ name: m.name, phone: m.phone, family: f.name })),
+  );
+  // The number in the box, if it is somebody already in the app. Compared
+  // normalised, so a number typed with dashes still matches the one on file.
+  const typed = sentTo.trim() ? normalizePhone(sentTo) : null;
+  const known = typed
+    ? [...ownMembers, ...circlePeople].find((m) => m.phone === typed)
+    : undefined;
   const [adding, setAdding] = useState<string | null>(null);
   const router = useRouter();
 
@@ -182,10 +191,22 @@ export function FamiliesManager({
       )}
 
       <div id="invite" className={`${card} flex flex-col gap-3`}>
-        <h2 className="font-display text-xl font-bold text-ink">הזמנה</h2>
-        <p className="text-sm text-muted">
-          שולחים קישור בוואטסאפ. מי שפותח אותו מתחבר אליכם — גם אם הוא כבר באפליקציה.
-        </p>
+        <div className="flex items-center gap-2">
+          {/* A way back that reads as one: an arrow, not a sentence. */}
+          {link && (
+            <button
+              type="button"
+              onClick={() => setLink('')}
+              aria-label="חזרה"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line text-ink transition active:scale-95"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                <path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+          <h2 className="font-display text-xl font-bold text-ink">הזמנה</h2>
+        </div>
 
         {link ? (
           <>
@@ -206,53 +227,16 @@ export function FamiliesManager({
                 ? 'הקישור הזה אישי — הוא נסגר ברגע שהם נרשמים, וגם אם יועבר הלאה לא יכניס אף אחד אחר.'
                 : 'הקישור פתוח לשבועיים ואפשר לשלוח אותו ליותר מאחד — נוח לקבוצה של המשפחה.'}
             </p>
-            <button type="button" onClick={() => setLink('')} className={quietButton}>
-              קישור אחר
-            </button>
           </>
         ) : (
           <>
-            {/* Optional, and empty by default: most links go to a group, and
-                asking for a number first would put a form in front of the
-                common case. Filled in, it makes the link that person's alone. */}
+            {/* Who it is for, outside any dropdown: a number, or a pick from the
+                house or from the circle — each list named for what it holds,
+                because a list of people behind a label saying "another number"
+                is a list nobody expects. Optional, and empty by default: most
+                links go to a group. */}
             <div className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-muted">
-                למישהו מסוים? (לא חובה)
-              </span>
-              {/* Everyone we already know, by name, so a link for a relative on a
-                  new phone is a pick and not a number to look up. The people in
-                  the circle are here because a link aimed at a known number can
-                  only come from somebody connected to it — which is us. */}
-              {(ownMembers.length > 0 || families.some((f) => f.members.length > 0)) && (
-                <select
-                  aria-label="למי"
-                  value={sentTo}
-                  onChange={(e) => setSentTo(e.target.value)}
-                  className={field}
-                >
-                  <option value="">מספר אחר…</option>
-                  {ownMembers.length > 0 && (
-                    <optgroup label="הבית שלנו">
-                      {ownMembers.map((m) => (
-                        <option key={m.phone} value={m.phone}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {families
-                    .filter((f) => f.members.length > 0)
-                    .map((f) => (
-                      <optgroup key={f.id} label={f.name}>
-                        {f.members.map((m) => (
-                          <option key={m.phone} value={m.phone}>
-                            {m.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                </select>
-              )}
+              <span className="text-sm font-semibold text-muted">למי? (לא חובה)</span>
               <input
                 value={sentTo}
                 onChange={(e) => setSentTo(e.target.value)}
@@ -260,41 +244,92 @@ export function FamiliesManager({
                 inputMode="tel"
                 dir="ltr"
                 autoComplete="off"
-                placeholder="050-123-4567"
+                placeholder="מספר טלפון"
                 aria-label="מספר טלפון"
                 className={field}
               />
-              <span className="text-xs text-muted">
-                עם מספר הקישור נשלח אליהם ישירות ונסגר אחרי שימוש אחד. למישהו שכבר
-                באפליקציה זה מכניס אותו ממכשיר חדש.
-              </span>
+              {(ownMembers.length > 0 || circlePeople.length > 0) && (
+                <div className="flex gap-2">
+                  {ownMembers.length > 0 && (
+                    <select
+                      aria-label="מהבית שלנו"
+                      value={known?.phone ?? ''}
+                      onChange={(e) => setSentTo(e.target.value)}
+                      className={`${field} min-w-0 grow`}
+                    >
+                      <option value="">מהבית שלנו…</option>
+                      {ownMembers.map((m) => (
+                        <option key={m.phone} value={m.phone}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {circlePeople.length > 0 && (
+                    <select
+                      aria-label="מהמעגל"
+                      value={known?.phone ?? ''}
+                      onChange={(e) => setSentTo(e.target.value)}
+                      className={`${field} min-w-0 grow`}
+                    >
+                      <option value="">מהמעגל…</option>
+                      {circlePeople.map((m) => (
+                        <option key={m.phone} value={m.phone}>
+                          {m.name} · {m.family}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => makeLink('family')}
-              disabled={busy !== null}
-              className={primaryButton}
-            >
-              {busy === 'family' ? 'רגע…' : 'הזמנת משפחה'}
-            </button>
-            {/* Attaching a partner or a grown child to *our* house rather than
-                opening a new one beside it. It was off the screen for earning
-                too little room; with a number beside it, it is the shortest way
-                to get the rest of the household in. */}
-            <button
-              type="button"
-              onClick={() => makeLink('household')}
-              disabled={busy !== null}
-              className={secondaryButton}
-            >
-              {busy === 'household' ? 'רגע…' : 'הזמנה לבית שלנו'}
-            </button>
+            {known ? (
+              /* Somebody already in the app needs no kind of invitation: the
+                 link is a key to their own account on another phone, so there
+                 is one honest button, not a choice that does not exist. */
+              <>
+                <button
+                  type="button"
+                  onClick={() => makeLink('family')}
+                  disabled={busy !== null}
+                  className={primaryButton}
+                >
+                  {busy ? 'רגע…' : `קישור כניסה ל${known.name}`}
+                </button>
+                <p className="text-center text-xs text-muted">
+                  {known.name} כבר באפליקציה. הקישור מכניס אותם ממכשיר חדש, ונסגר אחרי
+                  שימוש אחד.
+                </p>
+              </>
+            ) : (
+              /* Two things a newcomer can be, each said in the line beneath it. */
+              <>
+                <button
+                  type="button"
+                  onClick={() => makeLink('family')}
+                  disabled={busy !== null}
+                  className={primaryButton}
+                >
+                  {busy === 'family' ? 'רגע…' : 'הזמנת משפחה'}
+                </button>
+                <p className="-mt-1 text-center text-xs text-muted">
+                  למשפחה שעוד לא באפליקציה — פותחת להם משפחה משלהם ומחברת אתכם.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => makeLink('household')}
+                  disabled={busy !== null}
+                  className={secondaryButton}
+                >
+                  {busy === 'household' ? 'רגע…' : 'הזמנה לבית שלנו'}
+                </button>
+                <p className="-mt-1 text-center text-xs text-muted">
+                  לבן זוג או ילד בוגר — מצרפת אותם למשק הבית שלכם, ותראו את אותן התשובות.
+                </p>
+              </>
+            )}
             <ErrorNote>{linkError}</ErrorNote>
-            <p className="text-center text-xs text-muted">
-              «הזמנת משפחה» פותחת להם משפחה משלהם ומחברת אתכם. «הזמנה לבית שלנו»
-              מצרפת אותם למשק הבית שלכם, ותראו את אותן התשובות.
-            </p>
 
             {/* Adding a family by name, on the screen that is about families.
                 Until now this lived only beside the holiday question, and the
