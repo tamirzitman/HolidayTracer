@@ -49,7 +49,12 @@ await stranger.click('form button[type=submit]');
 await stranger.waitForSelector('text=איפה אתם בחג?');
 check('registering with no invite works', rows('Households').some((r) => r[1] === 'רן ומיכל ברק'));
 
-// Nobody on the list yet: the guest button would open an empty dropdown.
+// Nobody on the list yet: the guest button would open an empty dropdown, and
+// the app should say where to go rather than leave it to be worked out.
+check('an empty list is told what to do about it',
+  await stranger.isVisible('text=להוסיף את המשפחות שלנו'));
+check('and nothing is promised that cannot be shown yet',
+  !/כשתענו, תראו כאן איפה/.test(await stranger.innerText('main')));
 const cold = await stranger.$$eval('main button', (els) => els.map((e) => e.textContent.trim()));
 check(`an empty circle points at filling it (${cold.join(', ')})`,
   cold.includes('הוספת המשפחות שלנו'));
@@ -132,11 +137,21 @@ check('a known number goes straight to the question', await dad.isVisible('text=
 // Saturday is "שבת", with no "יום" in front of it.
 check('the holiday carries its weekday', /(יום \S+|שבת) · \d/.test(await dad.innerText('header')));
 check('nobody else is shown before you answer', !(await dad.isVisible('text=איפה כולם')));
+// But what answering buys is said before it is asked for — and only to somebody
+// with a circle to reveal, since it is a promise the next screen has to keep.
+check('answering is worth something, and says so before you do it',
+  /כשתענו, תראו כאן איפה/.test(await dad.innerText('main')));
 
 await dad.click('text=אנחנו מארחים');
 await dad.waitForSelector('text=איפה כולם');
 check('answering reveals where everyone is', await dad.isVisible('text=איפה כולם'));
 check('and the circle lists the other families', await dad.isVisible('text=דנה ויוסי'));
+// Reaching adding from here without a second copy of the thing itself.
+const toFamilies = await dad.getAttribute('a[href="/families#invite"]', 'href');
+check(`adding is a link from the holiday screen, not a second form (${toFamilies})`,
+  toFamilies === '/families#invite');
+check('and the form itself is not duplicated here',
+  (await dad.$$('main input[name=familySurname]')).length === 0);
 
 // ── invite a family that is not in the app at all ────────────────────────────
 await dad.click('nav >> text=המעגלים');
@@ -451,6 +466,56 @@ await dad.goto(`${BASE}/history`);
 const corrected = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.textContent.trim()));
 check(`the counts follow the correction (${stats.join('/')} → ${corrected.join('/')})`,
   Number(corrected[0]) === Number(stats[0]) + 1);
+
+// ── a link sent to one person is that person's alone ─────────────────────────
+await dad.goto(`${BASE}/families`);
+await dad.waitForSelector('text=המעגלים שלי');
+if (await dad.isVisible('text=קישור אחר')) await dad.click('text=קישור אחר');
+await dad.fill('#invite input[type=tel]', '058-900-1122');
+await dad.click('text=הזמנת משפחה');
+await dad.waitForSelector('text=שליחה אליהם בוואטסאפ');
+const personal = rows('Invites').at(-1);
+check(`a link can be aimed at one number (${personal[4]})`, personal[4] === '+972589001122');
+check('and says so, rather than looking like the general one',
+  await dad.isVisible('text=הקישור הזה אישי'));
+const personalToken = personal[0];
+
+const aimed = await open();
+await aimed.goto(`${BASE}/join/${personalToken}`);
+await aimed.fill('input[name=phone]', '058-900-1122');
+await aimed.click('button[type=submit]');
+await aimed.waitForSelector('input[name=firstName]');
+await aimed.fill('input[name=firstName]', 'נועה');
+await aimed.fill('input[name=surname]', 'אביב');
+await aimed.fill('input[name=householdName]', 'נועה ואיתי אביב');
+await aimed.click('text=/^סיום/');
+await aimed.waitForSelector('text=איפה אתם בחג?');
+await aimed.waitForTimeout(1500);
+await aimed.close();
+check('the link is spent once it is used',
+  rows('Invites').filter((r) => r[0] === personalToken).some((r) => r[5]));
+
+// Forwarded on, it must bring nobody else — but it is still not a dead end.
+const forwarded = await open();
+await forwarded.goto(`${BASE}/join/${personalToken}`);
+await forwarded.waitForSelector('input[name=phone]');
+check('and forwarding it introduces nobody',
+  await forwarded.isVisible('text=כבר לא בתוקף'));
+check('while still letting them into the app',
+  await forwarded.isVisible('input[name=phone]'));
+await forwarded.close();
+
+// The general link is untouched by any of that.
+await dad.goto(`${BASE}/families`);
+if (await dad.isVisible('text=קישור אחר')) await dad.click('text=קישור אחר');
+// Checked before a link exists: once one does, the panel shows the link
+// instead of the buttons that make one.
+check('and an invitation to our own house is offered again',
+  await dad.isVisible('text=הזמנה לבית שלנו'));
+await dad.click('text=הזמנת משפחה');
+await dad.waitForSelector('text=שליחה בוואטסאפ');
+check('a link with no number stays reusable',
+  await dad.isVisible('text=הקישור פתוח לשבועיים'));
 
 // ── an invite link cannot quietly put somebody on your list ──────────────────
 const friend = await open();

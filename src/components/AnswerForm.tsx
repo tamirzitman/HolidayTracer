@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useOptimistic, useRef, useState } from 'react';
 import { answer, type ActionResult } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
+import { NextStep } from './NextStep';
 import { FamilyWhatsApp, type Member } from './WhatsApp';
+import type { NextStep as Step } from '@/lib/next-step';
 import type { Answer, Holiday, Household } from '@/lib/types';
 import { formatDayAndDate } from '@/lib/dates';
 import { holidayEmoji } from '@/lib/holiday-emoji';
@@ -35,6 +37,10 @@ type Props = {
     byName: string;
     members: Member[];
   }[];
+  /** How many families are on our list, for what to promise before answering. */
+  circleSize: number;
+  /** The one thing worth doing next, or nothing when there is nothing. */
+  nextStep: Step;
   /** Set when our host answered that they are not hosting. */
   hostDisagrees: boolean;
   /** Neighbouring holidays inside the month-ahead window, if there are any. */
@@ -71,6 +77,8 @@ export function AnswerForm({
   inviteUrl,
   guests,
   circleStatus,
+  circleSize,
+  nextStep,
   hostDisagrees,
   earlierKey,
   laterKey,
@@ -436,6 +444,15 @@ export function AnswerForm({
         </div>
       )}
 
+      {/* Before answering, say what answering is *for*. Only with a circle to
+          reveal: promising to show where everybody is, to somebody who has
+          nobody on their list yet, is a promise the next screen cannot keep. */}
+      {!answered && !choosingHost && circleSize > 0 && (
+        <p className="text-center text-sm text-muted">
+          כשתענו, תראו כאן איפה {circleSize === 1 ? 'המשפחה השנייה' : `${circleSize} המשפחות`} שלכם בחג הזה.
+        </p>
+      )}
+
       {!answered && choosingHost && (
         <AddFamilyInline
           inviteUrl={inviteUrl}
@@ -450,6 +467,25 @@ export function AnswerForm({
       )}
 
       {answered && circleStatus.length > 0 && <Circle families={circleStatus} />}
+
+      {/* A way to reach adding and inviting from here, without a second copy of
+          the thing itself: the families screen is where it lives, and two
+          places to do it is two places to keep in step. */}
+      {answered && (
+        <Link
+          href="/families#invite"
+          className="text-center text-sm font-bold text-brand underline underline-offset-4"
+        >
+          {/* Deliberately not the words "איפה כולם": that is the heading of the
+              list right above, and repeating it here makes the link read as
+              part of the section rather than as a way out of it. */}
+          {circleStatus.length === 0
+            ? 'להוסיף משפחות למעגל →'
+            : 'חסרה כאן משפחה? להוסיף או להזמין →'}
+        </Link>
+      )}
+
+      <NextStep step={nextStep} />
 
     </div>
   );

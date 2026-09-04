@@ -23,6 +23,7 @@ import {
   recordConflicts,
   suggestionsFor,
   claimableIn,
+  spendInvite,
 } from '@/lib/data';
 import { familyName } from '@/lib/names';
 import { normalizePhone } from '@/lib/phone';
@@ -113,6 +114,10 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
   if (invite && String(formData.get('connect') ?? 'yes') === 'yes') {
     if (householdId !== invite.household.id) await connect(householdId, invite.household.id);
   }
+
+  // A link sent to one person is spent now they are in: forwarded on, it brings
+  // nobody else. A general link is untouched and stays reusable.
+  if (invite && token) await spendInvite(token);
 
   // Straight to the question: that is what they came for.
   revalidatePath('/');
@@ -391,10 +396,26 @@ export async function dismissSuggested(householdId: string): Promise<ActionResul
   return {};
 }
 
-export async function newInviteLink(kind: 'family' | 'household'): Promise<string> {
+/**
+ * A link to send. With a number it is that person's alone and dies once they
+ * use it; without one it is the family's general link, reusable until it ages
+ * out — which is what a link pasted into a group chat has to be.
+ */
+export async function newInviteLink(
+  kind: 'family' | 'household',
+  forPhone = '',
+): Promise<string> {
   const me = await currentHousehold();
   if ('error' in me) throw new Error(me.error);
-  return createInvite(me.householdId, kind);
+  // A number that will not parse must not quietly become a general link: the
+  // sender would believe they had sent something single-use.
+  let phone = '';
+  if (forPhone.trim()) {
+    const parsed = normalizePhone(forPhone);
+    if (!parsed) throw new Error('מספר לא תקין');
+    phone = parsed;
+  }
+  return createInvite(me.householdId, kind, phone);
 }
 
 async function currentHousehold(): Promise<{ householdId: string } | ActionResult & { error: string }> {

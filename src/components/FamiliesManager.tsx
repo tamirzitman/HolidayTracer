@@ -6,8 +6,17 @@ import { addSuggested, dismissSuggested, newInviteLink } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { ContactPicker } from './ContactPicker';
 import { WhatsAppMark, type Member } from './WhatsApp';
-import { inviteText } from '@/lib/whatsapp';
-import { Title, card, chipButton, primaryButton, quietButton, secondaryButton } from './ui';
+import { inviteVia } from '@/lib/whatsapp';
+import {
+  ErrorNote,
+  Title,
+  card,
+  chipButton,
+  field,
+  primaryButton,
+  quietButton,
+  secondaryButton,
+} from './ui';
 
 type Family = { id: string; name: string; members: Member[] };
 
@@ -25,15 +34,21 @@ export function FamiliesManager({
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<'family' | 'household' | null>(null);
+  // Empty means a general link. A number makes it one person's, and single-use.
+  const [sentTo, setSentTo] = useState('');
+  const [linkError, setLinkError] = useState('');
   const [adding, setAdding] = useState<string | null>(null);
   const router = useRouter();
 
   async function makeLink(kind: 'family' | 'household') {
     setBusy(kind);
+    setLinkError('');
     try {
-      const token = await newInviteLink(kind);
+      const token = await newInviteLink(kind, sentTo);
       setLink(`${window.location.origin}/join/${token}`);
       setCopied(false);
+    } catch {
+      setLinkError('המספר לא נראה תקין — אפשר לתקן, או להשאיר ריק לקישור כללי');
     } finally {
       setBusy(null);
     }
@@ -161,7 +176,7 @@ export function FamiliesManager({
         </section>
       )}
 
-      <div className={`${card} flex flex-col gap-3`}>
+      <div id="invite" className={`${card} flex flex-col gap-3`}>
         <h2 className="font-display text-xl font-bold text-ink">הזמנה</h2>
         <p className="text-sm text-muted">
           שולחים קישור בוואטסאפ. מי שפותח אותו מתחבר אליכם — גם אם הוא כבר באפליקציה.
@@ -170,23 +185,50 @@ export function FamiliesManager({
         {link ? (
           <>
             <a
-              href={`https://wa.me/?text=${encodeURIComponent(inviteText(link))}`}
+              href={inviteVia(link, sentTo)}
               target="_blank"
               rel="noreferrer"
               className={`${primaryButton} inline-flex items-center justify-center gap-2`}
             >
               <WhatsAppMark />
-              שליחה בוואטסאפ
+              {sentTo ? 'שליחה אליהם בוואטסאפ' : 'שליחה בוואטסאפ'}
             </a>
             <button type="button" onClick={copy} className={secondaryButton}>
               {copied ? 'הקישור הועתק ✓' : 'העתקת הקישור'}
             </button>
+            <p className="text-center text-xs text-muted">
+              {sentTo
+                ? 'הקישור הזה אישי — הוא נסגר ברגע שהם נרשמים, וגם אם יועבר הלאה לא יכניס אף אחד אחר.'
+                : 'הקישור פתוח לשבועיים ואפשר לשלוח אותו ליותר מאחד — נוח לקבוצה של המשפחה.'}
+            </p>
             <button type="button" onClick={() => setLink('')} className={quietButton}>
               קישור אחר
             </button>
           </>
         ) : (
           <>
+            {/* Optional, and empty by default: most links go to a group, and
+                asking for a number first would put a form in front of the
+                common case. Filled in, it makes the link that person's alone. */}
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-muted">
+                למישהו מסוים? (לא חובה)
+              </span>
+              <input
+                value={sentTo}
+                onChange={(e) => setSentTo(e.target.value)}
+                type="tel"
+                inputMode="tel"
+                dir="ltr"
+                autoComplete="off"
+                placeholder="050-123-4567"
+                className={field}
+              />
+              <span className="text-xs text-muted">
+                עם מספר הקישור נשלח אליהם ישירות, ונסגר אחרי שהם נרשמים.
+              </span>
+            </label>
+
             <button
               type="button"
               onClick={() => makeLink('family')}
@@ -195,20 +237,22 @@ export function FamiliesManager({
             >
               {busy === 'family' ? 'רגע…' : 'הזמנת משפחה'}
             </button>
-            {/*
-              A second button here made a household invite — attaching a spouse or
-              a grown child to *your* house instead of opening a new one. It earned
-              too little for the room it took, so it is off the screen; the kind is
-              still carried end to end (newInviteLink → readInvite → register), so
-              putting it back is this button again and nothing else:
-
-              <button type="button" onClick={() => makeLink('household')}
-                disabled={busy !== null} className={secondaryButton}>
-                {busy === 'household' ? 'רגע…' : 'הזמנה לבית שלנו'}
-              </button>
-            */}
+            {/* Attaching a partner or a grown child to *our* house rather than
+                opening a new one beside it. It was off the screen for earning
+                too little room; with a number beside it, it is the shortest way
+                to get the rest of the household in. */}
+            <button
+              type="button"
+              onClick={() => makeLink('household')}
+              disabled={busy !== null}
+              className={secondaryButton}
+            >
+              {busy === 'household' ? 'רגע…' : 'הזמנה לבית שלנו'}
+            </button>
+            <ErrorNote>{linkError}</ErrorNote>
             <p className="text-center text-xs text-muted">
-              כל מי שנכנס דרך הקישור פותח משפחה משלו, ומתחבר אליכם.
+              «הזמנת משפחה» פותחת להם משפחה משלהם ומחברת אתכם. «הזמנה לבית שלנו»
+              מצרפת אותם למשק הבית שלכם, ותראו את אותן התשובות.
             </p>
 
             {/* Adding a family by name, on the screen that is about families.

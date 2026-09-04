@@ -86,6 +86,16 @@ export type Invite = {
   createdBy: string;
   kind: 'family' | 'household';
   createdAt: string;
+  /**
+   * The number this link was made for, when it was made for one person. A link
+   * aimed at somebody is spent the moment they use it; a general one is not,
+   * because a link in a family group has to bring in more than one household —
+   * and an invitation to our own house may be meant for a partner *and* a
+   * grown child.
+   */
+  forPhone: string;
+  /** When a personal link was used up. Empty while it still works. */
+  usedAt: string;
 };
 
 export const TABS = {
@@ -110,5 +120,5 @@ export const HEADERS = {
   ],
   conflicts: ['holiday_key', 'household_id', 'host_household_id', 'status', 'at'],
   connections: ['household_id', 'connected_to', 'action', 'at'],
-  invites: ['token', 'created_by', 'kind', 'created_at'],
+  invites: ['token', 'created_by', 'kind', 'created_at', 'for_phone', 'used_at'],
 } as const;

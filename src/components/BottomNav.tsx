@@ -25,8 +25,17 @@ const ITEMS = [
  * A real tab bar: these are whole screens, not footnotes. Adding a family's own
  * dates is not one of them — it belongs beside the holiday it changes, so it is
  * reached from the question screen instead.
+ *
+ * A dot marks a tab with something waiting. History never carries one: a year of
+ * past holidays is not a task anybody finishes, and a mark that is always on is
+ * a mark nobody reads.
  */
-export function BottomNav() {
+/** Said aloud for a screen reader, since the dot itself is decoration. */
+function waitingLabel(label: string, waiting: boolean): string {
+  return waiting ? `${label} — יש מה לעשות` : label;
+}
+
+export function BottomNav({ waiting }: { waiting?: Partial<Record<string, boolean>> }) {
   const pathname = usePathname();
 
   return (
@@ -39,19 +48,28 @@ export function BottomNav() {
               <Link
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
+                aria-label={waitingLabel(item.label, Boolean(waiting?.[item.href]) && !active)}
                 className={`flex flex-col items-center gap-1 py-2.5 text-xs font-bold transition ${
                   active ? 'text-brand' : 'text-muted'
                 }`}
               >
-                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
-                  <path
-                    d={item.path}
-                    stroke="currentColor"
-                    strokeWidth={active ? 2.2 : 1.8}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <span className="relative">
+                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
+                    <path
+                      d={item.path}
+                      stroke="currentColor"
+                      strokeWidth={active ? 2.2 : 1.8}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  {waiting?.[item.href] && !active && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-0.5 -end-0.5 h-2 w-2 rounded-full bg-brand ring-2 ring-surface"
+                    />
+                  )}
+                </span>
                 {item.label}
               </Link>
             </li>

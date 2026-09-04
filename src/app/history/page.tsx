@@ -2,7 +2,17 @@ import { redirect } from 'next/navigation';
 import { HistoryList } from '@/components/HistoryList';
 import { Title } from '@/components/ui';
 import { headers } from 'next/headers';
-import { circleOf, findPerson, getHouseholds, historyFor, inviteFor } from '@/lib/data';
+import { NextStep } from '@/components/NextStep';
+import {
+  circleOf,
+  findPerson,
+  getHouseholds,
+  historyFor,
+  inviteFor,
+  suggestionsFor,
+  unansweredUpcoming,
+} from '@/lib/data';
+import { nextStep } from '@/lib/next-step';
 import { getSessionPhone } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -14,13 +24,26 @@ export default async function HistoryPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [past, households, circle, token, head] = await Promise.all([
+  const [past, households, circle, token, head, suggested, unanswered] = await Promise.all([
     historyFor(person.householdId),
     getHouseholds(),
     circleOf(person.householdId),
     inviteFor(person.householdId),
     headers(),
+    suggestionsFor(person.householdId),
+    unansweredUpcoming(person.householdId),
   ]);
+  // Never a prompt to fill the history in: a year of past holidays is not
+  // something anybody sits down and completes, and asking on every visit would
+  // be noise forever. It points elsewhere, or says nothing.
+  const step = nextStep({
+    circleSize: circle.length,
+    suggestions: suggested.length,
+    unanswered: unanswered.length,
+    nextHolidayKey: unanswered[0]?.key,
+    nextHolidayName: unanswered[0]?.nameHe,
+    on: 'history',
+  });
   const base = `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
   const nameOf = (id: string) => households.find((h) => h.id === id)?.name ?? id;
 
@@ -60,6 +83,8 @@ export default async function HistoryPage() {
           />
         </>
       )}
+
+      <NextStep step={step} />
     </div>
   );
 }

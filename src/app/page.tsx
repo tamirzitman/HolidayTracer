@@ -16,7 +16,10 @@ import {
   inviteFor,
   membersByHousehold,
   todayInIsrael,
+  suggestionsFor,
+  unansweredUpcoming,
 } from '@/lib/data';
+import { nextStep } from '@/lib/next-step';
 import { getSessionPhone } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -104,6 +107,19 @@ export default async function Page({
   // Knowing where everyone else is, is the reward for saying where you are.
   const circleStatus = current ? await circleAnswers(holiday.key, person.householdId) : [];
 
+  const [suggested, unanswered] = await Promise.all([
+    suggestionsFor(person.householdId),
+    unansweredUpcoming(person.householdId),
+  ]);
+  const step = nextStep({
+    circleSize: circle.length,
+    suggestions: suggested.length,
+    unanswered: unanswered.length,
+    nextHolidayKey: unanswered[0]?.key,
+    nextHolidayName: unanswered[0]?.nameHe,
+    on: 'holiday',
+  });
+
   // Names and numbers are resolved here so the log itself can stay keys-only.
   const host = current?.hostHouseholdId
     ? {
@@ -141,10 +157,12 @@ export default async function Page({
         byName: c.byName,
         members: whoIsIn(c.household.id),
       }))}
+      circleSize={circle.length}
       hostDisagrees={Boolean(conflict)}
       earlierKey={at > 0 ? upcoming[at - 1].key : undefined}
       laterKey={at < upcoming.length - 1 ? upcoming[at + 1].key : undefined}
       position={{ index: at, total: upcoming.length }}
+      nextStep={step}
     />
   );
 }

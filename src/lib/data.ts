@@ -172,6 +172,8 @@ async function fetchSheet(): Promise<Sheet> {
         // Links written before there were two kinds are family invites.
         kind: (cell(row, invitesTab.headers, 'kind') || 'family') as 'family' | 'household',
         createdAt: cell(row, invitesTab.headers, 'created_at'),
+        forPhone: cell(row, invitesTab.headers, 'for_phone'),
+        usedAt: cell(row, invitesTab.headers, 'used_at'),
       }))
       .filter((i) => i.token && i.createdBy),
   };
@@ -279,6 +281,18 @@ function latestByHousehold(answers: Answer[], holidayKey: string): Map<string, A
   const latest = new Map<string, Answer>();
   for (const a of answers) if (a.holidayKey === holidayKey) latest.set(a.householdId, a);
   return latest;
+}
+
+/**
+ * Upcoming holidays this household has not answered, nearest first. What the
+ * "next step" line counts, and what the tab bar marks.
+ */
+export async function unansweredUpcoming(householdId: string): Promise<Holiday[]> {
+  const sheet = await loadSheet();
+  const answered = new Set(
+    sheet.answers.filter((a) => a.householdId === householdId).map((a) => a.holidayKey),
+  );
+  return (await getUpcomingHolidays(householdId)).filter((h) => !answered.has(h.key));
 }
 
 /** Households that said they are coming to this one. */
@@ -579,6 +593,8 @@ export async function connect(a: string, b: string): Promise<void> {
 export async function createInvite(
   householdId: string,
   kind: 'family' | 'household',
+  /** Aimed at one number, which makes the link single-use. */
+  forPhone = '',
 ): Promise<string> {
   const token = randomUUID().replace(/-/g, '').slice(0, 12);
   await appendRow(TABS.invites, HEADERS.invites, [
@@ -586,9 +602,32 @@ export async function createInvite(
     householdId,
     kind,
     new Date().toISOString(),
+    forPhone,
+    '',
   ]);
   return token;
 }
+
+/**
+ * Spending a personal link. Append-only like everything else: a newer row for
+ * the token carries the time it was used, and the newest row is the one read.
+ */
+export async function spendInvite(token: string): Promise<void> {
+  const invite = latestInvite(await loadSheet(), token);
+  if (!invite || !invite.forPhone || invite.usedAt) return;
+  await appendRow(TABS.invites, HEADERS.invites, [
+    invite.token,
+    invite.createdBy,
+    invite.kind,
+    invite.createdAt,
+    invite.forPhone,
+    new Date().toISOString(),
+  ]);
+}
+
+/** The newest row wins, so a link that has been spent reads as spent. */
+const latestInvite = (sheet: Sheet, token: string): Invite | undefined =>
+  sheet.invites.filter((i) => i.token === token).at(-1);
 
 /**
  * The family's standing invite link, made once and reused. Every unregistered
@@ -598,7 +637,14 @@ export async function createInvite(
  */
 export async function inviteFor(householdId: string): Promise<string> {
   const existing = (await loadSheet()).invites
-    .filter((i) => i.createdBy === householdId && i.kind === 'family' && !expired(i))
+    .filter(
+      (i) =>
+        i.createdBy === householdId &&
+        i.kind === 'family' &&
+        // Never a personal one: those are spent by the person they were sent to.
+        !i.forPhone &&
+        !expired(i),
+    )
     .at(-1);
   return existing?.token ?? createInvite(householdId, 'family');
 }
@@ -618,15 +664,26 @@ const expired = (invite: { createdAt: string }): boolean => {
   return Number.isFinite(at) && Date.now() - at > INVITE_DAYS * 86_400_000;
 };
 
-/** Reusable: a link in the family group should bring in more than one household. */
+/**
+ * A general link is reusable — one in a family group should bring in more than
+ * one household, and an invitation to our own house may be meant for a partner
+ * as well as a grown child. A link aimed at one number is not: it is spent once
+ * that person is in, so forwarding it brings nobody else.
+ *
+ * Either way, a link that no longer works is not a wall. The join screen falls
+ * back to ordinary sign-up, so somebody holding a dead link still gets the app;
+ * they simply arrive introduced to nobody.
+ */
 export async function readInvite(
   token: string,
-): Promise<{ household: Household; kind: 'family' | 'household' } | undefined> {
+): Promise<
+  { household: Household; kind: 'family' | 'household'; forPhone: string } | undefined
+> {
   const sheet = await loadSheet();
-  const invite = sheet.invites.find((i) => i.token === token);
-  if (!invite || expired(invite)) return undefined;
+  const invite = latestInvite(sheet, token);
+  if (!invite || expired(invite) || invite.usedAt) return undefined;
   const household = sheet.households.find((h) => h.id === invite.createdBy);
-  return household ? { household, kind: invite.kind } : undefined;
+  return household ? { household, kind: invite.kind, forPhone: invite.forPhone } : undefined;
 }
 
 export async function addHousehold(name: string): Promise<string> {

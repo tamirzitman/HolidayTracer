@@ -1,7 +1,16 @@
 import { redirect } from 'next/navigation';
 import { FamiliesManager } from '@/components/FamiliesManager';
 import { headers } from 'next/headers';
-import { circleOf, findPerson, inviteFor, membersByHousehold, suggestionsFor } from '@/lib/data';
+import { NextStep } from '@/components/NextStep';
+import {
+  circleOf,
+  findPerson,
+  inviteFor,
+  membersByHousehold,
+  suggestionsFor,
+  unansweredUpcoming,
+} from '@/lib/data';
+import { nextStep } from '@/lib/next-step';
 import { getSessionPhone } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -12,12 +21,13 @@ export default async function FamiliesPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [circle, members, token, head, suggested] = await Promise.all([
+  const [circle, members, token, head, suggested, unanswered] = await Promise.all([
     circleOf(person.householdId),
     membersByHousehold(),
     inviteFor(person.householdId),
     headers(),
     suggestionsFor(person.householdId),
+    unansweredUpcoming(person.householdId),
   ]);
 
   const base = `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
@@ -26,6 +36,15 @@ export default async function FamiliesPage() {
     name: h.name,
     members: members.get(h.id) ?? [],
   }));
+
+  const step = nextStep({
+    circleSize: circle.length,
+    suggestions: suggested.length,
+    unanswered: unanswered.length,
+    nextHolidayKey: unanswered[0]?.key,
+    nextHolidayName: unanswered[0]?.nameHe,
+    on: 'families',
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -38,6 +57,7 @@ export default async function FamiliesPage() {
           seenBy: s.seenBy,
         }))}
       />
+      <NextStep step={step} />
     </div>
   );
 }

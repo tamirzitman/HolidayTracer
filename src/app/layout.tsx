@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
 import { BottomNav } from '@/components/BottomNav';
 import { HouseholdMenu } from '@/components/HouseholdMenu';
-import { findPerson, getHousehold } from '@/lib/data';
+import { findPerson, getHousehold, suggestionsFor, unansweredUpcoming } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 import './globals.css';
 
@@ -23,6 +23,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const person = phone ? await findPerson(phone) : undefined;
   const household = person ? await getHousehold(person.householdId) : undefined;
   const signedIn = Boolean(person);
+
+  // What each tab is holding. History is never marked: see BottomNav.
+  const [suggested, unanswered] = person
+    ? await Promise.all([
+        suggestionsFor(person.householdId),
+        unansweredUpcoming(person.householdId),
+      ])
+    : [[], []];
+  const waiting = {
+    '/': unanswered.length > 0,
+    '/families': suggested.length > 0,
+  };
 
   const head = await headers();
   const appUrl = `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
@@ -60,7 +72,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         >
           {children}
         </main>
-        {signedIn && <BottomNav />}
+        {signedIn && <BottomNav waiting={waiting} />}
       </body>
     </html>
   );

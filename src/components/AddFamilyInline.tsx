@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
-import { addFamilyNow, type AddedFamily } from '@/app/actions';
+import { addFamilyNow, newInviteLink, type AddedFamily } from '@/app/actions';
 import { WhatsAppMark } from './WhatsApp';
 import { contactPickerAvailable, pickContacts } from '@/lib/contacts';
 import { inviteVia } from '@/lib/whatsapp';
@@ -25,10 +25,27 @@ export function AddFamilyInline({ onAdded, inviteUrl }: {
   const [open, setOpen] = useState(false);
   const [picker] = useState(contactPickerAvailable);
   const [picked, setPicked] = useState<{ name: string; phone: string } | null>(null);
+  // A link made for the number just typed: theirs alone, and spent once they
+  // are in. Falls back to the family's general link if minting one fails.
+  const [personal, setPersonal] = useState('');
 
   useEffect(() => {
     if (state.householdId) onAdded?.(state.householdId);
   }, [state.savedAt, state.householdId, onAdded]);
+
+  useEffect(() => {
+    let live = true;
+    setPersonal('');
+    if (!state.invitePhone) return;
+    newInviteLink('family', state.invitePhone)
+      .then((token) => {
+        if (live) setPersonal(`${window.location.origin}/join/${token}`);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [state.savedAt, state.invitePhone]);
 
   if (state.householdId) {
     return (
@@ -42,7 +59,7 @@ export function AddFamilyInline({ onAdded, inviteUrl }: {
               הם עוד לא באפליקציה. שלחו להם קישור ויוכלו לענות בעצמם.
             </p>
             <a
-              href={inviteVia(inviteUrl, state.invitePhone)}
+              href={inviteVia(personal || inviteUrl, state.invitePhone)}
               target="_blank"
               rel="noopener noreferrer"
               className={`${primaryButton} inline-flex items-center justify-center gap-2`}
@@ -50,6 +67,11 @@ export function AddFamilyInline({ onAdded, inviteUrl }: {
               <WhatsAppMark />
               הזמנה בוואטסאפ
             </a>
+            {personal && (
+              <p className="text-xs text-muted">
+                הקישור אישי להם — נסגר אחרי שהם נרשמים.
+              </p>
+            )}
           </>
         ) : (
           <p className="text-sm text-muted">אפשר להמשיך ולאשר את התשובה.</p>

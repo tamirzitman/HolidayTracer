@@ -75,7 +75,7 @@ for (const a of active) {
     if (a !== b) sheet.Connections.push([a, b, 'add', now]);
   }
 }
-sheet.Invites = [['token', 'created_by', 'kind', 'created_at']];
+sheet.Invites = [['token', 'created_by', 'kind', 'created_at', 'for_phone', 'used_at']];
 
 delete sheet.Conflicts;
 
