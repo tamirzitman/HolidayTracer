@@ -54,6 +54,13 @@ type Props = {
   }[];
   /** How many families are on our list, for what to promise before answering. */
   circleSize: number;
+  /**
+   * Our own family. Answering on somebody's behalf has to be able to say they
+   * are coming to us — which is the commonest thing there is to say for the
+   * grandfather who will never open the app — and a list of everyone but us
+   * could not say it.
+   */
+  us: { id: string; name: string };
   /** The app's own address, for a reminder that carries a way in. */
   appUrl: string;
   /** The one thing worth doing next, or nothing when there is nothing. */
@@ -95,6 +102,7 @@ export function AnswerForm({
   guests,
   circleStatus,
   circleSize,
+  us,
   appUrl,
   nextStep,
   hostDisagrees,
@@ -504,7 +512,7 @@ export function AnswerForm({
             appUrl,
           )}
           holidayKey={holiday.key}
-          hosts={households}
+          hosts={[us, ...households]}
         />
       )}
 
@@ -703,7 +711,10 @@ function AnswerForThem({
       <input type="hidden" name="holidayKey" value={holidayKey} />
       <input type="hidden" name="householdId" value={family.id} />
       <div className="flex items-center gap-2">
-        <BackButton onClick={() => setOpen(false)} />
+        {/* One control, and it always means the same thing: back one step. Two
+            of them — an arrow that closed the whole thing and a «חזרה» that
+            went back one — read as the same word twice. */}
+        <BackButton onClick={() => (asGuest ? setAsGuest(false) : setOpen(false))} />
         <p className="text-xs text-muted">איפה {family.name} בחג הזה?</p>
       </div>
       {asGuest ? (
@@ -721,9 +732,6 @@ function AnswerForThem({
           </select>
           <button type="submit" disabled={pending} className={chipButton}>
             {pending ? 'רגע…' : 'שמירה'}
-          </button>
-          <button type="button" onClick={() => setAsGuest(false)} className={quietButton}>
-            חזרה
           </button>
         </>
       ) : (

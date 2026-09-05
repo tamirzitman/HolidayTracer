@@ -168,6 +168,10 @@ export default async function Page({
         members: whoIsIn(c.household.id),
       }))}
       circleSize={circle.length}
+      us={{
+        id: person.householdId,
+        name: households.find((h) => h.id === person.householdId)?.name ?? 'אנחנו',
+      }}
       appUrl={base}
       hostDisagrees={Boolean(conflict)}
       earlierKey={at > 0 ? upcoming[at - 1].key : undefined}

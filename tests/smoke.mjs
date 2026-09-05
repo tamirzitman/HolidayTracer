@@ -202,6 +202,10 @@ await stranger.click('text=/מוסתר/');
 await stranger.waitForSelector('text=מוסתרות מההצעות');
 const hiddenList = stranger.locator('section:has-text("מוסתרות מההצעות") li', { hasText: dropped });
 check(`and named there (${dropped})`, await hiddenList.isVisible());
+// Wanting one of them back is usually wanting them in the circle, so that is
+// one tap from here rather than a trip through the offers to press "הוספה".
+check('and can be added straight from there',
+  await hiddenList.getByText('הוספה').isVisible());
 await hiddenList.getByText('להציע שוב').click();
 await stranger.waitForTimeout(1800);
 await stranger.reload();
@@ -242,7 +246,13 @@ await stranger.waitForSelector('text=המעגלים שלי');
 check('the invite panel offers one link and no pickers',
   (await stranger.$$('#invite input[type=tel]')).length === 0 &&
     (await stranger.$$('#invite select')).length === 0);
-check('and says so in one button', await stranger.isVisible('text=קישור הזמנה'));
+// One tap out to WhatsApp, with the link itself a tap behind for pasting
+// anywhere else — minting it first and only then choosing where to send it was
+// two taps for the thing almost everybody does with it.
+check('and goes straight out in one tap',
+  await stranger.isVisible('#invite button:has-text("הזמנה בוואטסאפ")'));
+check('with the link itself still reachable',
+  await stranger.isVisible('#invite button:has-text("או להעתיק קישור")'));
 
 // A way back in for a family already in the app is on their row, not in a form.
 const vouch = await linkFromRow(stranger, 'אבא ואמא', '');
@@ -312,6 +322,25 @@ check('the list shows it, and says it was said for them',
   /לא מגיעים/.test(await sisterRow.innerText()) && /בשבילם/.test(await sisterRow.innerText()));
 check('and what was said for them can still be corrected',
   await sisterRow.getByText('לתקן בשבילם').isVisible());
+
+// The commonest thing to say for a family that will not open the app is that
+// they are coming to us, so we have to be on the list of places they can be.
+await sisterRow.getByText('לתקן בשבילם').click();
+await sisterRow.getByRole('button', { name: 'אצל…' }).click();
+const placesForThem = await sisterRow
+  .locator('select[name=hostHouseholdId] option')
+  .allTextContents();
+check(`answering for them can say they are at ours (${placesForThem.join(', ')})`,
+  placesForThem.some((t) => t.trim() === 'אבא ואמא'));
+check('and never at their own house', !placesForThem.includes('אחות ובעלה'));
+// One way back, meaning one thing. An arrow that closed the whole form and a
+// "חזרה" that went back one step read as the same word twice.
+check('with one way back, not two',
+  (await sisterRow.getByRole('button', { name: 'חזרה' }).count()) === 1);
+await sisterRow.getByRole('button', { name: 'חזרה' }).click();
+check('which steps back rather than closing it',
+  await sisterRow.getByRole('button', { name: 'אצל…' }).isVisible());
+await sisterRow.getByRole('button', { name: 'חזרה' }).click();
 // Reaching adding from here without a second copy of the thing itself — and
 // attached to the list it is about, since a family missing from those rows is
 // the reason to go and add one.
@@ -328,7 +357,7 @@ await dad.click('nav >> text=המעגלים');
 await dad.waitForURL('**/families');
 check('the tab bar reaches the circles screen', await dad.isVisible('text=המעגלים שלי'));
 const beforeInvite = rows('Invites').length;
-await dad.click('text=קישור הזמנה');
+await dad.click('text=או להעתיק קישור');
 await dad.waitForSelector('text=שליחה בוואטסאפ');
 check('an invite link is created', rows('Invites').length === beforeInvite + 1);
 check('the invite is a family invite', rows('Invites').at(-1)[2] === 'family');
@@ -690,7 +719,7 @@ check('our own house is invited from the menu under our own name',
   await dad.isVisible('text=הוספת בן בית'));
 await dad.keyboard.press('Escape');
 if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
-await dad.click('text=קישור הזמנה');
+await dad.click('text=או להעתיק קישור');
 await dad.waitForSelector('text=שליחה בוואטסאפ');
 check('a link with no number stays reusable',
   await dad.isVisible('text=הקישור פתוח לשבועיים'));
@@ -835,7 +864,7 @@ const theirHousehold = rows('Households').find((r) => r[1] === 'רות ואור�
 // claim as typing the family's number, and is held to the same standard.
 await dad.goto(`${BASE}/families`);
 if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
-await dad.click('text=קישור הזמנה');
+await dad.click('text=או להעתיק קישור');
 await dad.waitForSelector('text=העתקת הקישור');
 const shared = rows('Invites').at(-1)[0];
 const viaGroup = await open();

@@ -60,6 +60,7 @@ export function FamiliesManager({
   const known = typed
     ? [...ownMembers, ...circlePeople].find((m) => m.phone === typed)
     : undefined;
+  const { busy: sharing, start: startShare, stop: stopShare, go: goShare } = useHandoff();
   const [adding, setAdding] = useState<string | null>(null);
   const [hiding, setHiding] = useState<string | null>(null);
   const router = useRouter();
@@ -78,6 +79,19 @@ export function FamiliesManager({
     } finally {
       setBusy(null);
     }
+  }
+
+  // Mint and leave in one tap. The window has to be navigated rather than
+  // opened, since a pop-up after the wait is blocked.
+  async function shareLink() {
+    startShare();
+    const made = await newInviteLink('family', sentTo);
+    if (!made.token) {
+      stopShare();
+      setLinkError(made.error ?? 'משהו השתבש, נסו שוב');
+      return;
+    }
+    goShare(inviteVia(`${window.location.origin}/join/${made.token}`, sentTo));
   }
 
   async function copy() {
@@ -272,11 +286,23 @@ export function FamiliesManager({
           <>
             <button
               type="button"
-              onClick={() => makeLink('family')}
-              disabled={busy !== null}
-              className={primaryButton}
+              onClick={shareLink}
+              disabled={busy !== null || sharing}
+              className={`${primaryButton} inline-flex items-center justify-center gap-2`}
             >
-              {busy === 'family' ? 'רגע…' : 'קישור הזמנה'}
+              <WhatsAppMark />
+              {sharing ? 'רגע…' : 'הזמנה בוואטסאפ'}
+            </button>
+            {/* The same link, for pasting anywhere else. Minting it and *then*
+                choosing where to send it was two taps for the one thing almost
+                everybody does with it. */}
+            <button
+              type="button"
+              onClick={() => makeLink('family')}
+              disabled={busy !== null || sharing}
+              className={quietButton}
+            >
+              {busy === 'family' ? 'רגע…' : 'או להעתיק קישור'}
             </button>
             <p className="-mt-1 text-center text-xs text-muted">
               לקבוצת המשפחה, או למי שעוד לא ברשימה למעלה. מי שפותח פותח משפחה
@@ -341,6 +367,24 @@ function HiddenSuggestions({ hidden }: { hidden: { id: string; name: string }[] 
         {hidden.map((family) => (
           <li key={family.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3">
             <p className="min-w-0 grow basis-40 break-words text-ink">{family.name}</p>
+            {/* Adding is what somebody opening this list is usually here for,
+                so it is the button. Sending one back to the offers first and
+                adding it there was two taps for one decision. */}
+            <button
+              type="button"
+              disabled={busy === family.id}
+              onClick={async () => {
+                setBusy(family.id);
+                try {
+                  await addSuggested(family.id);
+                } finally {
+                  setBusy(null);
+                }
+              }}
+              className={chipButton}
+            >
+              {busy === family.id ? 'רגע…' : 'הוספה'}
+            </button>
             <button
               type="button"
               disabled={busy === family.id}
@@ -352,15 +396,15 @@ function HiddenSuggestions({ hidden }: { hidden: { id: string; name: string }[] 
                   setBusy(null);
                 }
               }}
-              className={chipButton}
+              className={quietButton}
             >
-              {busy === family.id ? 'רגע…' : 'להציע שוב'}
+              להציע שוב
             </button>
           </li>
         ))}
       </ul>
       <p className="px-5 pb-3 text-xs text-muted">
-        להציע שוב לא מחבר אתכם — הן פשוט חוזרות לרשימת ההצעות.
+        «הוספה» מחברת אתכם עכשיו. «להציע שוב» רק מחזירה אותן לרשימת ההצעות.
       </p>
     </section>
   );

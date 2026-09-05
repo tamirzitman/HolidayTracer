@@ -480,8 +480,17 @@ export async function addSuggested(householdId: string): Promise<ActionResult> {
   const me = await currentHousehold();
   if ('error' in me) return me;
 
-  const suggested = await suggestionsFor(me.householdId);
-  if (!suggested.some((s) => s.household.id === householdId)) {
+  // Hidden counts too. Putting one back among the offers and then adding it is
+  // two taps for one decision — and the decision was already made by opening
+  // the hidden list and pointing at them.
+  const [suggested, hidden] = await Promise.all([
+    suggestionsFor(me.householdId),
+    hiddenSuggestions(me.householdId),
+  ]);
+  if (
+    !suggested.some((s) => s.household.id === householdId) &&
+    !hidden.some((h) => h.id === householdId)
+  ) {
     return { error: 'המשפחה הזו לא בהצעות שלכם' };
   }
 
