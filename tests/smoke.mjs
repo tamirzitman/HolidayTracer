@@ -296,6 +296,10 @@ check('a known number goes straight to the question', await dad.isVisible('text=
 // Saturday is "שבת", with no "יום" in front of it.
 check('the holiday carries its weekday', /(יום \S+|שבת) · \d/.test(await dad.innerText('header')));
 check('nobody else is shown before you answer', !(await dad.isVisible('text=איפה כולם')));
+// Before answering is exactly when a missing family is noticed, and the circle
+// card that carries this link does not exist yet — so it has to stand alone here.
+check('adding is reachable before answering, not only after',
+  await dad.isVisible('text=חסרה משפחה? להוסיף או להזמין'));
 // But what answering buys is said before it is asked for — and only to somebody
 // with a circle to reveal, since it is a promise the next screen has to keep.
 check('answering is worth something, and says so before you do it',

@@ -488,6 +488,20 @@ export function AnswerForm({
         </p>
       )}
 
+      {/* A way to add, on every state where the list itself is not on screen to
+          hang it off: before answering — which is exactly when a missing family
+          is noticed, and when the circle card does not exist yet — and after
+          answering with nobody to show. Choosing a host has the form itself
+          right there, so it needs no link. */}
+      {((!answered && !choosingHost) || (answered && circleStatus.length === 0)) && (
+        <Link
+          href="/families"
+          className="text-center text-sm font-bold text-brand underline underline-offset-4"
+        >
+          {circleSize === 0 ? 'להוסיף משפחות למעגל →' : 'חסרה משפחה? להוסיף או להזמין →'}
+        </Link>
+      )}
+
       {!answered && choosingHost && (
         <AddFamilyInline
           inviteUrl={inviteUrl}
@@ -514,17 +528,6 @@ export function AnswerForm({
           holidayKey={holiday.key}
           hosts={[us, ...households]}
         />
-      )}
-
-      {/* With nobody in the circle there is no list to hang it off, and this is
-          the screen where that is felt — so it stands on its own, just here. */}
-      {answered && circleStatus.length === 0 && (
-        <Link
-          href="/families"
-          className="text-center text-sm font-bold text-brand underline underline-offset-4"
-        >
-          להוסיף משפחות למעגל →
-        </Link>
       )}
 
       <NextStep step={nextStep} />
