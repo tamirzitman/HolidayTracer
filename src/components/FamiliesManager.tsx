@@ -1,9 +1,16 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useHandoff } from '@/lib/handoff';
-import { addSuggested, dismissSuggested, newInviteLink, restoreSuggested } from '@/app/actions';
+import {
+  addSuggested,
+  dismissSuggested,
+  nameOurHousehold,
+  newInviteLink,
+  restoreSuggested,
+  type ActionResult,
+} from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { ContactPicker } from './ContactPicker';
 import { Circles, CircleDots, type CircleView } from './Circles';
@@ -11,7 +18,10 @@ import { WhatsAppMark, type Member } from './WhatsApp';
 import { inviteVia } from '@/lib/whatsapp';
 import {
   BackButton,
+  CrossIcon,
   ErrorNote,
+  IconButton,
+  PencilIcon,
   Title,
   card,
   chipButton,
@@ -215,18 +225,13 @@ export function FamiliesManager({
                       {adding === family.id ? 'רגע…' : 'כן, להסתיר'}
                     </button>
                   ) : (
-                    <button
-                      type="button"
+                    <IconButton
+                      label={`להסיר את ${family.name} מההצעות`}
                       disabled={adding === family.id}
-                      aria-label={`להסיר את ${family.name} מההצעות`}
-                      title="לא להציע שוב"
                       onClick={() => setHiding(family.id)}
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted transition active:scale-95"
                     >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                        <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-                      </svg>
-                    </button>
+                      <CrossIcon />
+                    </IconButton>
                   )}
                 </div>
               </li>
@@ -239,14 +244,7 @@ export function FamiliesManager({
           row, not a kind of invitation to pick out of a list. */}
       <section className={`${card} flex flex-col gap-1 p-0`}>
         <h2 className={`px-5 pt-4 pb-1 ${sectionHeading}`}>הבית שלנו</h2>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3.5">
-          <div className="min-w-0 grow basis-40">
-            <p className="font-semibold break-words text-ink">{ownName}</p>
-            <span className="text-sm text-muted">
-              {ownMembers.length === 0 ? 'רק אתם' : ownMembers.map((m) => m.name).join(', ')}
-            </span>
-          </div>
-        </div>
+        <OwnHouse name={ownName} members={ownMembers} />
       </section>
 
       <HiddenSuggestions hidden={hidden} />
@@ -400,6 +398,66 @@ function HiddenSuggestions({ hidden }: { hidden: { id: string; name: string }[] 
         «הוספה» מחברת אתכם עכשיו. «להציע שוב» רק מחזירה אותן לרשימת ההצעות.
       </p>
     </section>
+  );
+}
+
+/**
+ * Our own family's row, and the one thing about it that is ours to change.
+ *
+ * The name is often not ours to begin with — somebody added us from a name in
+ * their phone before we ever opened the app — so correcting it is a common
+ * errand, not a settings-screen rarity. It belongs on the row that shows the
+ * name, rather than three taps deep behind the menu under our own name.
+ */
+function OwnHouse({ name, members }: { name: string; members: Member[] }) {
+  const [editing, setEditing] = useState(false);
+  const [state, formAction, pending] = useActionState<ActionResult, FormData>(
+    nameOurHousehold,
+    {},
+  );
+  useEffect(() => {
+    if (state.savedAt) setEditing(false);
+  }, [state.savedAt]);
+
+  if (editing) {
+    return (
+      <form action={formAction} className="flex flex-col gap-2 px-5 py-3.5">
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-semibold text-muted">איך המשפחה שלנו תיקרא לאחרים?</span>
+          <input
+            name="householdName"
+            type="text"
+            defaultValue={name}
+            required
+            autoFocus
+            className={field}
+          />
+        </label>
+        <ErrorNote>{state.error}</ErrorNote>
+        <div className="flex items-center gap-4">
+          <button type="submit" disabled={pending} className={chipButton}>
+            {pending ? 'רגע…' : 'שמירה'}
+          </button>
+          <button type="button" onClick={() => setEditing(false)} className={quietButton}>
+            ביטול
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3.5">
+      <div className="min-w-0 grow basis-40">
+        <p className="font-semibold break-words text-ink">{name}</p>
+        <span className="text-sm text-muted">
+          {members.length === 0 ? 'רק אתם' : members.map((m) => m.name).join(', ')}
+        </span>
+      </div>
+      <IconButton label="שינוי שם המשפחה שלנו" onClick={() => setEditing(true)}>
+        <PencilIcon />
+      </IconButton>
+    </div>
   );
 }
 

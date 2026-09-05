@@ -64,6 +64,70 @@ export function BackButton({ onClick, label = 'חזרה' }: { onClick: () => voi
 }
 
 /**
+ * A control that is only an icon: no label beside it, the name carried by
+ * aria-label and title instead.
+ *
+ * For the errands that repeat on every row of a list, where a word each would
+ * be four words of furniture — and where the shape is already understood: ✕
+ * takes away, a pencil edits, ＋ adds. Anything whose meaning is not obvious
+ * from its shape keeps its text.
+ */
+export function IconButton({
+  label,
+  onClick,
+  disabled,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted transition active:scale-95 disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+export function PencilIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+      <path
+        d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function CrossIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/**
  * A section's name. One size for all of them: the same kind of thing was
  * appearing at two weights with no rule saying which, so a heading's size read
  * as meaning something it did not.

@@ -128,11 +128,20 @@ check('an empty list is told what to do about it',
   await stranger.isVisible('text=להוסיף את המשפחות שלנו'));
 check('and nothing is promised that cannot be shown yet',
   !/כשתענו, תראו כאן איפה/.test(await stranger.innerText('main')));
-const cold = await stranger.$$eval('main button', (els) => els.map((e) => e.textContent.trim()));
+const cold = await stranger.$$eval('main a, main button', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
 check(`an empty circle points at filling it (${cold.join(', ')})`,
   cold.includes('הוספת המשפחות שלנו'));
 
+// With nobody on the list there is nothing to be a guest at, so this goes where
+// families are added. It used to open the picker anyway and explain in a
+// paragraph that adding happens elsewhere — a control promising one thing and
+// delivering prose.
 await stranger.click('text=הוספת המשפחות שלנו');
+await stranger.waitForURL('**/families');
+check('and it leads to adding them, not to a paragraph about it',
+  stranger.url().endsWith('/families'));
 await stranger.click('text=לא מוצאים? הוסיפו משפחה');
 await stranger.waitForSelector('input[name=familyPhone]');
 check('a number can be typed, not only picked from contacts',
@@ -147,11 +156,10 @@ await stranger.waitForSelector('text=נוספו, וכבר נבחרו');
 await stranger.waitForTimeout(1500);
 check('a typed number that is known makes no second household',
   rows('Households').length === beforeCold);
-check('and the family just added is already chosen',
-  (await stranger.$eval('select[name=hostHouseholdId]', (el) =>
-    el.selectedOptions[0].textContent.trim())) === 'אבא ואמא');
+// A number somebody has already signed in with needs no invitation, so the
+// card that appears says nothing about sending them one.
 check('a number somebody already signed in with needs no invite',
-  !(await stranger.isVisible('text=הזמנה בוואטסאפ')));
+  !(await stranger.isVisible('text=הם עוד לא באפליקציה')));
 
 await stranger.goto(BASE);
 await stranger.click('text=מתארחים אצל…');
@@ -181,6 +189,11 @@ await stranger.fill('input[name=familyPhone]', '050-222-3333');
 await stranger.click('form:has(input[name=familyFirstNames]) button[type=submit]');
 await stranger.waitForSelector('text=נוספו, וכבר נבחרו');
 await stranger.waitForTimeout(1500);
+// Added while looking for a host, so it is the host — going back to hunt for
+// it in the dropdown was the whole friction this removes.
+check('a family added while answering is already chosen',
+  (await stranger.$eval('select[name=hostHouseholdId]', (el) =>
+    el.selectedOptions[0].textContent.trim())) === 'דנה ויוסי');
 
 await stranger.goto(`${BASE}/families`);
 await stranger.waitForSelector('text=המעגלים שלי');
@@ -271,6 +284,34 @@ check('and goes straight out in one tap',
   await stranger.isVisible('#invite button:has-text("הזמנה בוואטסאפ")'));
 check('with the link itself still reachable',
   await stranger.isVisible('#invite button:has-text("או להעתיק קישור")'));
+
+// ── correcting our own family's name ────────────────────────────────────────
+// The name is often not ours to begin with — somebody added us from a name in
+// their phone — so this is a correction, and it lives on the row that shows the
+// name rather than behind the menu under it.
+const beforeRename = rows('Households').length;
+await stranger.goto(`${BASE}/families`);
+await stranger.waitForSelector('text=הבית שלנו');
+await stranger.click('[aria-label="שינוי שם המשפחה שלנו"]');
+await stranger.fill('input[name=householdName]', 'רן ומיכל ברק-שגיא');
+await stranger.click('text=/^שמירה/');
+await stranger.waitForTimeout(2000);
+await stranger.reload();
+await stranger.waitForSelector('text=המעגלים שלי');
+check('renaming our family shows the new name',
+  (await stranger.innerText('main')).includes('רן ומיכל ברק-שגיא'));
+// The tab only grows, so a rename is a second row for the same id. The reader
+// has to collapse them: without that the family appears once per name it has
+// ever had, on every screen that lists households.
+check('and it is a row, not an edit', rows('Households').length === beforeRename + 1);
+const named = rows('Households').filter((r) => r[1].includes('רן ומיכל'));
+check(`while the old name is gone from the app (${named.length} rows for one family)`,
+  named.length === 2 && !(await stranger.innerText('main')).includes('רן ומיכל ברק\n'));
+const listed = await stranger.$$eval('#families li p.font-semibold', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`and every family is listed once (${listed.length})`,
+  new Set(listed).size === listed.length);
 
 // A family already in the app has no errand on its row: nothing to invite them
 // to, and no way back in to hand them, because getting in is a number.
@@ -439,7 +480,7 @@ check(`the inviter's families are not suggested on one voucher (${beforeCircle})
 const newcomerId = rows('Households').find((r) => r[1] === 'דנה ויוסי לוי')[0];
 await dad.goto(`${BASE}/families`);
 await dad.waitForSelector('text=המעגלים שלנו');
-await dad.click('text=מעגל חדש');
+await dad.click('[aria-label="מעגל חדש"]');
 await dad.fill('input[name=name]', 'צד אבא');
 // By household id rather than by name: two families here are called דנה ויוסי
 // and דנה ויוסי לוי, and a text match would take whichever came first.
@@ -460,6 +501,16 @@ await dad.reload();
 await dad.waitForSelector('text=צד אבא');
 const circleDots = await dad.$$eval('#families li [aria-label^="מעגלים:"]', (e) => e.length);
 check(`the families in it are dotted on their rows (${circleDots})`, circleDots === 4);
+
+// Leaving is an ✕ on the circle's row, the same shape as turning down a
+// suggestion — and, like that one, it asks before it acts and says what it does.
+await dad.click('[aria-label="לצאת מהמעגל צד אבא"]');
+check('leaving a circle asks before it does it',
+  await dad.isVisible('text=כן, לצאת מהמעגל'));
+check('and says that it is us being taken out, not the circle deleted',
+  /מוציאה .*אתכם.* מהמעגל/s.test(await dad.innerText('#circles')));
+await dad.click('text=ביטול');
+check('and can be thought better of', !(await dad.isVisible('text=כן, לצאת מהמעגל')));
 
 await newcomer.reload();
 await newcomer.waitForSelector('text=המעגלים שלי');

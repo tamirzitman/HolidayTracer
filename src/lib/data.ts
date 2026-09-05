@@ -119,21 +119,39 @@ async function fetchSheet(): Promise<Sheet> {
       ).values(),
     ],
 
-    households: householdsTab.body
-      .map((row) => ({
-        id: cell(row, householdsTab.headers, 'household_id'),
-        name: cell(row, householdsTab.headers, 'name'),
-        active: isTrue(cell(row, householdsTab.headers, 'active')),
-      }))
-      .filter((h) => h.id && h.name && h.active),
+    // Collapsed by id, newest row winning, exactly as the holidays above are.
+    // Every tab here only ever grows: correcting a family's name appends a row
+    // rather than editing one, and without this the family appears once per
+    // name it has ever had — which is what a rename looked like from the
+    // outside. Collapsing *before* the active check matters too: with it the
+    // other way round, a household switched off would be resurrected by
+    // whichever older row still said TRUE.
+    households: [
+      ...new Map(
+        householdsTab.body
+          .map((row) => ({
+            id: cell(row, householdsTab.headers, 'household_id'),
+            name: cell(row, householdsTab.headers, 'name'),
+            active: isTrue(cell(row, householdsTab.headers, 'active')),
+          }))
+          .filter((h) => h.id && h.name)
+          .map((h) => [h.id, h] as const),
+      ).values(),
+    ].filter((h) => h.active),
 
-    people: peopleTab.body
-      .map((row) => ({
-        phone: cell(row, peopleTab.headers, 'phone'),
-        name: cell(row, peopleTab.headers, 'name'),
-        householdId: cell(row, peopleTab.headers, 'household_id'),
-      }))
-      .filter((p) => p.phone),
+    // The same rule, keyed by number: one row per person, the last one written.
+    people: [
+      ...new Map(
+        peopleTab.body
+          .map((row) => ({
+            phone: cell(row, peopleTab.headers, 'phone'),
+            name: cell(row, peopleTab.headers, 'name'),
+            householdId: cell(row, peopleTab.headers, 'household_id'),
+          }))
+          .filter((p) => p.phone)
+          .map((p) => [p.phone, p] as const),
+      ).values(),
+    ],
 
     answers: answersTab.body
       .map((row) => {

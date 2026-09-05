@@ -10,7 +10,18 @@ import {
   type ActionResult,
 } from '@/app/actions';
 import { CIRCLE_COLORS, colorOf, colorName } from '@/lib/circle-colors';
-import { ErrorNote, card, chipButton, field, quietButton, sectionHeading } from './ui';
+import {
+  CrossIcon,
+  ErrorNote,
+  IconButton,
+  PencilIcon,
+  PlusIcon,
+  card,
+  chipButton,
+  field,
+  quietButton,
+  sectionHeading,
+} from './ui';
 
 export type CircleView = {
   id: string;
@@ -63,21 +74,23 @@ export function Circles({
   circles: CircleView[];
   families: { id: string; name: string }[];
 }) {
+  const router = useRouter();
   const [making, setMaking] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  // Leaving is asked before it is done, and the ✕ sits a thumb's width from
+  // "עריכה" — the same shape as turning down a suggestion, so the two read as
+  // the same kind of thing.
+  const [leaving, setLeaving] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   return (
     <section className={`${card} flex flex-col gap-1 p-0`} id="circles">
       <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
         <h2 className={sectionHeading}>המעגלים שלנו</h2>
         {!making && (
-          <button
-            type="button"
-            onClick={() => setMaking(true)}
-            className="shrink-0 text-xs font-bold text-brand underline underline-offset-4"
-          >
-            מעגל חדש
-          </button>
+          <IconButton label="מעגל חדש" onClick={() => setMaking(true)}>
+            <PlusIcon />
+          </IconButton>
         )}
       </div>
 
@@ -110,15 +123,56 @@ export function Circles({
                     ? 'רק אתם'
                     : `${circle.members.length} משפחות`}
                 </span>
-                <button
-                  type="button"
+                <IconButton
+                  label={open === circle.id ? `סגירת ${circle.name}` : `עריכת ${circle.name}`}
                   onClick={() => setOpen(open === circle.id ? null : circle.id)}
-                  aria-expanded={open === circle.id}
-                  className={quietButton}
                 >
-                  {open === circle.id ? 'סגירה' : 'עריכה'}
-                </button>
+                  <PencilIcon />
+                </IconButton>
+                {leaving !== circle.id && (
+                  <IconButton
+                    label={`לצאת מהמעגל ${circle.name}`}
+                    onClick={() => setLeaving(circle.id)}
+                  >
+                    <CrossIcon />
+                  </IconButton>
+                )}
               </div>
+
+              {/* What leaving actually does, said before it happens: the ✕ is a
+                  thumb's width from "עריכה", and the two are easy to confuse. */}
+              {leaving === circle.id && (
+                <div className="flex flex-col gap-2 rounded-2xl bg-brand-wash p-3">
+                  <p className="text-sm text-ink">
+                    יציאה מ«{circle.name}» מוציאה <b>אתכם</b> מהמעגל. המשפחות שבו יישארו
+                    במעגל שלכם, אבל לא תקבלו עוד הצעות דרכו — והמעגל ימשיך להתקיים אצל
+                    השאר.
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <button
+                      type="button"
+                      disabled={busy === circle.id}
+                      onClick={async () => {
+                        setBusy(circle.id);
+                        await leaveCircle(circle.id);
+                        setBusy(null);
+                        setLeaving(null);
+                        router.refresh();
+                      }}
+                      className={quietButton}
+                    >
+                      {busy === circle.id ? 'רגע…' : 'כן, לצאת מהמעגל'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLeaving(null)}
+                      className="text-sm text-muted"
+                    >
+                      ביטול
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {open === circle.id && (
                 <CircleEditor circle={circle} families={families} />
@@ -206,7 +260,6 @@ function CircleEditor({
   const [error, setError] = useState('');
   const [name, setName] = useState(circle.name);
   const [color, setColor] = useState(circle.color);
-  const [leaving, setLeaving] = useState(false);
   // Ticked now, saved after. The box is bound to the sheet, and the sheet is a
   // round trip away — so without this the tick springs back and the row reads
   // as broken until the answer lands. A refusal puts it back where it was.
@@ -295,31 +348,6 @@ function CircleEditor({
       </div>
 
       <ErrorNote>{error}</ErrorNote>
-
-      {leaving ? (
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            disabled={busy === 'leave'}
-            onClick={async () => {
-              setBusy('leave');
-              await leaveCircle(circle.id);
-              setBusy(null);
-              router.refresh();
-            }}
-            className={quietButton}
-          >
-            {busy === 'leave' ? 'רגע…' : 'כן, לצאת מהמעגל'}
-          </button>
-          <button type="button" onClick={() => setLeaving(false)} className="text-sm text-muted">
-            ביטול
-          </button>
-        </div>
-      ) : (
-        <button type="button" onClick={() => setLeaving(true)} className="self-start text-sm text-muted underline underline-offset-4">
-          לצאת מהמעגל
-        </button>
-      )}
 
       <p className="text-xs text-muted">
         השם והצבע הם שלנו בלבד — מי שאיתנו במעגל רואה אותו בשם שהוא נתן לו. משפחה
