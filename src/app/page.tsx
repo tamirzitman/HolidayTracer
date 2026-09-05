@@ -76,7 +76,6 @@ export default async function Page({
         invitedBy=""
         kind="family"
         claimable={[]}
-        canClaim={false}
         joiningAs=""
         onLeave={signOut}
       />

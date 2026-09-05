@@ -32,17 +32,6 @@ export const shareApp = (url: string): string =>
   )}`;
 
 /**
- * Asking the family for a way in, from the screen that turned you away. No
- * recipient: the person picks who to send it to, because naming who *could*
- * help would show every family's names to anyone who typed the number. The
- * number is included so whoever answers knows which one to aim the link at.
- */
-export const askForLink = (phone: string): string =>
-  `https://wa.me/?text=${encodeURIComponent(
-    `היי, אני מנסה להיכנס לאפליקציה של החגים מטלפון חדש. אפשר לשלוח לי קישור כניסה מהאפליקציה? המספר שלי: ${phone}`,
-  )}`;
-
-/**
  * A nudge for one holiday, for the family's group chat. Counts, never names:
  * a message pasted into a group is read by everyone in it, and "מעיין וגל עוד
  * לא ענו" is a different thing to say than "ענו 3 מתוך 6".

@@ -1,14 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
-import { useCloseOnAway } from '@/lib/dismiss';
+import { useState } from 'react';
 import { useHandoff } from '@/lib/handoff';
 import { addSuggested, dismissSuggested, newInviteLink, restoreSuggested } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { ContactPicker } from './ContactPicker';
 import { WhatsAppMark, type Member } from './WhatsApp';
-import { normalizePhone } from '@/lib/phone';
 import { inviteVia } from '@/lib/whatsapp';
 import {
   BackButton,
@@ -48,18 +46,7 @@ export function FamiliesManager({
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<'family' | 'household' | null>(null);
-  // Empty means a general link. A number makes it one person's, and single-use.
-  const [sentTo, setSentTo] = useState('');
   const [linkError, setLinkError] = useState('');
-  const circlePeople = families.flatMap((f) =>
-    f.members.map((m) => ({ name: m.name, phone: m.phone, family: f.name })),
-  );
-  // The number in the box, if it is somebody already in the app. Compared
-  // normalised, so a number typed with dashes still matches the one on file.
-  const typed = sentTo.trim() ? normalizePhone(sentTo) : null;
-  const known = typed
-    ? [...ownMembers, ...circlePeople].find((m) => m.phone === typed)
-    : undefined;
   const { busy: sharing, start: startShare, stop: stopShare, go: goShare } = useHandoff();
   const [adding, setAdding] = useState<string | null>(null);
   const [hiding, setHiding] = useState<string | null>(null);
@@ -69,7 +56,7 @@ export function FamiliesManager({
     setBusy(kind);
     setLinkError('');
     try {
-      const made = await newInviteLink(kind, sentTo);
+      const made = await newInviteLink(kind);
       if (made.token) {
         setLink(`${window.location.origin}/join/${made.token}`);
         setCopied(false);
@@ -85,13 +72,13 @@ export function FamiliesManager({
   // opened, since a pop-up after the wait is blocked.
   async function shareLink() {
     startShare();
-    const made = await newInviteLink('family', sentTo);
+    const made = await newInviteLink('family');
     if (!made.token) {
       stopShare();
       setLinkError(made.error ?? 'משהו השתבש, נסו שוב');
       return;
     }
-    goShare(inviteVia(`${window.location.origin}/join/${made.token}`, sentTo));
+    goShare(inviteVia(`${window.location.origin}/join/${made.token}`));
   }
 
   async function copy() {
@@ -247,10 +234,6 @@ export function FamiliesManager({
               {ownMembers.length === 0 ? 'רק אתם' : ownMembers.map((m) => m.name).join(', ')}
             </span>
           </div>
-          {/* Bringing somebody into our own house is not a row's errand: it is
-              ours, and it lives in the menu under our own name. What is left
-              here is the way back in for whoever is already in it. */}
-          <RowInvite householdId="" members={ownMembers} />
         </div>
       </section>
 
@@ -265,21 +248,19 @@ export function FamiliesManager({
         {link ? (
           <>
             <a
-              href={inviteVia(link, sentTo)}
+              href={inviteVia(link)}
               target="_blank"
               rel="noreferrer"
               className={`${primaryButton} inline-flex items-center justify-center gap-2`}
             >
               <WhatsAppMark />
-              {sentTo ? 'שליחה אליהם בוואטסאפ' : 'שליחה בוואטסאפ'}
+              שליחה בוואטסאפ
             </a>
             <button type="button" onClick={copy} className={secondaryButton}>
               {copied ? 'הקישור הועתק ✓' : 'העתקת הקישור'}
             </button>
             <p className="text-center text-xs text-muted">
-              {sentTo
-                ? 'הקישור הזה אישי — הוא נסגר ברגע שהם נרשמים, וגם אם יועבר הלאה לא יכניס אף אחד אחר.'
-                : 'הקישור פתוח לשבועיים ואפשר לשלוח אותו ליותר מאחד — נוח לקבוצה של המשפחה.'}
+              הקישור פתוח לשבועיים ואפשר לשלוח אותו ליותר מאחד — נוח לקבוצה של המשפחה.
             </p>
           </>
         ) : (
@@ -411,109 +392,48 @@ function HiddenSuggestions({ hidden }: { hidden: { id: string; name: string }[] 
 }
 
 /**
- * The link for one row, whichever kind that row needs.
+ * An invitation for one row.
  *
- * A family nobody has signed in from needs an invitation, and the link carries
- * which family they are, so opening it asks their name and nothing else. A
- * family already in the app needs the other thing entirely — a way back in on a
- * new phone — and that is a link aimed at one of their numbers. Both belong on
- * the row, because the row is what says who is meant; neither is a kind of
- * invitation to pick out of a list.
+ * Only a family nobody has signed in from needs one, and the link carries which
+ * family they are, so opening it asks their name and nothing else. A family
+ * already in the app needs nothing from this row: getting in is a phone number,
+ * so the way-back-in link that used to live behind a menu here has no errand.
  */
-function RowInvite({
-  householdId,
-  members,
-}: {
-  householdId: string;
-  members: Member[];
-}) {
+function RowInvite({ householdId, members }: { householdId: string; members: Member[] }) {
   const { busy, start, stop, go } = useHandoff();
   const [error, setError] = useState('');
-  const [menu, setMenu] = useState(false);
-  const box = useCloseOnAway<HTMLDivElement>(menu, useCallback(() => setMenu(false), []));
+
+  // Already in the app: nothing to offer. Signing in is a phone number.
+  if (members.length > 0) return null;
 
   /**
    * One tap, all the way to WhatsApp. The link has to be made first, and a
    * window opened after that wait is blocked as a pop-up — so this navigates
    * the tab instead, which is not. WhatsApp takes over, and Back returns here.
    */
-  async function send(forPhone: string, forHouseholdId: string) {
+  async function invite() {
     start();
     setError('');
-    const made = await newInviteLink('family', forPhone, forHouseholdId);
+    const made = await newInviteLink('family', '', householdId);
     if (!made.token) {
       setError(made.error ?? 'משהו השתבש');
       stop();
       return;
     }
-    setMenu(false);
-    go(inviteVia(`${window.location.origin}/join/${made.token}`, forPhone));
+    go(inviteVia(`${window.location.origin}/join/${made.token}`, ''));
   }
 
-  // Nobody has signed in from this family: the errand is an invitation, and it
-  // is the only one, so it is the button rather than something behind a menu.
-  if (members.length === 0) {
-    return (
-      <div className="flex flex-col items-start gap-1">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => send('', householdId)}
-          className={`${chipButton} inline-flex items-center gap-2`}
-        >
-          <WhatsAppMark />
-          {busy ? 'רגע…' : 'הזמנה בוואטסאפ'}
-        </button>
-        <ErrorNote>{error}</ErrorNote>
-      </div>
-    );
-  }
-
-  // They are already in the app, so the only thing left is a way back in on a
-  // new phone — rare enough that it belongs behind the menu rather than beside
-  // every name on the screen.
   return (
-    <div ref={box} className="relative flex flex-col items-end gap-1">
+    <div className="flex flex-col items-start gap-1">
       <button
         type="button"
-        onClick={() => setMenu(!menu)}
-        aria-expanded={menu}
-        aria-haspopup="menu"
-        aria-label="עוד"
-        className="grid h-9 w-9 place-items-center rounded-full text-muted transition active:scale-95"
+        disabled={busy}
+        onClick={invite}
+        className={`${chipButton} inline-flex items-center gap-2`}
       >
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
-          <circle cx="12" cy="5" r="1.7" />
-          <circle cx="12" cy="12" r="1.7" />
-          <circle cx="12" cy="19" r="1.7" />
-        </svg>
+        <WhatsAppMark />
+        {busy ? 'רגע…' : 'הזמנה בוואטסאפ'}
       </button>
-
-      {menu && (
-        <div
-          role="menu"
-          className="absolute top-10 z-40 w-56 overflow-hidden rounded-2xl border border-line bg-surface shadow-lg"
-        >
-          {members.map((m) => (
-            <button
-              key={m.phone}
-              type="button"
-              role="menuitem"
-              disabled={busy}
-              onClick={() => send(m.phone, '')}
-              className="flex w-full items-center gap-2 px-4 py-3 text-start text-sm font-semibold text-ink"
-            >
-              <span className="text-whatsapp">
-                <WhatsAppMark />
-              </span>
-              {busy ? 'רגע…' : `קישור כניסה ל${m.name}`}
-            </button>
-          ))}
-          <p className="border-t border-line px-4 py-2 text-xs text-muted">
-            למי שכבר באפליקציה ונכנס ממכשיר חדש. נסגר אחרי שימוש אחד.
-          </p>
-        </div>
-      )}
       <ErrorNote>{error}</ErrorNote>
     </div>
   );

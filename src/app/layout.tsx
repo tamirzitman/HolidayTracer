@@ -71,7 +71,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <HouseholdMenu
               householdName={household?.name ?? ''}
               personName={person?.name ?? ''}
-              phone={person?.phone ?? ''}
             />
           </div>
         )}

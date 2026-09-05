@@ -16,7 +16,6 @@ export function JoinForm({
   invitedBy,
   kind,
   claimable,
-  canClaim,
   joiningAs,
   onLeave,
 }: {
@@ -36,12 +35,6 @@ export function JoinForm({
    * signed into, and a family a relative is already signed into.
    */
   claimable: { id: string; name: string; joined: boolean }[];
-  /**
-   * Whether this link lets them claim one of those. Only a link aimed at their
-   * number does: saying "we are that family" is the same claim as typing that
-   * family's number, and a forwarded group link is not good enough for either.
-   */
-  canClaim: boolean;
   /**
    * Leaving half-way. Refreshing keeps the cookie, so without this a number
    * typed one digit wrong is a screen there is no way off.
@@ -173,15 +166,7 @@ export function JoinForm({
           {/* Most people arriving on a link are new. The ones somebody already
               added by name are the exception, and an exception should not be a
               dropdown everybody has to read past. */}
-          {claimable.length > 0 && !canClaim && (
-            <p className="text-xs text-muted">
-              המשפחה שלכם כבר ברשימה? כדי להצטרף אליה צריך קישור אישי — בקשו ממי
-              שהוסיף אתכם לשלוח לכם אחד מהאפליקציה.
-            </p>
-          )}
-
           {claimable.length > 0 &&
-            canClaim &&
             (claiming || claim ? (
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-semibold text-muted">בחרו את המשפחה שלכם</span>

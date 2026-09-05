@@ -25,7 +25,6 @@ import {
   recordConflicts,
   suggestionsFor,
   claimableIn,
-  knownToOthers,
   unjoinedNamed,
   renameHousehold,
   membersByHousehold,
@@ -34,18 +33,11 @@ import {
 import { familyName } from '@/lib/names';
 import { normalizePhone } from '@/lib/phone';
 import { clearSession, getSessionPhone, setSessionPhone } from '@/lib/session';
-import { gateOpen } from '@/lib/gate';
 import type { AnswerKind } from '@/lib/types';
 
 export type ActionResult = {
   error?: string;
   savedAt?: string;
-  /**
-   * The number is known and its household is known to others, and nothing
-   * vouched for this device. Not an error: the screen it produces says who can
-   * let them in, and how.
-   */
-  blocked?: boolean;
   /**
    * A family already on the list, by name, that nobody has signed into — asked
    * about rather than assumed, because a name can repeat.
@@ -65,26 +57,11 @@ export async function signIn(_prev: ActionResult, formData: FormData): Promise<A
   const phone = normalizePhone(String(formData.get('phone') ?? ''));
   if (!phone) return { error: 'מספר הטלפון לא נראה תקין' };
 
-  // Signing in from an invite should land back on the invite, not the question.
-  const next = String(formData.get('next') ?? '');
-  const token = /^\/join\/([A-Za-z0-9]+)$/.exec(next)?.[1] ?? '';
-
-  // The gate. A number the sheet knows, belonging to a household somebody else
-  // knows, is not let in by being typed: that would make every relative's
-  // number a way to become them. It needs a link somebody in the family aimed
-  // at this very number. A household nobody knows is not locked — there is
-  // nothing to impersonate — and on the playground nothing is.
-  const person = await findPerson(phone);
-  if (person && !gateOpen() && (await knownToOthers(person.householdId))) {
-    const invite = token ? await readInvite(token) : undefined;
-    if (!invite || invite.forPhone !== phone) return { blocked: true };
-    // Vouched. The link was one person's, and that person is now in.
-    await spendInvite(token);
-  }
-
   await setSessionPhone(phone);
 
-  if (token) {
+  // Signing in from an invite should land back on the invite, not the question.
+  const next = String(formData.get('next') ?? '');
+  if (/^\/join\/[A-Za-z0-9]+$/.test(next)) {
     revalidatePath(next);
     redirect(next);
   }
@@ -136,13 +113,6 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
     // with, which matching on the phone alone cannot.
     const claiming = invite ? String(formData.get('claimHouseholdId') ?? '').trim() : '';
     if (claiming && invite) {
-      // Saying "we are that family" is the same claim as typing their number,
-      // and is held to the same standard: a link aimed at you, not one that was
-      // forwarded around. The general link still registers anybody — as a new
-      // family of their own.
-      if (!gateOpen() && invite.forPhone !== phone) {
-        return { error: 'כדי להצטרף למשפחה שכבר ברשימה צריך קישור אישי ממי שהוסיף אתכם' };
-      }
       const claimable = await claimableIn(invite.household.id);
       if (!claimable.some((c) => c.household.id === claiming)) {
         return { error: 'המשפחה הזו לא ברשימה של מי שהזמין אתכם' };

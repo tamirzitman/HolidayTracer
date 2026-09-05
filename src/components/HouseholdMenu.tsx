@@ -21,20 +21,14 @@ import { inviteVia } from '@/lib/whatsapp';
 export function HouseholdMenu({
   householdName,
   personName,
-  phone,
 }: {
   householdName: string;
   /** Which of us is signed in. The household name alone leaves that unsaid on a
    *  phone two people share, and it is the first thing worth knowing. */
   personName: string;
-  /** Our own number, for a link that lets this same person in on another device. */
-  phone: string;
 }) {
   const [open, setOpen] = useState(false);
   const box = useCloseOnAway<HTMLDivElement>(open, useCallback(() => setOpen(false), []));
-  // A link aimed at our own number. Signing in elsewhere needs somebody to
-  // vouch, and the nearest somebody is us, from the phone that is already in.
-  const [deviceLink, setDeviceLink] = useState<'idle' | 'busy' | string>('idle');
 
   // Our own name is often not ours to start with: somebody added us from their
   // contacts before we ever opened the app. Correcting it belongs here, under
@@ -63,12 +57,6 @@ export function HouseholdMenu({
     // blocked as a pop-up, so navigate instead.
     setOpen(false);
     go(inviteVia(`${window.location.origin}/join/${made.token}`));
-  }
-
-  async function linkForAnotherDevice() {
-    setDeviceLink('busy');
-    const made = await newInviteLink('household', phone);
-    setDeviceLink(made.token ? `${window.location.origin}/join/${made.token}` : 'idle');
   }
 
 
@@ -151,42 +139,6 @@ export function HouseholdMenu({
             </span>
             {addingMember ? 'רגע…' : 'הוספת בן בית'}
           </button>
-
-          {deviceLink === 'idle' || deviceLink === 'busy' ? (
-            <button
-              type="button"
-              onClick={linkForAnotherDevice}
-              disabled={deviceLink === 'busy'}
-              className={`${item} border-t border-line`}
-              role="menuitem"
-            >
-              <span aria-hidden="true">📱</span>
-              {deviceLink === 'busy' ? 'רגע…' : 'כניסה ממכשיר נוסף'}
-            </button>
-          ) : (
-            <div className="flex flex-col gap-2 border-t border-line px-4 py-3">
-              <p className="text-xs text-muted">
-                קישור אישי למספר שלכם. שלחו לעצמכם ופתחו מהמכשיר השני — נסגר אחרי שימוש אחד.
-              </p>
-              <a
-                href={inviteVia(deviceLink, phone)}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setOpen(false)}
-                className="inline-flex items-center gap-2 text-sm font-bold text-whatsapp"
-              >
-                <WhatsAppMark />
-                שליחה לעצמי בוואטסאפ
-              </a>
-              <button
-                type="button"
-                onClick={() => navigator.clipboard.writeText(deviceLink).catch(() => {})}
-                className="text-start text-sm font-semibold text-brand"
-              >
-                העתקת הקישור
-              </button>
-            </div>
-          )}
 
           <form action={signOut} className="border-t border-line">
             <button type="submit" className={`${item} text-muted`} role="menuitem">

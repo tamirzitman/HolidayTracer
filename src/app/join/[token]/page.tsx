@@ -6,7 +6,6 @@ import { Title, card, primaryButton } from '@/components/ui';
 import { formatPhone } from '@/lib/phone';
 import { claimableIn, findPerson, isConnected, readInvite } from '@/lib/data';
 import { signOut, switchAccount } from '@/app/actions';
-import { gateOpen } from '@/lib/gate';
 import { getSessionPhone } from '@/lib/session';
 import { redirect } from 'next/navigation';
 
@@ -45,7 +44,6 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
           invitedBy=""
           kind="family"
           claimable={[]}
-          canClaim={false}
           joiningAs=""
           onLeave={signOut}
         />
@@ -98,7 +96,6 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       token={token}
       invitedBy={invite.household.name}
       kind={invite.kind}
-      canClaim={gateOpen() || invite.forPhone === phone}
       joiningAs={invite.forHousehold?.name ?? ''}
       onLeave={signOut}
       claimable={(await claimableIn(invite.household.id)).map((c) => ({
