@@ -805,6 +805,20 @@ export async function readInvite(
   };
 }
 
+/**
+ * A newer row for the same household id. Append-only like everything else, so
+ * the name somebody else guessed at stays in the log and the correction wins.
+ */
+export async function renameHousehold(householdId: string, name: string): Promise<void> {
+  const household = (await loadSheet()).households.find((h) => h.id === householdId);
+  if (!household) return;
+  await appendRow(TABS.households, HEADERS.households, [
+    householdId,
+    name,
+    household.active ? 'TRUE' : 'FALSE',
+  ]);
+}
+
 export async function addHousehold(name: string): Promise<string> {
   const used = (await loadSheet()).households
     .map((h) => Number(h.id))

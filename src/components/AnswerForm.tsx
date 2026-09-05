@@ -494,44 +494,28 @@ export function AnswerForm({
       )}
 
       {answered && circleStatus.length > 0 && (
-        <Circle families={circleStatus} holidayKey={holiday.key} hosts={households} />
-      )}
-
-      {/* A nudge for the family's group chat. Counts rather than names: this
-          gets pasted where everyone can read it, and who has not answered yet
-          is not the same thing to say out loud as how many have. */}
-      {circleSize > 0 && (
-        <a
-          href={remindAbout(
+        <Circle
+          families={circleStatus}
+          reminder={remindAbout(
             holiday.nameHe,
             formatDayAndDate(holiday.date),
             circleStatus.filter((f) => f.kind !== 'none').length + (answered ? 1 : 0),
             circleStatus.length + 1,
             appUrl,
           )}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`${secondaryButton} inline-flex items-center justify-center gap-2`}
-        >
-          <WhatsAppMark />
-          תזכורת בוואטסאפ
-        </a>
+          holidayKey={holiday.key}
+          hosts={households}
+        />
       )}
 
-      {/* A way to reach adding and inviting from here, without a second copy of
-          the thing itself: the families screen is where it lives, and two
-          places to do it is two places to keep in step. */}
-      {answered && (
+      {/* With nobody in the circle there is no list to hang it off, and this is
+          the screen where that is felt — so it stands on its own, just here. */}
+      {answered && circleStatus.length === 0 && (
         <Link
-          href="/families#invite"
+          href="/families"
           className="text-center text-sm font-bold text-brand underline underline-offset-4"
         >
-          {/* Deliberately not the words "איפה כולם": that is the heading of the
-              list right above, and repeating it here makes the link read as
-              part of the section rather than as a way out of it. */}
-          {circleStatus.length === 0
-            ? 'להוסיף משפחות למעגל →'
-            : 'חסרה כאן משפחה? להוסיף או להזמין →'}
+          להוסיף משפחות למעגל →
         </Link>
       )}
 
@@ -586,6 +570,7 @@ function Step({
 /** Where the rest of the circle is — visible only once you have answered. */
 function Circle({
   families,
+  reminder,
   holidayKey,
   hosts,
 }: {
@@ -597,6 +582,8 @@ function Circle({
     byName: string;
     byProxy: boolean;
   }[];
+  /** Where the reminder for this holiday goes. */
+  reminder: string;
   holidayKey: string;
   /** Whom they might be at, for answering on their behalf. */
   hosts: { id: string; name: string }[];
@@ -610,7 +597,22 @@ function Circle({
 
   return (
     <section className={`${card} flex flex-col gap-1 p-0`}>
-      <h2 className={`px-5 pt-4 pb-1 ${sectionHeading}`}>איפה כולם</h2>
+      <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
+        <h2 className={sectionHeading}>איפה כולם</h2>
+        {/* The nudge belongs to this list, so it sits on it — small, and named,
+            rather than a button the width of the screen sitting underneath
+            attached to nothing. */}
+        <a
+          href={reminder}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="שיתוף תזכורת בוואטסאפ"
+          className="inline-flex shrink-0 items-center gap-1.5 text-xs font-bold text-brand"
+        >
+          <WhatsAppMark />
+          תזכורת
+        </a>
+      </div>
       <ul className="divide-y divide-line">
         {families.map((family) => (
           <li key={family.id} className="flex flex-col gap-2 px-5 py-3">
@@ -653,6 +655,15 @@ function Circle({
           </li>
         ))}
       </ul>
+
+      {/* Attached to the list it is about: a family missing from these rows is
+          the reason to go and add one. */}
+      <Link
+        href="/families"
+        className="border-t border-line px-5 py-3 text-sm font-bold text-brand underline underline-offset-4"
+      >
+        חסרה כאן משפחה? להוסיף או להזמין →
+      </Link>
     </section>
   );
 }

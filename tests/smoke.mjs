@@ -508,10 +508,23 @@ await dad.click('text=בחירה מאנשי הקשר');
 await dad.waitForSelector('text=/נוספו:|כבר ברשימה:/');
 check('a contact already in the app is reported as already there',
   await dad.isVisible('text=כבר ברשימה: דנה ויוסי לוי'));
-check('a contact who is not gets an invite', await dad.isVisible('text=שכנים'));
-const inviteHref = await dad.getAttribute('li:has-text("שכנים") >> a', 'href');
-check(`the invite is addressed to their number (${inviteHref?.slice(0, 24)}…)`,
-  Boolean(inviteHref?.startsWith('https://wa.me/972540001122?text=')));
+// A contact nobody has signed in from is not just an invite to send: it is
+// offered as a family to add, so the name in our phone becomes a family we can
+// answer for — after we have looked at the list.
+check('a contact who is not is offered for adding', await dad.isVisible('text=שכנים'));
+check('and nothing is written before we confirm',
+  !rows('Households').some((r) => r[1] === 'שכנים'));
+const beforeContacts = rows('Households').length;
+await dad.click('button:has-text("הוספת המשפחה")');
+await dad.waitForSelector('text=נוספו: שכנים');
+check('confirming adds them as a family',
+  rows('Households').length === beforeContacts + 1);
+const neighbours = rows('Households').find((r) => r[1] === 'שכנים');
+check('with the name from our address book', Boolean(neighbours));
+check('and their number tied to it',
+  rows('People').some((r) => r[0] === '+972540001122' && r[2] === neighbours[0]));
+check('and connected to us, so we can answer for them',
+  rows('Connections').some((r) => r[0] === 'hh_parents' && r[1] === neighbours[0] && r[2] === 'add'));
 
 // ── stepping between holidays still works ────────────────────────────────────
 // Rosh Hashana is three meals on three consecutive days, and the arrow walks
@@ -622,9 +635,8 @@ await aimed.fill('input[name=phone]', '058-900-1122');
 await aimed.click('button[type=submit]');
 await aimed.waitForSelector('input[name=firstName]');
 // The link already said which family they are, so there is nothing to name.
-check('a link that names the family asks only who you are',
-  (await aimed.isVisible('text=נרשמים בתור')) &&
-    !(await aimed.isVisible('input[name=householdName]')));
+check('a link that names the family fills the name in for them',
+  (await aimed.inputValue('input[name=householdName]')) === 'אח ואשתו');
 await aimed.fill('input[name=firstName]', 'נועה');
 await aimed.fill('input[name=surname]', 'אביב');
 await aimed.click('text=/^סיום/');
@@ -823,9 +835,7 @@ await first.click('button[type=submit]');
 await first.waitForSelector('input[name=firstName]');
 // The link was made on their row, so it already says which family they are.
 check('a link made on a family\'s row says so when it is opened',
-  (await first.innerText('main')).includes('נרשמים בתור רות ואורי לוי'));
-check('and asks for no family name',
-  !(await first.isVisible('input[name=householdName]')));
+  (await first.inputValue('input[name=householdName]')) === 'רות ואורי לוי');
 check('nor for a family to pick themselves out of',
   !(await first.isVisible('select[name=claimHouseholdId]')));
 await first.fill('input[name=firstName]', 'רות');

@@ -113,10 +113,26 @@ export function JoinForm({
 
       </fieldset>
 
+      {/* The name is whatever the person who added them typed, or whatever
+          their phone had in it — a guess at what this family calls itself. So
+          it arrives filled in and open to correction, here, once, by the people
+          it belongs to. */}
       {kind === 'family' && joiningAs && (
-        <p className="rounded-2xl bg-brand-wash px-4 py-3 text-center text-sm text-ink">
-          נרשמים בתור <span className="font-bold">{joiningAs}</span> — כפי ש{invitedBy} רשמו אתכם.
-        </p>
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-2 text-sm font-semibold text-muted">המשפחה שלכם</legend>
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-muted">
+              {invitedBy} רשמו אתכם כך — אפשר לתקן
+            </span>
+            <input
+              name="householdName"
+              type="text"
+              defaultValue={joiningAs}
+              required
+              className={field}
+            />
+          </label>
+        </fieldset>
       )}
 
       {kind === 'family' && !joiningAs && (

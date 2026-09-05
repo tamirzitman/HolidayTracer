@@ -26,6 +26,7 @@ import {
   suggestionsFor,
   claimableIn,
   knownToOthers,
+  renameHousehold,
   membersByHousehold,
   spendInvite,
 } from '@/lib/data';
@@ -117,6 +118,12 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
     // The link names the family they are. Nothing to choose and nothing to
     // invent: it was sent to them *as* that family, and it is spent on use.
     householdId = invite.forHousehold.id;
+    // Whoever added them guessed at the name, or took it from their phone.
+    // These are the people it belongs to, so their correction wins.
+    const corrected = String(formData.get('householdName') ?? '').trim();
+    if (corrected && corrected !== invite.forHousehold.name) {
+      await renameHousehold(householdId, corrected);
+    }
   } else {
     // Saying "that one is us" about a family already on the list is what keeps
     // one family from becoming two. It works whichever number they sign up
@@ -202,6 +209,41 @@ export type ContactResult = {
   missing: { name: string; phone: string }[];
   error?: string;
 };
+
+/**
+ * Contacts the picker brought back that are nobody in the app yet, added as
+ * families of ours.
+ *
+ * Picking somebody out of the address book is the work; ending with nothing but
+ * a message to send them is not what that work was for. Each becomes a family
+ * with the name from the contact and the number beside it, on our list right
+ * away — answerable at, countable, there. Whoever signs in with that number
+ * later can put the name right, because a name taken from somebody's phone is
+ * a guess at what the family calls itself.
+ */
+export async function addContacts(
+  contacts: { name: string; phone: string }[],
+): Promise<{ added: string[]; error?: string }> {
+  const me = await currentHousehold();
+  if ('error' in me) return { added: [], error: me.error };
+
+  const added: string[] = [];
+  for (const contact of contacts) {
+    const phone = normalizePhone(contact.phone);
+    const name = contact.name.trim();
+    if (!phone || !name) continue;
+    if (await findPerson(phone)) continue;
+
+    const householdId = await addHousehold(name);
+    await addPerson({ phone, name, householdId });
+    await connect(me.householdId, householdId);
+    added.push(name);
+  }
+
+  revalidatePath('/families');
+  revalidatePath('/');
+  return { added };
+}
 
 export async function connectContacts(
   contacts: { name: string; phone: string }[],
@@ -677,6 +719,27 @@ export async function answerFor(_prev: ActionResult, formData: FormData): Promis
 
   revalidatePath('/');
   revalidatePath('/history');
+  return { savedAt: new Date().toISOString() };
+}
+
+/**
+ * Putting our own family's name right. It is often not ours to begin with —
+ * somebody else added us before we ever opened the app, from a name in their
+ * phone — so this is a correction, not a rename, and only we can make it.
+ */
+export async function nameOurHousehold(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const name = String(formData.get('householdName') ?? '').trim();
+  if (!name) return { error: 'צריך שם למשפחה' };
+
+  await renameHousehold(me.householdId, name);
+  revalidatePath('/');
+  revalidatePath('/families');
   return { savedAt: new Date().toISOString() };
 }
 

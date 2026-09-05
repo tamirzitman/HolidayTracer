@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useState } from 'react';
+import { useActionState, useCallback, useEffect, useState } from 'react';
 import { useCloseOnAway } from '@/lib/dismiss';
 import { useHandoff } from '@/lib/handoff';
-import { newInviteLink, signOut } from '@/app/actions';
+import { nameOurHousehold, newInviteLink, signOut } from '@/app/actions';
+import type { ActionResult } from '@/app/actions';
+import { field } from './ui';
 import { WhatsAppMark } from './WhatsApp';
 import { inviteVia } from '@/lib/whatsapp';
 
@@ -33,6 +35,18 @@ export function HouseholdMenu({
   // A link aimed at our own number. Signing in elsewhere needs somebody to
   // vouch, and the nearest somebody is us, from the phone that is already in.
   const [deviceLink, setDeviceLink] = useState<'idle' | 'busy' | string>('idle');
+
+  // Our own name is often not ours to start with: somebody added us from their
+  // contacts before we ever opened the app. Correcting it belongs here, under
+  // the name itself, rather than on a settings screen we do not have.
+  const [naming, setNaming] = useState(false);
+  const [named, nameAction, namePending] = useActionState<ActionResult, FormData>(
+    nameOurHousehold,
+    {},
+  );
+  useEffect(() => {
+    if (named.savedAt) setNaming(false);
+  }, [named.savedAt]);
 
   // Bringing a partner or a grown child into our house. Ours to do, so it
   // belongs under our own name rather than on a row in a list of families.
@@ -89,6 +103,41 @@ export function HouseholdMenu({
             <span aria-hidden="true">🗓️</span>
             המועדים שלנו
           </Link>
+
+          {naming ? (
+            <form action={nameAction} className="flex flex-col gap-2 border-t border-line px-4 py-3">
+              <label className="text-xs font-semibold text-muted" htmlFor="household-name">
+                שם המשפחה שלנו
+              </label>
+              <input
+                id="household-name"
+                name="householdName"
+                type="text"
+                defaultValue={householdName}
+                required
+                className={field}
+              />
+              {named.error && <p className="text-xs font-semibold text-brand">{named.error}</p>}
+              <div className="flex items-center gap-4">
+                <button type="submit" disabled={namePending} className="text-sm font-bold text-brand">
+                  {namePending ? 'רגע…' : 'שמירה'}
+                </button>
+                <button type="button" onClick={() => setNaming(false)} className="text-sm font-semibold text-muted">
+                  ביטול
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setNaming(true)}
+              className={`${item} border-t border-line`}
+              role="menuitem"
+            >
+              <span aria-hidden="true">✏️</span>
+              שינוי שם המשפחה
+            </button>
+          )}
 
           <button
             type="button"
