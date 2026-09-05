@@ -5,6 +5,7 @@ build/
 .env
 .env.local
 .dev-sheet.json
+.sheet-backup-*.json
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store

@@ -88,6 +88,12 @@ Chrome, a Chrome incognito tab, Safari and Firefox are four households side by
 side. Within one browser, **יציאה** on the families screen switches who you are.
 Numbers are never verified, so `050-000-0001` and friends work as well as real ones.
 
+**The real record, to try things against.** `npm run copy-sheet` says what it
+would copy from the sheet in `.env.local` into the scratch sheet; `npm run
+copy-sheet -- --apply` does it. One way only — the source is read and never
+written — and the scratch sheet's contents are dumped to a `.sheet-backup-*.json`
+first. `--from` and `--to` point it somewhere else.
+
 **Back to the start.** `PLAYGROUND=1 npm run reset` restores the scratch sheet to a
 fixed cast — a family with two people, one with a single person, one nobody has
 joined, and a suggestion waiting to be taken up — and prints the numbers to sign in
