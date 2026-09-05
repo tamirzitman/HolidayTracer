@@ -13,11 +13,31 @@ import { chromium } from 'playwright';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 
+const BASE = process.env.SMOKE_URL ?? 'http://localhost:3111';
+
+// Refuse to run against anything but a local .dev-sheet.json. The suite signs
+// up families, mints invites and answers for holidays; pointed at a real sheet
+// it writes all of that into somebody's record, and every assertion below
+// still reads the local file, so it fails without saying why. `next start`
+// picks up .env.local, so a server started the ordinary way is exactly that —
+// hence `npm run start:test`, which clears SHEET_ID.
+const marker = await fetch(BASE)
+  .then((r) => r.text())
+  .catch(() => {
+    console.error(`No server answering on ${BASE}. Start one with: npm run start:test`);
+    process.exit(1);
+  });
+if (!marker.includes('name="holidaytracer-store" content="local"')) {
+  console.error(
+    `${BASE} is not on a local sheet — it has a SHEET_ID, so this run would write\n` +
+      'into a real spreadsheet. Start the test server with: npm run start:test',
+  );
+  process.exit(1);
+}
+
 // Start from known fixtures: a half-finished earlier run would otherwise leave
 // answers behind and the first assertion would fail for the wrong reason.
 execFileSync(process.execPath, ['scripts/dev-fixtures.mjs'], { stdio: 'ignore' });
-
-const BASE = process.env.SMOKE_URL ?? 'http://localhost:3111';
 // The server's in-memory copy of the sheet outlives a write by this long — set
 // by SHEET_TTL_MS on the server the suite is run against. Two checks below
 // have to outlast it to see a write reflected with no cache to invalidate it

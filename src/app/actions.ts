@@ -26,6 +26,7 @@ import {
   suggestionsFor,
   claimableIn,
   knownToOthers,
+  unjoinedNamed,
   renameHousehold,
   membersByHousehold,
   spendInvite,
@@ -45,6 +46,11 @@ export type ActionResult = {
    * let them in, and how.
    */
   blocked?: boolean;
+  /**
+   * A family already on the list, by name, that nobody has signed into — asked
+   * about rather than assumed, because a name can repeat.
+   */
+  sameName?: { id: string; name: string };
 };
 
 /** What a newly added family came out as, so the screen can go on using it. */
@@ -146,7 +152,29 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
       // Offered as your two names joined, and editable into whatever the
       // family actually goes by.
       const named = String(formData.get('householdName') ?? '').trim() || name;
-      householdId = await addHousehold(named);
+
+      // Somebody added this family by name and it has been sitting there empty
+      // ever since. Opening a second one beside it is the wrong answer to a
+      // question nobody asked, so ask it: the people it names are the only ones
+      // who can say. Answering "we are them" puts them in that household, and
+      // the connections whoever added them made are already there.
+      const claimingByName = String(formData.get('claimHouseholdId') ?? '').trim();
+      if (claimingByName) {
+        const same = await unjoinedNamed(named);
+        if (!same || same.id !== claimingByName) {
+          return { error: 'המשפחה הזו כבר לא פנויה — אפשר להירשם כמשפחה חדשה' };
+        }
+        householdId = same.id;
+      } else if (String(formData.get('newFamily') ?? '') === 'yes') {
+        householdId = await addHousehold(named);
+      } else {
+        // Only at the front door. Arriving on a link, the families worth
+        // claiming were already offered by name on the previous screen, and
+        // asking again about one they passed over is noise.
+        const same = invite ? undefined : await unjoinedNamed(named);
+        if (same) return { sameName: { id: same.id, name: same.name } };
+        householdId = await addHousehold(named);
+      }
     }
   }
 

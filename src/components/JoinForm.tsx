@@ -58,6 +58,15 @@ export function JoinForm({
   // text rather than sitting in the way of everyone who is genuinely new.
   const [claiming, setClaiming] = useState(false);
 
+  // Held rather than left to the DOM: React empties an uncontrolled form once
+  // its action returns, so anything the server answers with — an error, or the
+  // question about a family of this name already on the list — used to come
+  // back to a blank form. Blank required fields cannot be submitted again, so
+  // the second answer never reached the server at all.
+  const [firstName, setFirstName] = useState('');
+  const [surname, setSurname] = useState('');
+  const [householdName, setHouseholdName] = useState(joiningAs);
+
   return (
     <form action={formAction} className={`${card} flex flex-col gap-5`}>
       <input type="hidden" name="token" value={token} />
@@ -96,6 +105,8 @@ export function JoinForm({
             type="text"
             autoComplete="given-name"
             required
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
             className={field}
           />
         </label>
@@ -106,6 +117,8 @@ export function JoinForm({
             type="text"
             autoComplete="family-name"
             required
+            value={surname}
+            onChange={(e) => setSurname(e.target.value)}
             className={field}
           />
         </label>
@@ -127,8 +140,9 @@ export function JoinForm({
             <input
               name="householdName"
               type="text"
-              defaultValue={joiningAs}
               required
+              value={householdName}
+              onChange={(e) => setHouseholdName(e.target.value)}
               className={field}
             />
           </label>
@@ -149,6 +163,8 @@ export function JoinForm({
                 type="text"
                 required
                 placeholder="עמוס וליאת כהן"
+                value={householdName}
+                onChange={(e) => setHouseholdName(e.target.value)}
                 className={field}
               />
             </label>
@@ -233,6 +249,36 @@ export function JoinForm({
       )}
 
       <ErrorNote>{state.error}</ErrorNote>
+
+      {/* Somebody already put this family on their list, by name, and nobody has
+          ever signed into it. Two buttons rather than an assumption: a name can
+          belong to two families, and only these people know which this is. */}
+      {state.sameName && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-brand/40 bg-brand-wash p-4">
+          <p className="text-sm font-semibold text-ink">
+            כבר יש ברשימה משפחה בשם «{state.sameName.name}» שמישהו הוסיף, ואף אחד עוד לא
+            נכנס אליה. אתם הם?
+          </p>
+          <button
+            type="submit"
+            name="claimHouseholdId"
+            value={state.sameName.id}
+            disabled={pending}
+            className={primaryButton}
+          >
+            {pending ? 'רגע…' : 'כן, זו המשפחה שלנו'}
+          </button>
+          <button
+            type="submit"
+            name="newFamily"
+            value="yes"
+            disabled={pending}
+            className={secondaryButton}
+          >
+            לא, לפתוח משפחה חדשה
+          </button>
+        </div>
+      )}
 
       {invitedBy ? (
         <>

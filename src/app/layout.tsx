@@ -5,6 +5,7 @@ import { HouseholdMenu } from '@/components/HouseholdMenu';
 import { ShareApp } from '@/components/ShareApp';
 import { findPerson, getHousehold, suggestionsFor, unansweredUpcoming } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
+import { usingLocalSheet } from '@/lib/sheet';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -43,6 +44,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="he" dir="rtl">
       <head>
+        {/* Which store this server is on, so a test run can refuse to touch a
+            real sheet. It costs one tag on a laptop and nothing anywhere else:
+            a deployment has a SHEET_ID and never renders it. */}
+        {usingLocalSheet() && <meta name="holidaytracer-store" content="local" />}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link

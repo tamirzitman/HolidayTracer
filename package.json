@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "start:test": "SHEET_ID= SESSION_SECRET=test next start --port 3111",
     "typecheck": "tsc --noEmit",
     "seed:holidays": "tsx scripts/seed-holidays.mts",
     "fixtures": "node scripts/dev-fixtures.mjs",

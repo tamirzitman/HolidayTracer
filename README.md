@@ -56,9 +56,15 @@ To run the end-to-end check (needs a production build running on port 3111):
 
 ```bash
 npm run build
-SESSION_SECRET=test npm start -- --port 3111 &
+npm run start:test &
 npm run test:smoke
 ```
+
+`start:test` clears `SHEET_ID` on purpose: `next start` reads `.env.local`, so a
+server started the ordinary way runs against the real spreadsheet, and the suite
+— which registers families and answers for holidays — would write into it. The
+suite checks which store the server is on before it does anything, and stops if
+it is not the local file.
 
 ---
 

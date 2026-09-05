@@ -546,6 +546,30 @@ export async function claimableIn(
 }
 
 /**
+ * A family somebody has already added by name, that nobody has ever signed into,
+ * going by the name being registered right now.
+ *
+ * Adding a family by name alone leaves a household with nobody in it. When those
+ * people later arrive at the front door — no link, just their number — there is
+ * nothing to match them on, and the app would open a second household beside the
+ * one already bearing their name: they end up connected to nobody, and whoever
+ * added them goes on looking at an empty row. Matching the name they type is
+ * the one thread between the two, and it is only ever offered as a question.
+ *
+ * Only households nobody has signed into. A family with people in it is a family
+ * to impersonate, and joining one of those needs a link aimed at your number.
+ */
+export async function unjoinedNamed(name: string): Promise<Household | undefined> {
+  const sheet = await loadSheet();
+  const joined = new Set(sheet.people.map((p) => p.householdId));
+  const wanted = name.trim().replace(/\s+/g, ' ').toLowerCase();
+  if (!wanted) return undefined;
+  return sheet.households.find(
+    (h) => !joined.has(h.id) && h.name.trim().replace(/\s+/g, ' ').toLowerCase() === wanted,
+  );
+}
+
+/**
  * Families that the families you know all know, and you don't.
  *
  * Circles overlap heavily — a brother's list is most of yours, a parent's may
@@ -583,14 +607,14 @@ export async function suggestionsFor(
     }
   }
 
-  // Two families vouching is evidence; one is that family's own acquaintance,
-  // which says nothing about you. The exception is a circle too small to reach
-  // two — somebody who has just added their first family would otherwise get
-  // nothing back, and that first suggestion is what gets them started.
-  const enough = Math.min(2, mine.length);
-
+  // Everyone one of your families knows is offered, ordered by how many of them
+  // vouch. A threshold that rose with the size of your circle — two vouchers
+  // once you had two families — took offers away at the exact moment you acted
+  // on one: accept a suggestion and the rest of that family's circle vanished,
+  // which reads as the app losing them rather than as a rule. Ranking says
+  // "these two are surer" without hiding the rest, and the ✕ is there for the
+  // ones you do not want.
   return [...seenBy.entries()]
-    .filter(([, who]) => who.length >= enough)
     .map(([id, who]) => ({
       household: sheet.households.find((h) => h.id === id),
       seenBy: [...who].sort((a, b) => a.localeCompare(b, 'he')),
