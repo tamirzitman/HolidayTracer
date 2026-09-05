@@ -1,7 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useCloseOnAway } from '@/lib/dismiss';
+import { useHandoff } from '@/lib/handoff';
 import { addSuggested, dismissSuggested, newInviteLink, restoreSuggested } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { ContactPicker } from './ContactPicker';
@@ -381,9 +383,10 @@ function RowInvite({
   householdId: string;
   members: Member[];
 }) {
-  const [busy, setBusy] = useState(false);
+  const { busy, start, stop, go } = useHandoff();
   const [error, setError] = useState('');
   const [menu, setMenu] = useState(false);
+  const box = useCloseOnAway<HTMLDivElement>(menu, useCallback(() => setMenu(false), []));
 
   /**
    * One tap, all the way to WhatsApp. The link has to be made first, and a
@@ -391,15 +394,16 @@ function RowInvite({
    * the tab instead, which is not. WhatsApp takes over, and Back returns here.
    */
   async function send(forPhone: string, forHouseholdId: string) {
-    setBusy(true);
+    start();
     setError('');
     const made = await newInviteLink('family', forPhone, forHouseholdId);
     if (!made.token) {
       setError(made.error ?? 'משהו השתבש');
-      setBusy(false);
+      stop();
       return;
     }
-    window.location.href = inviteVia(`${window.location.origin}/join/${made.token}`, forPhone);
+    setMenu(false);
+    go(inviteVia(`${window.location.origin}/join/${made.token}`, forPhone));
   }
 
   // Nobody has signed in from this family: the errand is an invitation, and it
@@ -425,7 +429,7 @@ function RowInvite({
   // new phone — rare enough that it belongs behind the menu rather than beside
   // every name on the screen.
   return (
-    <div className="relative flex flex-col items-end gap-1">
+    <div ref={box} className="relative flex flex-col items-end gap-1">
       <button
         type="button"
         onClick={() => setMenu(!menu)}

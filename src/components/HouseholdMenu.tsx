@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useCloseOnAway } from '@/lib/dismiss';
+import { useHandoff } from '@/lib/handoff';
 import { newInviteLink, signOut } from '@/app/actions';
 import { WhatsAppMark } from './WhatsApp';
 import { inviteVia } from '@/lib/whatsapp';
@@ -27,25 +29,26 @@ export function HouseholdMenu({
   phone: string;
 }) {
   const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
+  const box = useCloseOnAway<HTMLDivElement>(open, useCallback(() => setOpen(false), []));
   // A link aimed at our own number. Signing in elsewhere needs somebody to
   // vouch, and the nearest somebody is us, from the phone that is already in.
   const [deviceLink, setDeviceLink] = useState<'idle' | 'busy' | string>('idle');
 
   // Bringing a partner or a grown child into our house. Ours to do, so it
   // belongs under our own name rather than on a row in a list of families.
-  const [houseLink, setHouseLink] = useState<'idle' | 'busy'>('idle');
+  const { busy: addingMember, start, stop, go } = useHandoff();
 
   async function addToOurHouse() {
-    setHouseLink('busy');
+    start();
     const made = await newInviteLink('household', '');
     if (!made.token) {
-      setHouseLink('idle');
+      stop();
       return;
     }
     // One tap through to WhatsApp: a window opened after the wait would be
     // blocked as a pop-up, so navigate instead.
-    window.location.href = inviteVia(`${window.location.origin}/join/${made.token}`);
+    setOpen(false);
+    go(inviteVia(`${window.location.origin}/join/${made.token}`));
   }
 
   async function linkForAnotherDevice() {
@@ -54,19 +57,7 @@ export function HouseholdMenu({
     setDeviceLink(made.token ? `${window.location.origin}/join/${made.token}` : 'idle');
   }
 
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => {
-      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
-    };
-    const escape = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('mousedown', away);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open]);
+
 
   const item = 'flex w-full items-center gap-2.5 px-4 py-3 text-sm font-semibold text-ink';
 
@@ -102,14 +93,14 @@ export function HouseholdMenu({
           <button
             type="button"
             onClick={addToOurHouse}
-            disabled={houseLink === 'busy'}
+            disabled={addingMember}
             className={`${item} border-t border-line`}
             role="menuitem"
           >
             <span className="text-whatsapp">
               <WhatsAppMark />
             </span>
-            {houseLink === 'busy' ? 'רגע…' : 'הוספת בן בית'}
+            {addingMember ? 'רגע…' : 'הוספת בן בית'}
           </button>
 
           {deviceLink === 'idle' || deviceLink === 'busy' ? (
