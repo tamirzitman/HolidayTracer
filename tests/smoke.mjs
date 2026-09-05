@@ -312,10 +312,14 @@ check('the list shows it, and says it was said for them',
   /לא מגיעים/.test(await sisterRow.innerText()) && /בשבילם/.test(await sisterRow.innerText()));
 check('and what was said for them can still be corrected',
   await sisterRow.getByText('לתקן בשבילם').isVisible());
-// Reaching adding from here without a second copy of the thing itself.
-const toFamilies = await dad.getAttribute('a[href="/families#invite"]', 'href');
-check(`adding is a link from the holiday screen, not a second form (${toFamilies})`,
-  toFamilies === '/families#invite');
+// Reaching adding from here without a second copy of the thing itself — and
+// attached to the list it is about, since a family missing from those rows is
+// the reason to go and add one.
+const circleCard = dad.locator('section:has-text("איפה כולם")').first();
+check('adding is a link inside the list it is about, not a second form',
+  await circleCard.locator('a[href="/families"]').isVisible());
+check('and the nudge is a mark on that list, not a button the width of the screen',
+  await circleCard.locator('a[href^="https://wa.me/?text="]').isVisible());
 check('and the form itself is not duplicated here',
   (await dad.$$('main input[name=familySurname]')).length === 0);
 
