@@ -50,6 +50,11 @@ const NEWCOMER = `05${String(Date.now()).slice(-8)}`;
 
 const sheet = () => JSON.parse(readFileSync(SHEET, 'utf8'));
 const rows = (tab) => (sheet()[tab] ?? []).slice(1);
+// Invite columns by name, never by position — the fixtures carry a spare
+// column exactly as the real sheet does, and reading these by position is how
+// writes landing one column over went unnoticed.
+const colsOf = (tab) => (sheet()[tab]?.[0] ?? []).map((h) => String(h).trim().toLowerCase());
+const inv = (row, name) => (row ?? [])[colsOf('Invites').indexOf(name)] ?? '';
 
 let failures = 0;
 function check(label, ok) {
@@ -256,9 +261,9 @@ check('with the link itself still reachable',
 
 // A way back in for a family already in the app is on their row, not in a form.
 const vouch = await linkFromRow(stranger, 'אבא ואמא', '');
-check(`a sign-in link is made from the family's own row (${vouch[4]})`,
-  vouch[4] === '+972501234567');
-const vouchForDad = vouch[0];
+check(`a sign-in link is made from the family's own row (${inv(vouch, 'for_phone')})`,
+  inv(vouch, 'for_phone') === '+972501234567');
+const vouchForDad = inv(vouch, 'token');
 await stranger.close();
 
 // ── the circle is hidden until you answer ────────────────────────────────────
@@ -291,7 +296,7 @@ await dad.click('button[type=submit]');
 await dad.waitForSelector('text=איפה אתם בחג?');
 check('a link aimed at the number lets them in', await dad.isVisible('text=איפה אתם בחג?'));
 check('and is spent doing it',
-  rows('Invites').filter((r) => r[0] === vouchForDad).some((r) => r[5]));
+  rows('Invites').filter((r) => inv(r, 'token') === vouchForDad).some((r) => inv(r, 'used_at')));
 check('a known number goes straight to the question', await dad.isVisible('text=איפה אתם בחג?'));
 // Saturday is "שבת", with no "יום" in front of it.
 check('the holiday carries its weekday', /(יום \S+|שבת) · \d/.test(await dad.innerText('header')));
@@ -364,8 +369,8 @@ const beforeInvite = rows('Invites').length;
 await dad.click('text=או להעתיק קישור');
 await dad.waitForSelector('text=שליחה בוואטסאפ');
 check('an invite link is created', rows('Invites').length === beforeInvite + 1);
-check('the invite is a family invite', rows('Invites').at(-1)[2] === 'family');
-const token = rows('Invites').at(-1)[0];
+check('the invite is a family invite', inv(rows('Invites').at(-1), 'kind') === 'family');
+const token = inv(rows('Invites').at(-1), 'token');
 
 const newcomer = await open();
 await newcomer.goto(`${BASE}/join/${token}`);
@@ -683,8 +688,9 @@ check(`the counts follow the correction (${stats.join('/')} → ${corrected.join
 
 // ── a link sent to one person is that person's alone ─────────────────────────
 const personal = await linkFromRow(dad, 'אח ואשתו', '');
-check(`a link can be aimed at one family (${personal[6]})`, personal[6] === 'hh_brother');
-const personalToken = personal[0];
+check(`a link can be aimed at one family (${inv(personal, 'for_household_id')})`,
+  inv(personal, 'for_household_id') === 'hh_brother');
+const personalToken = inv(personal, 'token');
 
 const aimed = await open();
 await aimed.goto(`${BASE}/join/${personalToken}`);
@@ -701,7 +707,7 @@ await aimed.waitForSelector('text=איפה אתם בחג?');
 await aimed.waitForTimeout(1500);
 await aimed.close();
 check('the link is spent once it is used',
-  rows('Invites').filter((r) => r[0] === personalToken).some((r) => r[5]));
+  rows('Invites').filter((r) => inv(r, 'token') === personalToken).some((r) => inv(r, 'used_at')));
 check('and made them that family rather than a new one',
   rows('People').some((r) => r[0] === '+972589001122' && r[2] === 'hh_brother'));
 
@@ -780,10 +786,12 @@ await dad.click('button[aria-haspopup="menu"]');
 await dad.click('text=כניסה ממכשיר נוסף');
 await dad.waitForSelector('text=שליחה לעצמי בוואטסאפ');
 const ownDevice = rows('Invites').at(-1);
-check(`the household menu makes a link for our own number (${ownDevice[4]})`,
-  ownDevice[4] === '+972501234567');
+// The one check that would have caught it: a link aimed at a number has to put
+// that number in the column the gate reads, whatever else the sheet carries.
+check(`the household menu makes a link for our own number (${inv(ownDevice, 'for_phone')})`,
+  inv(ownDevice, 'for_phone') === '+972501234567');
 const dadsTablet = await open();
-await dadsTablet.goto(`${BASE}/join/${ownDevice[0]}`);
+await dadsTablet.goto(`${BASE}/join/${inv(ownDevice, 'token')}`);
 await dadsTablet.fill('input[name=phone]', DAD);
 await dadsTablet.click('button[type=submit]');
 // The tab bar, not the question: dad has answered this holiday by now, so the
@@ -794,9 +802,13 @@ await dadsTablet.close();
 
 // A link that has gone stale is a way in, not a wall.
 const aged = sheet();
-aged.Invites = aged.Invites.map((r, i) =>
-  i && r[0] === token ? [r[0], r[1], r[2], '2020-01-01T00:00:00.000Z'] : r,
-);
+const agedCols = colsOf('Invites');
+aged.Invites = aged.Invites.map((r, i) => {
+  if (!i || r[agedCols.indexOf('token')] !== token) return r;
+  const copy = [...r];
+  copy[agedCols.indexOf('created_at')] = '2020-01-01T00:00:00.000Z';
+  return copy;
+});
 writeFileSync(SHEET, `${JSON.stringify(aged, null, 2)}\n`, 'utf8');
 await dad.waitForTimeout(SHEET_TTL_MS);
 const late = await open();
@@ -870,7 +882,7 @@ await dad.goto(`${BASE}/families`);
 if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
 await dad.click('text=או להעתיק קישור');
 await dad.waitForSelector('text=העתקת הקישור');
-const shared = rows('Invites').at(-1)[0];
+const shared = inv(rows('Invites').at(-1), 'token');
 const viaGroup = await open();
 await viaGroup.goto(`${BASE}/join/${shared}`);
 await viaGroup.fill('input[name=phone]', FIRST_NUMBER);
@@ -883,7 +895,7 @@ check('and says what would',
 await viaGroup.close();
 
 // Made from their own row, it says which family they are.
-const forFirst = (await linkFromRow(dad, 'רות ואורי לוי', ''))[0];
+const forFirst = inv(await linkFromRow(dad, 'רות ואורי לוי', ''), 'token');
 
 const first = await open();
 await first.goto(`${BASE}/join/${forFirst}`);

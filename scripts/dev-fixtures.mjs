@@ -75,8 +75,13 @@ for (const a of active) {
     if (a !== b) sheet.Connections.push([a, b, 'add', now]);
   }
 }
+// A spare column the code has never heard of, on purpose. The real sheet grew
+// one — left behind by a feature that was reverted — and rows written by
+// position rather than by header name landed one column over from then on, so
+// no invite aimed at a number could let anybody in. The suite carries the same
+// trap so that can never pass unnoticed again.
 sheet.Invites = [
-  ['token', 'created_by', 'kind', 'created_at', 'for_phone', 'used_at', 'for_household_id'],
+  ['token', 'created_by', 'kind', 'created_at', 'circle', 'for_phone', 'used_at', 'for_household_id'],
 ];
 
 delete sheet.Conflicts;

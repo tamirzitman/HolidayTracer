@@ -484,10 +484,33 @@ export async function removeOccasion(householdId: string, key: string): Promise<
 
 async function appendRow(tab: string, headers: readonly string[], row: string[]): Promise<void> {
   const store = sheetStore();
+  const existing = await store.read(tab);
   // A tab whose first row is data would have that row read back as the header
   // and silently swallowed, so write headers when the tab is empty.
-  if ((await store.read(tab)).length === 0) await store.append(tab, [...headers]);
-  await store.append(tab, row);
+  if (existing.length === 0) {
+    await store.append(tab, [...headers]);
+    await store.append(tab, row);
+    invalidateSheet();
+    return;
+  }
+
+  // Placed by header name, the same way every read resolves them. Writing by
+  // position instead was the same bug in reverse: one spare column somebody
+  // added — or left behind — shifted every value after it into the next
+  // column along, so an invite's number landed in the column beside the one
+  // the gate reads and no link aimed at anybody could ever let them in.
+  const sheetHeaders = (existing[0] ?? []).map((name) => String(name).trim().toLowerCase());
+  const placed: string[] = new Array(sheetHeaders.length).fill('');
+  const homeless: string[] = [];
+  headers.forEach((name, i) => {
+    const at = sheetHeaders.indexOf(name);
+    // A column the sheet has never heard of: keep the value rather than drop
+    // it silently, past the end where `npm run align-headers` will show it.
+    if (at === -1) homeless.push(row[i] ?? '');
+    else placed[at] = row[i] ?? '';
+  });
+
+  await store.append(tab, [...placed, ...homeless]);
   invalidateSheet();
 }
 
