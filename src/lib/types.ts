@@ -114,6 +114,23 @@ export type Invite = {
   forHouseholdId: string;
 };
 
+/**
+ * A household's standing in one circle. Circles group families so that one
+ * family vouching for somebody is enough to suggest them — outside a circle it
+ * takes two — and nothing else: they do not decide who sees which holiday.
+ */
+export type CircleRow = {
+  circleId: string;
+  householdId: string;
+  action: 'add' | 'remove';
+  /** What this household calls the circle. Everyone in it may call it something else. */
+  name: string;
+  color: string;
+  /** Who put them there. Only they can take them out again. */
+  addedBy: string;
+  at: string;
+};
+
 export const TABS = {
   holidays: 'Holidays',
   households: 'Households',
@@ -122,6 +139,7 @@ export const TABS = {
   conflicts: 'Conflicts',
   connections: 'Connections',
   invites: 'Invites',
+  circles: 'Circles',
 } as const;
 
 export const HEADERS = {
@@ -139,4 +157,9 @@ export const HEADERS = {
   invites: [
     'token', 'created_by', 'kind', 'created_at', 'for_phone', 'used_at', 'for_household_id',
   ],
+  // One row says everything about one household's place in one circle: whether
+  // they are in it, and — because the name and the colour are each household's
+  // own — what they call it and what colour they see it in. Newest row per
+  // (circle, household) wins, so joining, leaving and renaming are all appends.
+  circles: ['circle_id', 'household_id', 'action', 'name', 'color', 'added_by', 'at'],
 } as const;

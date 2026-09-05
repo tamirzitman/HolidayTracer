@@ -84,6 +84,10 @@ sheet.Invites = [
   ['token', 'created_by', 'kind', 'created_at', 'circle', 'for_phone', 'used_at', 'for_household_id'],
 ];
 
+sheet.Circles = [
+  ['circle_id', 'household_id', 'action', 'name', 'color', 'added_by', 'at'],
+];
+
 delete sheet.Conflicts;
 
 writeFileSync(FILE, `${JSON.stringify(sheet, null, 2)}\n`, 'utf8');

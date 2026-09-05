@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useOptimistic, useRef, useState } from 'react';
 import { answer, answerFor, type ActionResult } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
+import { CircleDots } from './Circles';
 import { NextStep } from './NextStep';
 import { FamilyWhatsApp, WhatsAppMark, type Member } from './WhatsApp';
 import { remindAbout } from '@/lib/whatsapp';
@@ -54,6 +55,8 @@ type Props = {
   }[];
   /** How many families are on our list, for what to promise before answering. */
   circleSize: number;
+  /** Which of our circles each family is in — the same dots as on the circles screen. */
+  tags: Record<string, { id: string; name: string; color: string }[]>;
   /**
    * Our own family. Answering on somebody's behalf has to be able to say they
    * are coming to us — which is the commonest thing there is to say for the
@@ -102,6 +105,7 @@ export function AnswerForm({
   guests,
   circleStatus,
   circleSize,
+  tags,
   us,
   appUrl,
   nextStep,
@@ -527,6 +531,7 @@ export function AnswerForm({
           )}
           holidayKey={holiday.key}
           hosts={[us, ...households]}
+          tags={tags}
         />
       )}
 
@@ -584,6 +589,7 @@ function Circle({
   reminder,
   holidayKey,
   hosts,
+  tags,
 }: {
   families: {
     id: string;
@@ -598,6 +604,7 @@ function Circle({
   holidayKey: string;
   /** Whom they might be at, for answering on their behalf. */
   hosts: { id: string; name: string }[];
+  tags: Record<string, { id: string; name: string; color: string }[]>;
 }) {
   const said = (kind: string, hostName: string) => {
     if (kind === 'hosting') return 'מארחים';
@@ -632,7 +639,10 @@ function Circle({
                 truncates the name to nothing — which is the half that matters. */}
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
               <div className="min-w-0 grow basis-40">
-                <p className="font-semibold break-words text-ink">{family.name}</p>
+                <p className="flex flex-wrap items-center gap-2 font-semibold break-words text-ink">
+                  {family.name}
+                  <CircleDots tags={tags[family.id] ?? []} />
+                </p>
                 {family.byName && (
                   <p className="text-xs text-muted">
                     ענו: {family.byName}

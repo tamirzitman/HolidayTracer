@@ -18,6 +18,7 @@ import {
   todayInIsrael,
   suggestionsFor,
   unansweredUpcoming,
+  circleTags,
 } from '@/lib/data';
 import { nextStep } from '@/lib/next-step';
 import { getSessionPhone } from '@/lib/session';
@@ -115,9 +116,10 @@ export default async function Page({
   // Knowing where everyone else is, is the reward for saying where you are.
   const circleStatus = current ? await circleAnswers(holiday.key, person.householdId) : [];
 
-  const [suggested, unanswered] = await Promise.all([
+  const [suggested, unanswered, tags] = await Promise.all([
     suggestionsFor(person.householdId),
     unansweredUpcoming(person.householdId),
+    circleTags(person.householdId),
   ]);
   const step = nextStep({
     circleSize: circle.length,
@@ -167,6 +169,7 @@ export default async function Page({
         members: whoIsIn(c.household.id),
       }))}
       circleSize={circle.length}
+      tags={Object.fromEntries(tags)}
       us={{
         id: person.householdId,
         name: households.find((h) => h.id === person.householdId)?.name ?? 'אנחנו',

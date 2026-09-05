@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { nextColor } from '@/lib/circle-colors';
 import { redirect } from 'next/navigation';
 import {
   addHousehold,
@@ -12,6 +13,12 @@ import {
   createInvite,
   dismissSuggestion,
   hiddenSuggestions,
+  circlesFor,
+  createCircle,
+  addToCircle,
+  removeFromCircle,
+  labelCircle,
+  whoAdded,
   restoreSuggestion,
   findPerson,
   getHousehold,
@@ -438,6 +445,102 @@ export async function deleteOccasion(
   revalidatePath('/');
   revalidatePath('/occasions');
   revalidatePath('/history');
+  return { savedAt: new Date().toISOString() };
+}
+
+// ── circles ───────────────────────────────────────────────────────────────────
+
+/**
+ * A new circle, named, with the families ticked for it.
+ *
+ * A circle is a claim that these people belong together, and the only thing it
+ * does is lower the bar for suggesting them to each other: inside one, a single
+ * family vouching is enough, where outside it takes two.
+ */
+export async function makeCircle(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const name = String(formData.get('name') ?? '').trim();
+  if (!name) return { error: 'צריך שם למעגל' };
+
+  const picked = formData.getAll('member').map(String).filter(Boolean);
+  // Only families we are actually connected to: a circle is not a way to reach
+  // into the sheet and group households we have never met.
+  const mine = new Set((await circleOf(me.householdId)).map((h) => h.id));
+  const members = picked.filter((id) => mine.has(id));
+  if (members.length === 0) return { error: 'צריך לבחור לפחות משפחה אחת' };
+
+  const taken = (await circlesFor(me.householdId)).map((c) => c.color);
+  await createCircle(me.householdId, name, nextColor(taken), members);
+  revalidatePath('/families');
+  revalidatePath('/');
+  return { savedAt: new Date().toISOString() };
+}
+
+/**
+ * Ticking a family in or out of one of our circles.
+ *
+ * Anyone in a circle may bring a family into it — the same as connecting, which
+ * nobody has to approve either. Taking one out is limited to whoever put them
+ * there, so a family somebody else vouched for cannot be dropped behind their
+ * back; leaving a circle ourselves is always ours to do.
+ */
+export async function setCircleMember(
+  circleId: string,
+  householdId: string,
+  inCircle: boolean,
+): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const mine = (await circlesFor(me.householdId)).find((c) => c.id === circleId);
+  if (!mine) return { error: 'המעגל הזה לא שלכם' };
+
+  if (inCircle) {
+    if (!(await isConnected(me.householdId, householdId))) {
+      return { error: 'המשפחה הזו לא במעגל שלכם' };
+    }
+    await addToCircle(circleId, householdId, me.householdId, mine.name, mine.color);
+  } else {
+    const adder = await whoAdded(circleId, householdId);
+    if (adder && adder !== me.householdId) {
+      return { error: 'רק מי שהוסיף אותם למעגל יכול להוציא אותם' };
+    }
+    await removeFromCircle(circleId, householdId);
+  }
+
+  revalidatePath('/families');
+  revalidatePath('/');
+  return { savedAt: new Date().toISOString() };
+}
+
+/** Our own name and colour for a circle. Nobody else's view of it changes. */
+export async function nameCircle(
+  circleId: string,
+  name: string,
+  color: string,
+): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+  if (!name.trim()) return { error: 'צריך שם למעגל' };
+  if (!(await circlesFor(me.householdId)).some((c) => c.id === circleId)) {
+    return { error: 'המעגל הזה לא שלכם' };
+  }
+
+  await labelCircle(circleId, me.householdId, name.trim(), color);
+  revalidatePath('/families');
+  revalidatePath('/');
+  return { savedAt: new Date().toISOString() };
+}
+
+/** Stepping out of a circle. Ours to do, whoever put us there. */
+export async function leaveCircle(circleId: string): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+  await removeFromCircle(circleId, me.householdId);
+  revalidatePath('/families');
+  revalidatePath('/');
   return { savedAt: new Date().toISOString() };
 }
 

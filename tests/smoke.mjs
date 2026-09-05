@@ -161,12 +161,33 @@ const coldSees = await stranger.$$eval('select[name=hostHouseholdId] option', (e
 );
 check(`and they are on the list (${coldSees.join(', ')})`, coldSees.includes('אבא ואמא'));
 
+// One family knowing somebody says nothing about us — it takes two, or a
+// circle saying these people belong together. With only dad's household on our
+// list, everyone he knows is vouched for exactly once.
+await stranger.goto(`${BASE}/families`);
+await stranger.waitForSelector('text=המעגלים שלי');
+const onOneVoucher = await stranger.$$eval('section:has-text("מוצע להוספה") li', (e) => e.length);
+check(`one family vouching is not enough on its own (${onOneVoucher})`, onOneVoucher === 0);
+
+// A second family on our list, and the families both of them know become
+// suggestions.
+await stranger.goto(BASE);
+if (await stranger.isVisible('text=שינוי תשובה')) await stranger.click('text=שינוי תשובה');
+await stranger.click('text=מתארחים אצל…');
+await stranger.click('text=לא מוצאים? הוסיפו משפחה');
+await stranger.waitForSelector('input[name=familyPhone]');
+await stranger.fill('input[name=familyFirstNames]', 'דנה ויוסי');
+await stranger.fill('input[name=familyPhone]', '050-222-3333');
+await stranger.click('form:has(input[name=familyFirstNames]) button[type=submit]');
+await stranger.waitForSelector('text=נוספו, וכבר נבחרו');
+await stranger.waitForTimeout(1500);
+
 await stranger.goto(`${BASE}/families`);
 await stranger.waitForSelector('text=המעגלים שלי');
 const coldSuggested = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
   els.map((e) => e.innerText.split('\n')[0].trim()),
 );
-check(`one family added brings the rest as suggestions (${coldSuggested.length})`,
+check(`two families vouching brings the rest as suggestions (${coldSuggested.length})`,
   coldSuggested.length >= 2);
 
 // A suggestion turned down should not come back: the families you decided
@@ -405,22 +426,65 @@ const options = await newcomer.$$eval('select[name=hostHouseholdId] option', (el
 check(`the newcomer starts with the family that invited them (${options.join(', ') || 'none'})`,
   options.includes('אבא ואמא'));
 
-// And the rest arrives where it can be judged: on the circles screen, named,
-// with one tap for all of it.
+// ── circles: inside one, a single family vouching is enough ─────────────────
+// The newcomer knows dad and nobody else, so everyone dad knows is vouched for
+// exactly once and none of them clears the bar. A circle is how dad says these
+// people belong together regardless.
 await newcomer.goto(`${BASE}/families`);
 await newcomer.waitForSelector('text=המעגלים שלי');
-const waiting = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) => els.length);
-check(`the inviter's circle arrives as suggestions instead (${waiting})`, waiting >= 2);
+const beforeCircle = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (e) => e.length);
+check(`the inviter's families are not suggested on one voucher (${beforeCircle})`,
+  beforeCircle === 0);
+
+const newcomerId = rows('Households').find((r) => r[1] === 'דנה ויוסי לוי')[0];
+await dad.goto(`${BASE}/families`);
+await dad.waitForSelector('text=המעגלים שלנו');
+await dad.click('text=מעגל חדש');
+await dad.fill('input[name=name]', 'צד אבא');
+// By household id rather than by name: two families here are called דנה ויוסי
+// and דנה ויוסי לוי, and a text match would take whichever came first.
+for (const id of ['hh_a', 'hh_brother', 'hh_sister', newcomerId]) {
+  await dad.click(`input[type=checkbox][value="${id}"]`);
+}
+await dad.click('text=יצירת המעגל');
+await dad.waitForTimeout(2500);
+
+const circleRows = rows('Circles');
+check(`a circle is one row per household, ours among them (${circleRows.length})`,
+  circleRows.length === 5 && circleRows.some((r) => r[1] === 'hh_parents' && r[2] === 'add'));
+check('with a colour chosen rather than asked for', circleRows.every((r) => r[4]));
+check('and every row says who put them there',
+  circleRows.every((r) => r[5] === 'hh_parents'));
+
+await dad.reload();
+await dad.waitForSelector('text=צד אבא');
+const circleDots = await dad.$$eval('#families li [aria-label^="מעגלים:"]', (e) => e.length);
+check(`the families in it are dotted on their rows (${circleDots})`, circleDots === 4);
+
+await newcomer.reload();
+await newcomer.waitForSelector('text=המעגלים שלי');
+const waitingNames = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) =>
+  els.map((e) => e.innerText.split('\n')[0].trim()),
+);
+const waiting = waitingNames.length;
+check(`inside the circle one voucher is enough (${waitingNames.join(', ')})`,
+  ['דנה ויוסי', 'אח ואשתו', 'אחות ובעלה'].every((n) => waitingNames.includes(n)));
+check('while a family outside it still needs two',
+  !waitingNames.includes('רן ומיכל ברק'));
 const mineBefore = await newcomer.$$eval('section:first-of-type li', (els) => els.length);
 await newcomer.click('text=הוספת כולן');
 await newcomer.waitForTimeout(4000);
 await newcomer.reload();
 await newcomer.waitForSelector('text=המעגלים שלי');
 const mineAfter = await newcomer.$$eval('section:first-of-type li', (els) => els.length);
-const left = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) => els.length);
-// What the button promises: nothing offered is left behind, and the list grew.
-check(`and all of it goes in one tap (${mineBefore} → ${mineAfter}, ${left} left)`,
-  left === 0 && mineAfter > mineBefore);
+const leftNames = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) =>
+  els.map((e) => e.innerText.split('\n')[0].trim()),
+);
+// What the button promises is that everything *offered* goes in — not that the
+// section empties. Taking up three families can make a fourth eligible, since
+// two of your families now know somebody a moment ago only one of them did.
+check(`and all of it goes in one tap (${mineBefore} → ${mineAfter}, left: ${leftNames.join(', ') || 'none'})`,
+  mineAfter === mineBefore + waiting && waitingNames.every((n) => !leftNames.includes(n)));
 // Back to the question, where the dropdown has to be opened again.
 await newcomer.goto(BASE);
 await newcomer.waitForSelector('nav');

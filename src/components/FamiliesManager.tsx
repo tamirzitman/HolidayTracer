@@ -6,6 +6,7 @@ import { useHandoff } from '@/lib/handoff';
 import { addSuggested, dismissSuggested, newInviteLink, restoreSuggested } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
 import { ContactPicker } from './ContactPicker';
+import { Circles, CircleDots, type CircleView } from './Circles';
 import { WhatsAppMark, type Member } from './WhatsApp';
 import { inviteVia } from '@/lib/whatsapp';
 import {
@@ -30,6 +31,8 @@ export function FamiliesManager({
   suggested,
   hidden,
   ownName,
+  circles,
+  tags,
 }: {
   families: Family[];
   /** The people in our own household, for a link that lets one of them in elsewhere. */
@@ -42,6 +45,10 @@ export function FamiliesManager({
   hidden: { id: string; name: string }[];
   /** What our own household is called. */
   ownName: string;
+  /** The circles we are in, as we named and coloured them. */
+  circles: CircleView[];
+  /** Which of our circles each family is in, for the dots on their row. */
+  tags: Record<string, { id: string; name: string; color: string }[]>;
 }) {
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
@@ -105,7 +112,10 @@ export function FamiliesManager({
             {families.map((family) => (
               <li key={family.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3.5">
                 <div className="min-w-0 grow basis-40">
-                  <p className="font-semibold break-words text-ink">{family.name}</p>
+                  <p className="flex flex-wrap items-center gap-2 font-semibold break-words text-ink">
+                    {family.name}
+                    <CircleDots tags={tags[family.id] ?? []} />
+                  </p>
                   {/* Say what the state actually is. "טרם הצטרפו" left people
                       guessing whether the family was missing something, when
                       all it means is that nobody from it has opened the app. */}
@@ -125,6 +135,8 @@ export function FamiliesManager({
           </ul>
         )}
       </section>
+      <Circles circles={circles} families={families.map((f) => ({ id: f.id, name: f.name }))} />
+
       {/* Circles drift apart as people add families of their own. Rather than ask
           anyone to keep the lists in step, this reads the overlap off the
           connections that already exist. */}

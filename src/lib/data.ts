@@ -12,6 +12,7 @@ import {
   type StoredAnswer,
   type Connection,
   type Invite,
+  type CircleRow,
 } from './types';
 
 /**
@@ -47,6 +48,7 @@ export type Sheet = {
   conflicts: { holidayKey: string; householdId: string; hostHouseholdId: string; status: 'open' | 'resolved' }[];
   connections: Connection[];
   invites: Invite[];
+  circles: CircleRow[];
 };
 
 const TAB_LIST = [
@@ -57,6 +59,7 @@ const TAB_LIST = [
   TABS.conflicts,
   TABS.connections,
   TABS.invites,
+  TABS.circles,
 ];
 
 /**
@@ -84,6 +87,7 @@ async function fetchSheet(): Promise<Sheet> {
   const answersTab = indexRows(raw[TABS.answers] ?? []);
   const connectionsTab = indexRows(raw[TABS.connections] ?? []);
   const invitesTab = indexRows(raw[TABS.invites] ?? []);
+  const circlesTab = indexRows(raw[TABS.circles] ?? []);
   const conflictsTab = indexRows(raw[TABS.conflicts] ?? []);
 
   const householdOf = new Map(
@@ -181,6 +185,18 @@ async function fetchSheet(): Promise<Sheet> {
         forHouseholdId: cell(row, invitesTab.headers, 'for_household_id'),
       }))
       .filter((i) => i.token && i.createdBy),
+
+    circles: circlesTab.body
+      .map((row) => ({
+        circleId: cell(row, circlesTab.headers, 'circle_id'),
+        householdId: cell(row, circlesTab.headers, 'household_id'),
+        action: (cell(row, circlesTab.headers, 'action') || 'add') as CircleRow['action'],
+        name: cell(row, circlesTab.headers, 'name'),
+        color: cell(row, circlesTab.headers, 'color'),
+        addedBy: cell(row, circlesTab.headers, 'added_by'),
+        at: cell(row, circlesTab.headers, 'at'),
+      }))
+      .filter((c) => c.circleId && c.householdId),
   };
 }
 
@@ -592,6 +608,174 @@ export async function unjoinedNamed(name: string): Promise<Household | undefined
   );
 }
 
+// ── circles ───────────────────────────────────────────────────────────────────
+
+/**
+ * The newest row for every (circle, household) pair. Membership, the name and
+ * the colour all live on the same row, so joining, leaving and renaming are one
+ * kind of write and the latest one wins — the same rule as everywhere else here.
+ */
+function circleState(rows: CircleRow[]): Map<string, CircleRow> {
+  const state = new Map<string, CircleRow>();
+  for (const row of rows) state.set(`${row.circleId}\u0000${row.householdId}`, row);
+  return state;
+}
+
+/** Everyone currently in a circle. */
+export async function circleMembers(circleId: string): Promise<string[]> {
+  const state = circleState((await loadSheet()).circles);
+  return [...state.values()]
+    .filter((r) => r.circleId === circleId && r.action === 'add')
+    .map((r) => r.householdId);
+}
+
+export type MyCircle = {
+  id: string;
+  /** What we call it. Somebody else in it may call it something else entirely. */
+  name: string;
+  color: string;
+  /** Households in it, ourselves excluded — the ones worth showing on a row. */
+  members: string[];
+};
+
+/**
+ * The circles we are in, as we see them.
+ *
+ * The name and the colour come off our own row, because both are ours: "צד אבא"
+ * is the wrong name for the people on the other side of it, and a circle nobody
+ * can rename would be a label imposed on them.
+ */
+export async function circlesFor(householdId: string): Promise<MyCircle[]> {
+  const state = circleState((await loadSheet()).circles);
+  const rows = [...state.values()];
+  const mine = rows.filter((r) => r.householdId === householdId && r.action === 'add');
+  return mine
+    .map((row) => ({
+      id: row.circleId,
+      name: row.name,
+      color: row.color,
+      members: rows
+        .filter((r) => r.circleId === row.circleId && r.action === 'add' && r.householdId !== householdId)
+        .map((r) => r.householdId),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+}
+
+/** Which of our circles each household is in, for the dots on their row. */
+export async function circleTags(
+  householdId: string,
+): Promise<Map<string, { id: string; name: string; color: string }[]>> {
+  const tags = new Map<string, { id: string; name: string; color: string }[]>();
+  for (const circle of await circlesFor(householdId)) {
+    for (const member of circle.members) {
+      tags.set(member, [
+        ...(tags.get(member) ?? []),
+        { id: circle.id, name: circle.name, color: circle.color },
+      ]);
+    }
+  }
+  return tags;
+}
+
+/** Whoever shares a circle with us — the households one voucher is enough for. */
+async function sharingACircleWith(householdId: string): Promise<Set<string>> {
+  const circles = await circlesFor(householdId);
+  return new Set(circles.flatMap((c) => c.members));
+}
+
+/**
+ * A new circle, with us in it.
+ *
+ * We are a member of our own circle on purpose: the rule that makes circles
+ * worth anything is "somebody in a circle I am also in", and a circle its own
+ * author stands outside of would do nothing for them.
+ */
+export async function createCircle(
+  householdId: string,
+  name: string,
+  color: string,
+  members: string[],
+): Promise<string> {
+  const id = randomUUID().replace(/-/g, '').slice(0, 12);
+  const at = new Date().toISOString();
+  for (const member of [householdId, ...members.filter((m) => m !== householdId)]) {
+    await appendRow(TABS.circles, HEADERS.circles, [
+      id,
+      member,
+      'add',
+      name,
+      color,
+      householdId,
+      at,
+    ]);
+  }
+  return id;
+}
+
+/**
+ * Bringing a family into a circle. Anyone in it may — the same as connecting,
+ * which nobody has to approve either. The name they arrive with is ours, as a
+ * starting point they can change; the colour likewise.
+ */
+export async function addToCircle(
+  circleId: string,
+  householdId: string,
+  addedBy: string,
+  name: string,
+  color: string,
+): Promise<void> {
+  await appendRow(TABS.circles, HEADERS.circles, [
+    circleId,
+    householdId,
+    'add',
+    name,
+    color,
+    addedBy,
+    new Date().toISOString(),
+  ]);
+}
+
+/** Who put this household in this circle, if they are in it at all. */
+export async function whoAdded(circleId: string, householdId: string): Promise<string | undefined> {
+  const row = circleState((await loadSheet()).circles).get(`${circleId}\u0000${householdId}`);
+  return row?.action === 'add' ? row.addedBy : undefined;
+}
+
+/** Out of the circle. Their own row, so their name and colour go with them. */
+export async function removeFromCircle(circleId: string, householdId: string): Promise<void> {
+  const row = circleState((await loadSheet()).circles).get(`${circleId}\u0000${householdId}`);
+  if (!row || row.action !== 'add') return;
+  await appendRow(TABS.circles, HEADERS.circles, [
+    circleId,
+    householdId,
+    'remove',
+    row.name,
+    row.color,
+    row.addedBy,
+    new Date().toISOString(),
+  ]);
+}
+
+/** Our own name and colour for a circle. Nobody else's view of it changes. */
+export async function labelCircle(
+  circleId: string,
+  householdId: string,
+  name: string,
+  color: string,
+): Promise<void> {
+  const row = circleState((await loadSheet()).circles).get(`${circleId}\u0000${householdId}`);
+  if (!row || row.action !== 'add') return;
+  await appendRow(TABS.circles, HEADERS.circles, [
+    circleId,
+    householdId,
+    'add',
+    name,
+    color,
+    row.addedBy,
+    new Date().toISOString(),
+  ]);
+}
+
 /**
  * Families that the families you know all know, and you don't.
  *
@@ -630,14 +814,18 @@ export async function suggestionsFor(
     }
   }
 
-  // Everyone one of your families knows is offered, ordered by how many of them
-  // vouch. A threshold that rose with the size of your circle — two vouchers
-  // once you had two families — took offers away at the exact moment you acted
-  // on one: accept a suggestion and the rest of that family's circle vanished,
-  // which reads as the app losing them rather than as a rule. Ranking says
-  // "these two are surer" without hiding the rest, and the ✕ is there for the
-  // ones you do not want.
+  // Two of your families vouching is evidence; one is that family's own
+  // acquaintance, which says nothing about you. A circle is how you say
+  // otherwise: put a household in one of yours and one voucher is enough,
+  // because you have already said these people belong together.
+  //
+  // The threshold is fixed rather than scaled to the size of your list. A rule
+  // that rose as you added families took offers away at the moment you acted on
+  // one — accept a suggestion, and the rest of that family's circle vanished.
+  const together = await sharingACircleWith(householdId);
+
   return [...seenBy.entries()]
+    .filter(([id, who]) => who.length >= 2 || together.has(id))
     .map(([id, who]) => ({
       household: sheet.households.find((h) => h.id === id),
       seenBy: [...who].sort((a, b) => a.localeCompare(b, 'he')),
