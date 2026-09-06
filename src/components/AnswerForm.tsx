@@ -505,7 +505,7 @@ export function AnswerForm({
           href="/families"
           className="text-center text-sm font-bold text-brand underline underline-offset-4"
         >
-          {circleSize === 0 ? 'להוסיף משפחות למעגל →' : 'חסרה משפחה? להוסיף או להזמין →'}
+          {circleSize === 0 ? 'להוסיף משפחות למעגל →' : 'חסרה משפחה? להוסיף →'}
         </Link>
       )}
 
@@ -684,9 +684,14 @@ function Circle({
           the reason to go and add one. */}
       <Link
         href="/families"
-        className="border-t border-line px-5 py-3 text-sm font-bold text-brand underline underline-offset-4"
+        className="inline-flex items-center gap-2 border-t border-line px-5 py-3 text-sm font-bold text-brand"
       >
-        חסרה כאן משפחה? להוסיף או להזמין →
+        <span className="grid h-5 w-5 place-items-center rounded-full border border-brand" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+          </svg>
+        </span>
+        הוספת משפחה
       </Link>
     </section>
   );

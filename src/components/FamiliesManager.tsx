@@ -18,10 +18,12 @@ import { WhatsAppMark, type Member } from './WhatsApp';
 import { inviteVia } from '@/lib/whatsapp';
 import {
   BackButton,
+  CopyIcon,
   CrossIcon,
   ErrorNote,
   IconButton,
   PencilIcon,
+  PlusIcon,
   Title,
   card,
   chipButton,
@@ -67,6 +69,7 @@ export function FamiliesManager({
   const { busy: sharing, start: startShare, stop: stopShare, go: goShare } = useHandoff();
   const [adding, setAdding] = useState<string | null>(null);
   const [hiding, setHiding] = useState<string | null>(null);
+  const [addingFamily, setAddingFamily] = useState(false);
   const router = useRouter();
 
   async function makeLink(kind: 'family' | 'household') {
@@ -115,6 +118,26 @@ export function FamiliesManager({
       </header>
 
       <section id="families" className={`${card} flex flex-col gap-1 p-0`}>
+        <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
+          <h2 className={sectionHeading}>המשפחות שלנו</h2>
+          {/* Adding one from the top of the list it goes into, rather than from
+              the panel at the foot of a long screen. */}
+          <IconButton label="הוספת משפחה" onClick={() => setAddingFamily(true)}>
+            <PlusIcon />
+          </IconButton>
+        </div>
+        {addingFamily && (
+          <div className="px-5 pb-3">
+            <AddFamilyInline
+              inviteUrl={inviteUrl}
+              startOpen
+              onAdded={() => {
+                setAddingFamily(false);
+                router.refresh();
+              }}
+            />
+          </div>
+        )}
         {families.length === 0 ? (
           <p className="p-6 text-center text-muted">עדיין אין אף משפחה. הזמינו מישהו למטה.</p>
         ) : (
@@ -275,29 +298,28 @@ export function FamiliesManager({
           </>
         ) : (
           <>
-            <button
-              type="button"
-              onClick={shareLink}
-              disabled={busy !== null || sharing}
-              className={`${primaryButton} inline-flex items-center justify-center gap-2`}
-            >
-              <WhatsAppMark />
-              {sharing ? 'רגע…' : 'הזמנה בוואטסאפ'}
-            </button>
-            {/* The same link, for pasting anywhere else. Minting it and *then*
-                choosing where to send it was two taps for the one thing almost
-                everybody does with it. */}
-            <button
-              type="button"
-              onClick={() => makeLink('family')}
-              disabled={busy !== null || sharing}
-              className={quietButton}
-            >
-              {busy === 'family' ? 'רגע…' : 'או להעתיק קישור'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={shareLink}
+                disabled={busy !== null || sharing}
+                className={`${primaryButton} inline-flex grow items-center justify-center gap-2`}
+              >
+                <WhatsAppMark />
+                {sharing ? 'רגע…' : 'הזמנה בוואטסאפ'}
+              </button>
+              {/* The same link, for pasting anywhere else — a mark beside the
+                  button rather than a second line of words under it. */}
+              <IconButton
+                label="העתקת קישור הזמנה"
+                disabled={busy !== null || sharing}
+                onClick={() => makeLink('family')}
+              >
+                <CopyIcon />
+              </IconButton>
+            </div>
             <p className="-mt-1 text-center text-xs text-muted">
-              לקבוצת המשפחה, או למי שעוד לא ברשימה למעלה. מי שפותח פותח משפחה
-              משלו ומתחבר אליכם. להזמין משפחה שכבר ברשימה — הכפתור על השורה שלה.
+              לקבוצת המשפחה, או למי שעוד לא ברשימה למעלה.
             </p>
             <ErrorNote>{linkError}</ErrorNote>
 

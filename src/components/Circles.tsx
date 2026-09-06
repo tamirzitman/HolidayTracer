@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  addFamilyToCircle,
   leaveCircle,
   makeCircle,
   nameCircle,
@@ -96,8 +97,8 @@ export function Circles({
 
       {circles.length === 0 && !making && (
         <p className="px-5 pb-4 text-sm text-muted">
-          מעגל מסמן משפחות ששייכות לאותו צד — וכשמשפחה אחת מהמעגל מכירה מישהו, זה
-          מספיק כדי להציע אותו לכם. בלי מעגל צריך שתי משפחות שיכירו.
+          מעגל מסמן משפחות מאותו צד — ואז מספיקה משפחה אחת שמכירה מישהו כדי
+          שיוצע לכם.
         </p>
       )}
 
@@ -129,53 +130,24 @@ export function Circles({
                 >
                   <PencilIcon />
                 </IconButton>
-                {leaving !== circle.id && (
-                  <IconButton
-                    label={`לצאת מהמעגל ${circle.name}`}
-                    onClick={() => setLeaving(circle.id)}
-                  >
-                    <CrossIcon />
-                  </IconButton>
-                )}
               </div>
 
-              {/* What leaving actually does, said before it happens: the ✕ is a
-                  thumb's width from "עריכה", and the two are easy to confuse. */}
-              {leaving === circle.id && (
-                <div className="flex flex-col gap-2 rounded-2xl bg-brand-wash p-3">
-                  <p className="text-sm text-ink">
-                    יציאה מ«{circle.name}» מוציאה <b>אתכם</b> מהמעגל. המשפחות שבו יישארו
-                    במעגל שלכם, אבל לא תקבלו עוד הצעות דרכו — והמעגל ימשיך להתקיים אצל
-                    השאר.
-                  </p>
-                  <div className="flex items-center gap-4">
-                    <button
-                      type="button"
-                      disabled={busy === circle.id}
-                      onClick={async () => {
-                        setBusy(circle.id);
-                        await leaveCircle(circle.id);
-                        setBusy(null);
-                        setLeaving(null);
-                        router.refresh();
-                      }}
-                      className={quietButton}
-                    >
-                      {busy === circle.id ? 'רגע…' : 'כן, לצאת מהמעגל'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLeaving(null)}
-                      className="text-sm text-muted"
-                    >
-                      ביטול
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {open === circle.id && (
-                <CircleEditor circle={circle} families={families} />
+                <CircleEditor
+                  circle={circle}
+                  families={families}
+                  leaving={leaving === circle.id}
+                  busy={busy === circle.id}
+                  onAskLeave={() => setLeaving(circle.id)}
+                  onCancelLeave={() => setLeaving(null)}
+                  onLeave={async () => {
+                    setBusy(circle.id);
+                    await leaveCircle(circle.id);
+                    setBusy(null);
+                    setLeaving(null);
+                    router.refresh();
+                  }}
+                />
               )}
             </li>
           ))}
@@ -251,9 +223,19 @@ function NewCircle({
 function CircleEditor({
   circle,
   families,
+  leaving,
+  busy: leavingBusy,
+  onAskLeave,
+  onCancelLeave,
+  onLeave,
 }: {
   circle: CircleView;
   families: { id: string; name: string }[];
+  leaving: boolean;
+  busy: boolean;
+  onAskLeave: () => void;
+  onCancelLeave: () => void;
+  onLeave: () => void;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -310,6 +292,10 @@ function CircleEditor({
             </label>
           );
         })}
+        {/* A family nobody has added yet. Ticking a list of families we already
+            have is no use when the one we mean is not in it, and going away to
+            add them loses the circle we were in the middle of filling. */}
+        <NewInCircle circleId={circle.id} onAdded={() => router.refresh()} />
       </fieldset>
 
       <label className="flex flex-col gap-1">
@@ -349,10 +335,94 @@ function CircleEditor({
 
       <ErrorNote>{error}</ErrorNote>
 
-      <p className="text-xs text-muted">
-        השם והצבע הם שלנו בלבד — מי שאיתנו במעגל רואה אותו בשם שהוא נתן לו. משפחה
-        שמישהו אחר הוסיף, רק הוא יכול להוציא.
-      </p>
+      {/* Leaving lives here, at the end, rather than as a small grey ✕ beside
+          the pencil. It is not a tidying-up gesture — it takes us out of
+          something other people are in — so it is marked as what it is, and it
+          asks first. */}
+      <div className="border-t border-line pt-3">
+        {leaving ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-ink">
+              יציאה מ«{circle.name}» מוציאה <b>אתכם</b> מהמעגל. המשפחות שבו יישארו
+              במעגל שלכם, והמעגל ימשיך להתקיים אצל השאר.
+            </p>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                disabled={leavingBusy}
+                onClick={onLeave}
+                className="rounded-full border border-danger px-4 py-1.5 text-sm font-bold text-danger transition active:scale-95 disabled:opacity-50"
+              >
+                {leavingBusy ? 'רגע…' : 'כן, לצאת מהמעגל'}
+              </button>
+              <button type="button" onClick={onCancelLeave} className="text-sm text-muted">
+                ביטול
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={onAskLeave}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-danger"
+          >
+            <CrossIcon />
+            יציאה מהמעגל
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Adding a family to the circle we are filling, without leaving it.
+ *
+ * A name is enough — the same shape as adding one anywhere else — and it lands
+ * in our list and in this circle in one go, since being here at all is saying
+ * which circle they belong to.
+ */
+function NewInCircle({ circleId, onAdded }: { circleId: string; onAdded: () => void }) {
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function add() {
+    if (!name.trim()) return;
+    setBusy(true);
+    setError('');
+    const result = await addFamilyToCircle(circleId, name.trim());
+    setBusy(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    setName('');
+    onAdded();
+  }
+
+  return (
+    <div className="flex flex-col gap-1 pt-1">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder="משפחה חדשה למעגל"
+          aria-label="הוספת משפחה למעגל"
+          className={`${field} py-2 text-base`}
+        />
+        <IconButton label="הוספת המשפחה למעגל" onClick={add} disabled={busy || !name.trim()}>
+          <PlusIcon />
+        </IconButton>
+      </div>
+      <ErrorNote>{error}</ErrorNote>
     </div>
   );
 }

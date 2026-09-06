@@ -515,6 +515,36 @@ export async function setCircleMember(
   return { savedAt: new Date().toISOString() };
 }
 
+/**
+ * A family that is not on our list at all, added and put in the circle at once.
+ *
+ * Ticking the families we already have is no use when the one we mean is not
+ * among them, and leaving the circle half-filled to go and add them elsewhere
+ * loses the thread. A name is enough here, as it is anywhere else — a number
+ * can follow from the family's own row.
+ */
+export async function addFamilyToCircle(
+  circleId: string,
+  name: string,
+): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const wanted = name.trim();
+  if (!wanted) return { error: 'צריך שם למשפחה' };
+
+  const mine = (await circlesFor(me.householdId)).find((c) => c.id === circleId);
+  if (!mine) return { error: 'המעגל הזה לא שלכם' };
+
+  const householdId = await addHousehold(wanted);
+  await connect(me.householdId, householdId);
+  await addToCircle(circleId, householdId, me.householdId, mine.name, mine.color);
+
+  revalidatePath('/families');
+  revalidatePath('/');
+  return { savedAt: new Date().toISOString() };
+}
+
 /** Our own name and colour for a circle. Nobody else's view of it changes. */
 export async function nameCircle(
   circleId: string,

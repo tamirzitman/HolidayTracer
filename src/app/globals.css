@@ -19,6 +19,9 @@
   --color-glow: rgba(124, 39, 64, 0.11);
   /* WhatsApp's own green, so the mark is recognised rather than read. */
   --color-whatsapp: #1da851;
+  /* For the two or three controls that take something away. Nothing else in
+     the app is red, so red means only this. */
+  --color-danger: #b3261e;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -32,6 +35,7 @@
     --color-brand-wash: #2f1f25;
     --color-glow: rgba(227, 155, 176, 0.16);
     --color-whatsapp: #4ad07d;
+    --color-danger: #f2837b;
   }
 }
 

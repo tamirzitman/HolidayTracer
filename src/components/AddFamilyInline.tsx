@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useCallback, useEffect, useState } from 'react';
+import { useCloseOnAway } from '@/lib/dismiss';
 import { addFamilyNow, newInviteLink, type AddedFamily } from '@/app/actions';
 import { WhatsAppMark } from './WhatsApp';
 import { contactPickerAvailable, pickContacts } from '@/lib/contacts';
@@ -26,17 +27,32 @@ import {
  * dropdown was the whole friction this was meant to remove. And a family with a
  * number nobody has signed in with is one you can invite on the spot.
  */
-export function AddFamilyInline({ onAdded, inviteUrl }: {
+export function AddFamilyInline({ onAdded, inviteUrl, startOpen = false }: {
   onAdded?: (householdId: string) => void;
   inviteUrl: string;
+  /** Opened by something else — a ＋ that has already said what it is for. */
+  startOpen?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<AddedFamily, FormData>(addFamilyNow, {});
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
+  // Which result has been dismissed. The action's own state keeps the household
+  // it made for as long as the component lives, so closing had to be something
+  // the component remembers — without it "סגירה" set open to false and the card
+  // went on rendering, because it is reached before the open check.
+  const [dismissed, setDismissed] = useState('');
   const [picker] = useState(contactPickerAvailable);
   const [picked, setPicked] = useState<{ name: string; phone: string } | null>(null);
   // A link made for the number just typed: theirs alone, and spent once they
   // are in. Falls back to the family's general link if minting one fails.
   const [personal, setPersonal] = useState('');
+  const showing = Boolean(state.householdId) && dismissed !== (state.savedAt ?? '');
+  const box = useCloseOnAway<HTMLDivElement>(
+    showing,
+    useCallback(() => {
+      setDismissed(state.savedAt ?? '');
+      setOpen(false);
+    }, [state.savedAt]),
+  );
 
   useEffect(() => {
     if (state.householdId) onAdded?.(state.householdId);
@@ -56,9 +72,19 @@ export function AddFamilyInline({ onAdded, inviteUrl }: {
     };
   }, [state.savedAt, state.invitePhone]);
 
-  if (state.householdId) {
+  const close = () => {
+    setDismissed(state.savedAt ?? '');
+    setOpen(false);
+  };
+
+  if (state.householdId && dismissed !== (state.savedAt ?? '')) {
     return (
-      <div className={`${card} flex flex-col gap-3 text-center`}>
+      <div ref={box} className={`${card} flex flex-col gap-3 text-center`}>
+        {/* A way back that is not the one word at the bottom: the arrow, and
+            tapping anywhere off the card. */}
+        <div className="flex items-center gap-2">
+          <BackButton onClick={close} />
+        </div>
         <p className="font-display text-xl font-bold text-ink">
           {state.name} נוספו, וכבר נבחרו
         </p>
@@ -85,7 +111,7 @@ export function AddFamilyInline({ onAdded, inviteUrl }: {
         ) : (
           <p className="text-sm text-muted">אפשר להמשיך ולאשר את התשובה.</p>
         )}
-        <button type="button" onClick={() => setOpen(false)} className={quietButton}>
+        <button type="button" onClick={close} className={quietButton}>
           סגירה
         </button>
       </div>
@@ -156,14 +182,10 @@ export function AddFamilyInline({ onAdded, inviteUrl }: {
           defaultValue={picked?.phone ? formatPhone(picked.phone) : ''}
           key={picked?.phone ?? 'empty'}
           placeholder="050-123-4567"
+          title="עם מספר הם יוכלו להיכנס בעצמם ולענות בעצמם. בלעדיו אפשר לענות שהתארחתם אצלם, ולהשלים את המספר בהמשך."
           className={field}
         />
       </label>
-
-      <p className="text-xs text-muted">
-        עם מספר הם יוכלו להיכנס בעצמם, ואפשר לכתוב להם בוואטסאפ. בלעדיו אפשר
-        לענות שהתארחתם אצלם, אבל הם לא יוכלו להיכנס — אפשר להשלים בהמשך.
-      </p>
 
       <ErrorNote>{state.error}</ErrorNote>
 

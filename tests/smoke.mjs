@@ -82,6 +82,14 @@ const linkFromRow = async (page, familyName) => {
   // Scoped to the families list: a suggestion row names the families that
   // vouch for it, so an unscoped search matches those too.
   const row = page.locator('#families li').filter({ hasText: familyName }).last();
+  if ((await row.getByRole('button', { name: /הזמנה בוואטסאפ/ }).count()) === 0) {
+    const seen = await page.$$eval('#families li', (els) =>
+      els.map((e) => e.innerText.replace(/\n/g, ' | ')),
+    );
+    throw new Error(
+      `no invitation on the row for "${familyName}". #families holds:\n  ${seen.join('\n  ')}`,
+    );
+  }
   await row.getByRole('button', { name: /הזמנה בוואטסאפ/ }).click();
   // The tap leaves for WhatsApp, so the link's arrival is read from the sheet.
   for (let i = 0; i < 40 && rows('Invites').length === before; i += 1) {
@@ -282,8 +290,8 @@ check('the invite panel offers one link and no pickers',
 // two taps for the thing almost everybody does with it.
 check('and goes straight out in one tap',
   await stranger.isVisible('#invite button:has-text("הזמנה בוואטסאפ")'));
-check('with the link itself still reachable',
-  await stranger.isVisible('#invite button:has-text("או להעתיק קישור")'));
+check('with the link itself a mark beside it, not a second line of words',
+  await stranger.isVisible('#invite [aria-label="העתקת קישור הזמנה"]'));
 
 // ── correcting our own family's name ────────────────────────────────────────
 // The name is often not ours to begin with — somebody added us from a name in
@@ -343,7 +351,7 @@ check('nobody else is shown before you answer', !(await dad.isVisible('text=אי
 // Before answering is exactly when a missing family is noticed, and the circle
 // card that carries this link does not exist yet — so it has to stand alone here.
 check('adding is reachable before answering, not only after',
-  await dad.isVisible('text=חסרה משפחה? להוסיף או להזמין'));
+  await dad.isVisible('text=חסרה משפחה? להוסיף'));
 // But what answering buys is said before it is asked for — and only to somebody
 // with a circle to reveal, since it is a promise the next screen has to keep.
 check('answering is worth something, and says so before you do it',
@@ -395,6 +403,8 @@ await sisterRow.getByRole('button', { name: 'חזרה' }).click();
 const circleCard = dad.locator('section:has-text("איפה כולם")').first();
 check('adding is a link inside the list it is about, not a second form',
   await circleCard.locator('a[href="/families"]').isVisible());
+check('and it is a ＋ with two words, not a sentence',
+  (await circleCard.locator('a[href="/families"]').innerText()).trim() === 'הוספת משפחה');
 check('and the nudge is a mark on that list, not a button the width of the screen',
   await circleCard.locator('a[href^="https://wa.me/?text="]').isVisible());
 check('and the form itself is not duplicated here',
@@ -405,7 +415,7 @@ await dad.click('nav >> text=המעגלים');
 await dad.waitForURL('**/families');
 check('the tab bar reaches the circles screen', await dad.isVisible('text=המעגלים שלי'));
 const beforeInvite = rows('Invites').length;
-await dad.click('text=או להעתיק קישור');
+await dad.click('[aria-label="העתקת קישור הזמנה"]');
 await dad.waitForSelector('text=שליחה בוואטסאפ');
 check('an invite link is created', rows('Invites').length === beforeInvite + 1);
 check('the invite is a family invite', inv(rows('Invites').at(-1), 'kind') === 'family');
@@ -502,15 +512,32 @@ await dad.waitForSelector('text=צד אבא');
 const circleDots = await dad.$$eval('#families li [aria-label^="מעגלים:"]', (e) => e.length);
 check(`the families in it are dotted on their rows (${circleDots})`, circleDots === 4);
 
-// Leaving is an ✕ on the circle's row, the same shape as turning down a
-// suggestion — and, like that one, it asks before it acts and says what it does.
-await dad.click('[aria-label="לצאת מהמעגל צד אבא"]');
+// Leaving is not a grey ✕ beside the pencil: it takes us out of something
+// other people are in, so it lives inside the editor, marked as what it is,
+// and it asks first.
+await dad.click('[aria-label="עריכת צד אבא"]');
+check('leaving is not offered from the row itself',
+  (await dad.locator('[aria-label="לצאת מהמעגל צד אבא"]').count()) === 0);
+await dad.click('text=יציאה מהמעגל');
 check('leaving a circle asks before it does it',
   await dad.isVisible('text=כן, לצאת מהמעגל'));
 check('and says that it is us being taken out, not the circle deleted',
   /מוציאה .*אתכם.* מהמעגל/s.test(await dad.innerText('#circles')));
 await dad.click('text=ביטול');
 check('and can be thought better of', !(await dad.isVisible('text=כן, לצאת מהמעגל')));
+// A family the circle needs that is on nobody's list yet, added from here
+// rather than by leaving the circle half-filled.
+const beforeInCircle = rows('Households').length;
+await dad.fill('input[aria-label="הוספת משפחה למעגל"]', 'בני דודים מהצפון');
+await dad.click('[aria-label="הוספת המשפחה למעגל"]');
+await dad.waitForTimeout(2500);
+check('a family can be added from inside the circle',
+  rows('Households').length === beforeInCircle + 1 &&
+    rows('Households').some((r) => r[1] === 'בני דודים מהצפון'));
+const cousinsId = rows('Households').find((r) => r[1] === 'בני דודים מהצפון')[0];
+check('and it lands in that circle, not only on the list',
+  rows('Circles').some((r) => r[1] === cousinsId && r[2] === 'add'));
+await dad.click('[aria-label="סגירת צד אבא"]');
 
 await newcomer.reload();
 await newcomer.waitForSelector('text=המעגלים שלי');
@@ -577,7 +604,7 @@ await newcomer.reload();
 check('the guest is warned their host is not hosting',
   await newcomer.isVisible('text=שימו לב — הם ענו שהם מתארחים'));
 
-const newcomerHousehold = rows('Households').at(-1)[0];
+const newcomerHousehold = rows('Households').find((r) => r[1] === 'דנה ויוסי לוי')[0];
 const KEY = `erev_rosh_hashana_2026|${newcomerHousehold}|hh_parents`;
 check(`the contradiction is written to the sheet (${rows('Conflicts').length} rows)`,
   conflictState().get(KEY) === 'open');
@@ -822,7 +849,7 @@ check('our own house is invited from the menu under our own name',
   await dad.isVisible('text=הוספת בן בית'));
 await dad.keyboard.press('Escape');
 if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
-await dad.click('text=או להעתיק קישור');
+await dad.click('[aria-label="העתקת קישור הזמנה"]');
 await dad.waitForSelector('text=שליחה בוואטסאפ');
 check('a link with no number stays reusable',
   await dad.isVisible('text=הקישור פתוח לשבועיים'));
@@ -840,7 +867,7 @@ await friend.fill('input[name=householdName]', 'חבר סקרן');
 await friend.click('text=/^להירשם בלי להתחבר/');
 await friend.waitForSelector('text=איפה אתם בחג?');
 await friend.waitForTimeout(1500);
-const friendId = rows('Households').at(-1)[0];
+const friendId = rows('Households').find((r) => r[1] === 'חבר סקרן')[0];
 check('somebody who only wanted the app joins nobody',
   rows('Connections').every((r) => r[0] !== friendId && r[1] !== friendId));
 
@@ -953,7 +980,7 @@ const theirHousehold = rows('Households').find((r) => r[1] === 'רות ואור�
 // becoming two.
 await dad.goto(`${BASE}/families`);
 if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
-await dad.click('text=או להעתיק קישור');
+await dad.click('[aria-label="העתקת קישור הזמנה"]');
 await dad.waitForSelector('text=העתקת הקישור');
 const shared = inv(rows('Invites').at(-1), 'token');
 const viaGroup = await open();

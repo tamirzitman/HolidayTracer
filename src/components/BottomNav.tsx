@@ -39,7 +39,11 @@ export function BottomNav({ waiting }: { waiting?: Partial<Record<string, boolea
   const pathname = usePathname();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur">
+    <nav
+      // The phone's own home indicator draws across the foot of the screen, so
+      // the bar keeps its labels clear of it rather than under the white line.
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
+    >
       <ul className="mx-auto flex w-full max-w-md">
         {ITEMS.map((item) => {
           const active = pathname === item.href;

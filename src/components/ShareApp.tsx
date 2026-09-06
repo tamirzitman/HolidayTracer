@@ -8,7 +8,7 @@ import { shareApp } from '@/lib/whatsapp';
  */
 export function ShareApp({ appUrl }: { appUrl: string }) {
   return (
-    <footer className="pb-2 text-center">
+    <footer className="pt-2 pb-6 text-center">
       <a
         href={shareApp(appUrl)}
         target="_blank"

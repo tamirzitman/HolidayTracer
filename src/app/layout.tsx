@@ -76,7 +76,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         )}
         <main
           className={`mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 ${
-            signedIn ? 'pt-4 pb-28' : 'pt-10 pb-10'
+            signedIn ? 'pt-4 pb-[calc(8rem+env(safe-area-inset-bottom))]' : 'pt-10 pb-10'
           }`}
         >
           {children}
