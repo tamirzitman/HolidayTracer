@@ -1,9 +1,10 @@
 import { headers } from 'next/headers';
+import Link from 'next/link';
 import { signOut } from '@/app/actions';
 import { AnswerForm } from '@/components/AnswerForm';
 import { JoinForm } from '@/components/JoinForm';
 import { SignInForm } from '@/components/SignInForm';
-import { Title, card, secondaryButton } from '@/components/ui';
+import { OccasionIcon, Title, card } from '@/components/ui';
 import {
   circleAnswers,
   circleOf,
@@ -49,29 +50,11 @@ export default async function Page({
 
   const person = await findPerson(phone);
   if (!person) {
-    // An empty sheet is a deployment pointed at the wrong place, not a person
-    // who has done anything wrong; saying "sign up" to that would be a dead end
-    // of its own, since there would be nothing to sign up to.
-    if ((await getHouseholds()).length === 0) {
-      return (
-        <div className={`${card} flex flex-col gap-3 text-center`}>
-          <span className="text-4xl" aria-hidden="true">🗂️</span>
-          <Title>הגיליון ריק</Title>
-          <p className="text-muted">
-            אין אף משפחה בגיליון שהאפליקציה קוראת ממנו. כנראה SHEET_ID מצביע על
-            הגיליון הלא נכון, או שהטאבים עוד לא נוצרו.
-          </p>
-          <form action={signOut}>
-            <button type="submit" className={secondaryButton}>
-              התחברות עם מספר אחר
-            </button>
-          </form>
-        </div>
-      );
-    }
-
-    // No invite needed. Signing up leaves you with nobody on your list, and the
-    // families you add bring the families they know along as suggestions.
+    // No invite needed, and no household needs to exist first: registering
+    // opens one. A sheet with nothing in it is simply an app nobody has signed
+    // up to yet — it used to be met with "the spreadsheet is empty, check your
+    // SHEET_ID", which turned the first person ever to arrive away from the
+    // thing they were trying to start.
     return (
       <JoinForm
         phone={phone}
@@ -88,9 +71,19 @@ export default async function Page({
   const upcoming = await getUpcomingHolidays(person.householdId);
   if (upcoming.length === 0) {
     return (
-      <div className={`${card} flex flex-col gap-2 text-center`}>
-        <Title>אין חג קרוב ברשימה</Title>
-        <p className="text-muted">כדאי להוסיף עוד תאריכים לגיליון.</p>
+      <div className={`${card} flex flex-col items-center gap-3 text-center`}>
+        <Title>אין חג קרוב</Title>
+        {/* Not "add dates to the spreadsheet": the person reading this is a
+            family member, and where the dates live is not their business. What
+            they can do about it is add an occasion of their own. */}
+        <p className="text-muted">כל המועדים הקרובים כבר עברו. אפשר להוסיף מועד משלכם.</p>
+        <Link
+          href="/occasions"
+          className="inline-flex items-center gap-2 text-sm font-bold text-brand"
+        >
+          <OccasionIcon />
+          המועדים שלנו
+        </Link>
       </div>
     );
   }

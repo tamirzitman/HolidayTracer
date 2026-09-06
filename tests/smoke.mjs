@@ -1233,6 +1233,38 @@ const a = rows('Answers').at(-1);
 check(`the log holds ${answerHeader.length} keyed columns and no names (${a.join(' | ')})`,
   a.length === answerHeader.length && !a.some((v) => /[֐-׿]/.test(v)));
 
+// ── the very first family, in a sheet with nothing in it ────────────────────
+// A fresh install: the tabs exist and hold nothing but their headers. Signing
+// in has to lead to registering — this used to be met with "the spreadsheet is
+// empty, check your SHEET_ID", which turned away the first person ever to
+// arrive. Last, because it empties the sheet the rest of the suite built.
+const bare = sheet();
+for (const tab of ['Households', 'People', 'Connections', 'Circles', 'Answers', 'Invites']) {
+  bare[tab] = [bare[tab][0]];
+}
+writeFileSync(SHEET, `${JSON.stringify(bare, null, 2)}\n`, 'utf8');
+// Written behind the server's back, so its copy has to lapse before it looks.
+await new Promise((resolve) => setTimeout(resolve, SHEET_TTL_MS));
+
+const firstEver = await open();
+await firstEver.goto(BASE);
+await firstEver.fill('input[name=phone]', '053-000-9001');
+await firstEver.click('button[type=submit]');
+await firstEver.waitForSelector('input[name=firstName]', { timeout: 15000 }).catch(() => {});
+check('an empty sheet asks the first person who they are, rather than blaming itself',
+  await firstEver.isVisible('input[name=firstName]'));
+check('and says nothing about spreadsheets',
+  !/גיליון|SHEET_ID/.test(await firstEver.innerText('body')));
+await firstEver.fill('input[name=firstName]', 'ראשון');
+await firstEver.fill('input[name=surname]', 'בשדה');
+await firstEver.fill('input[name=householdName]', 'משפחת ראשון');
+await firstEver.click('text=/^סיום/');
+await firstEver.waitForSelector('nav', { timeout: 15000 }).catch(() => {});
+check('and the first family opens the first household',
+  rows('Households').some((r) => r[1] === 'משפחת ראשון'));
+check('with nobody on its list and nothing pretending otherwise',
+  await firstEver.isVisible('text=איפה אתם בחג?'));
+
 await browser.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exitCode = failures ? 1 : 0;
