@@ -7,6 +7,7 @@ import { WhatsAppMark } from './WhatsApp';
 import { contactPickerAvailable, pickContacts } from '@/lib/contacts';
 import { inviteVia } from '@/lib/whatsapp';
 import { formatPhone } from '@/lib/phone';
+import { colorOf } from '@/lib/circle-colors';
 import {
   BackButton,
   ErrorNote,
@@ -27,7 +28,13 @@ import {
  * dropdown was the whole friction this was meant to remove. And a family with a
  * number nobody has signed in with is one you can invite on the spot.
  */
-export function AddFamilyInline({ onAdded, onClose, inviteUrl, startOpen = false }: {
+export function AddFamilyInline({
+  onAdded,
+  onClose,
+  inviteUrl,
+  circles = [],
+  startOpen = false,
+}: {
   onAdded?: (householdId: string) => void;
   /**
    * Folded away again. Opened by a ＋ that already said what it is for, this
@@ -36,6 +43,8 @@ export function AddFamilyInline({ onAdded, onClose, inviteUrl, startOpen = false
    */
   onClose?: () => void;
   inviteUrl: string;
+  /** Our circles, so a new family can be placed in one while we are adding it. */
+  circles?: { id: string; name: string; color: string }[];
   /** Opened by something else — a ＋ that has already said what it is for. */
   startOpen?: boolean;
 }) {
@@ -180,6 +189,31 @@ export function AddFamilyInline({ onAdded, onClose, inviteUrl, startOpen = false
           />
         </div>
       </fieldset>
+
+      {/* Which side of the family they are on, while we are here. Whoever is
+          adding them knows it now; asking again later on another screen is a
+          second errand for the same fact. */}
+      {circles.length > 0 && (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1 text-sm font-semibold text-muted">לאיזה מעגל?</legend>
+          <div className="flex flex-wrap gap-2">
+            {circles.map((circle) => (
+              <label
+                key={circle.id}
+                className="inline-flex items-center gap-2 rounded-full border border-line px-3 py-1.5 text-sm has-checked:border-brand has-checked:bg-brand-wash"
+              >
+                <input type="checkbox" name="circle" value={circle.id} className="h-4 w-4 accent-brand" />
+                <span
+                  className="h-2.5 w-2.5 rounded-full ring-1 ring-black/10"
+                  style={{ backgroundColor: colorOf(circle.color) }}
+                  aria-hidden="true"
+                />
+                <span className="text-ink">{circle.name}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
 
       {/* Typed as well as picked. The contact picker only exists in Chrome on
           Android, and half the family is on an iPhone — leaving them no way at

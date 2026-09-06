@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useState } from 'react';
 import { useCloseOnAway } from '@/lib/dismiss';
 import { signOut } from '@/app/actions';
+import { OccasionIcon } from './ui';
 
 /**
  * Who you are signed in as, in the same place on every screen, and the few
@@ -52,7 +53,7 @@ export function HouseholdMenu({
           className="absolute start-1/2 z-50 mt-1 w-56 -translate-x-1/2 overflow-hidden rounded-2xl border border-line bg-surface shadow-lg rtl:translate-x-1/2"
         >
           <Link href="/occasions" onClick={() => setOpen(false)} className={item} role="menuitem">
-            <span aria-hidden="true">🗓️</span>
+            <OccasionIcon className="h-4 w-4" />
             המועדים שלנו
           </Link>
 

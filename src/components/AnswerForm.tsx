@@ -15,6 +15,7 @@ import { formatDayAndDate } from '@/lib/dates';
 import { holidayEmoji } from '@/lib/holiday-emoji';
 import {
   BackButton,
+  OccasionIcon,
   DatePill,
   ErrorNote,
   Title,
@@ -57,6 +58,8 @@ type Props = {
   circleSize: number;
   /** Which of our circles each family is in — the same dots as on the circles screen. */
   tags: Record<string, { id: string; name: string; color: string }[]>;
+  /** Our circles, so a family added from here can be placed in one at once. */
+  circles: { id: string; name: string; color: string }[];
   /**
    * Our own family. Answering on somebody's behalf has to be able to say they
    * are coming to us — which is the commonest thing there is to say for the
@@ -106,6 +109,7 @@ export function AnswerForm({
   circleStatus,
   circleSize,
   tags,
+  circles,
   us,
   appUrl,
   nextStep,
@@ -479,9 +483,11 @@ export function AnswerForm({
           among the holidays rather than behind our own name. */}
       <Link
         href="/occasions"
-        className="text-center text-sm font-bold text-brand underline underline-offset-4"
+        aria-label="המועדים שלנו"
+        title="המועדים שלנו"
+        className="self-center rounded-full border border-line p-2 text-brand transition active:scale-95"
       >
-        המועדים שלנו →
+        <OccasionIcon />
       </Link>
 
       {/* Before answering, say what answering is *for*. Only with a circle to
@@ -510,6 +516,7 @@ export function AnswerForm({
       {!answered && choosingHost && (
         <AddFamilyInline
           inviteUrl={inviteUrl}
+          circles={circles}
           onAdded={(householdId) => {
             // Straight into the dropdown they were looking in: adding a family
             // and then having to find it again is the friction this removes.
@@ -635,11 +642,13 @@ function Circle({
       <ul className="divide-y divide-line">
         {families.map((family) => (
           <li key={family.id} className="flex flex-col gap-2 px-5 py-3">
-            {/* Wraps rather than squeezes. With the text scaled up, a row that
-                insists on one line gives all its width to the status and
-                truncates the name to nothing — which is the half that matters. */}
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <div className="min-w-0 grow basis-40">
+            {/* Two columns that hold, rather than a row that wraps. Wrapping
+                dropped a long answer — "אצל נעמה ויובל לייבוביץ'" — onto its own
+                line while short ones stayed put, so the answers ran down the
+                middle of the card instead of down one edge. Each column now
+                keeps its side and wraps inside it. */}
+            <div className="flex items-baseline justify-between gap-x-3">
+              <div className="min-w-0 grow">
                 <p className="flex flex-wrap items-center gap-2 font-semibold break-words text-ink">
                   {family.name}
                   <CircleDots tags={tags[family.id] ?? []} />
@@ -655,11 +664,9 @@ function Circle({
                   noise, and the two places worth writing from — the host you are
                   going to, and the families coming to you — carry one. */}
               <span
-                className={
-                  family.kind === 'none'
-                    ? 'text-sm text-muted'
-                    : 'text-sm font-semibold text-brand'
-                }
+                className={`w-2/5 shrink-0 text-start text-sm ${
+                  family.kind === 'none' ? 'text-muted' : 'font-semibold text-brand'
+                }`}
               >
                 {said(family.kind, family.hostName)}
               </span>

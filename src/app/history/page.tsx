@@ -1,10 +1,12 @@
 import { redirect } from 'next/navigation';
 import { HistoryList } from '@/components/HistoryList';
+import { byCircle } from '@/lib/circle-order';
 import { Title } from '@/components/ui';
 import { headers } from 'next/headers';
 import { NextStep } from '@/components/NextStep';
 import {
   circleOf,
+  circleTags,
   findPerson,
   getHouseholds,
   historyFor,
@@ -24,7 +26,7 @@ export default async function HistoryPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [past, households, circle, token, head, suggested, unanswered] = await Promise.all([
+  const [past, households, circle, token, head, suggested, unanswered, tags] = await Promise.all([
     historyFor(person.householdId),
     getHouseholds(),
     circleOf(person.householdId),
@@ -32,6 +34,7 @@ export default async function HistoryPage() {
     headers(),
     suggestionsFor(person.householdId),
     unansweredUpcoming(person.householdId),
+    circleTags(person.householdId),
   ]);
   // Never a prompt to fill the history in: a year of past holidays is not
   // something anybody sits down and completes, and asking on every visit would
@@ -78,7 +81,10 @@ export default async function HistoryPage() {
               hostName: answer?.hostHouseholdId ? nameOf(answer.hostHouseholdId) : '',
               byName,
             }))}
-            families={circle.map((h) => ({ id: h.id, name: h.name }))}
+            families={byCircle(
+              circle.map((h) => ({ id: h.id, name: h.name })),
+              Object.fromEntries(tags),
+            )}
             inviteUrl={`${base}/join/${token}`}
           />
         </>

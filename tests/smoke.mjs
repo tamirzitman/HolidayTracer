@@ -520,10 +520,55 @@ await dad.waitForSelector('text=צד אבא');
 const circleDots = await dad.$$eval('#families li [aria-label^="מעגלים:"]', (e) => e.length);
 check(`the families in it are dotted on their rows (${circleDots})`, circleDots === 4);
 
+// The list is ordered by the circles rather than scattered: families in more of
+// them first, and the same combination together.
+await dad.click('[aria-label="מעגל חדש"]');
+await dad.fill('input[name=name]', 'צד אמא');
+for (const id of ['hh_a', 'hh_sister']) {
+  await dad.click(`input[type=checkbox][value="${id}"]`);
+}
+await dad.click('text=יצירת המעגל');
+await dad.waitForTimeout(2500);
+await dad.reload();
+await dad.waitForSelector('text=צד אמא');
+const ordered = await dad.$$eval('#families li', (els) =>
+  els.map((e) => ({
+    name: e.querySelector('p')?.textContent.trim() ?? '',
+    dots: e.querySelectorAll('[aria-label^="מעגלים:"] span').length,
+  })),
+);
+check(`families in more circles come first (${ordered.map((o) => `${o.name}:${o.dots}`).join(', ')})`,
+  ordered.every((row, i) => i === 0 || ordered[i - 1].dots >= row.dots));
+// דנה ויוסי and אחות ובעלה are in both circles, so they head the list; אח ואשתו
+// is in one and follows them rather than sitting between.
+check('and two circles put those families at the head',
+  ordered[0].dots === 2 && ordered[1].dots === 2);
+
+// Adding a family says which circle it belongs to at the same time — whoever
+// adds them knows it then, not on a later screen.
+await dad.click('[aria-label="הוספת משפחה"]');
+await dad.waitForSelector('input[name=familyFirstNames]');
+check('adding a family offers the circles it could belong to',
+  await dad.isVisible('text=לאיזה מעגל?'));
+const beforeWithCircle = rows('Households').length;
+await dad.fill('input[name=familyFirstNames]', 'שכנים מהבניין');
+await dad.click('form:has(input[name=familyFirstNames]) label:has-text("צד אבא") input[type=checkbox]');
+await dad.click('form:has(input[name=familyFirstNames]) button[type=submit]');
+await dad.waitForTimeout(2500);
+check('a family added with a circle ticked is one new household',
+  rows('Households').length === beforeWithCircle + 1);
+const neighboursId = rows('Households').find((r) => r[1] === 'שכנים מהבניין')?.[0];
+check('and lands in that circle in the same breath',
+  Boolean(neighboursId) &&
+    rows('Circles').some((r) => r[1] === neighboursId && r[2] === 'add' && r[3] === 'צד אבא'));
+
 // Leaving is not a grey ✕ beside the pencil: it takes us out of something
 // other people are in, so it lives inside the editor, marked as what it is,
 // and it asks first.
+await dad.goto(`${BASE}/families`);
+await dad.waitForSelector('text=צד אבא');
 await dad.click('#circles button:has-text("צד אבא")');
+await dad.waitForSelector('text=יציאה מהמעגל');
 check('leaving is not offered from the row itself',
   (await dad.locator('[aria-label="לצאת מהמעגל צד אבא"]').count()) === 0);
 await dad.click('text=יציאה מהמעגל');

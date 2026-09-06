@@ -14,6 +14,7 @@ import {
   suggestionsFor,
   unansweredUpcoming,
 } from '@/lib/data';
+import { byCircle } from '@/lib/circle-order';
 import { nextStep } from '@/lib/next-step';
 import { getSessionPhone } from '@/lib/session';
 
@@ -40,11 +41,13 @@ export default async function FamiliesPage() {
     ]);
 
   const base = `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
-  const families = circle.map((h) => ({
-    id: h.id,
-    name: h.name,
-    members: members.get(h.id) ?? [],
-  }));
+  const tagged = Object.fromEntries(tags);
+  // One order for the whole list, wherever it is shown: several circles first,
+  // then gathered by which circles they are in.
+  const families = byCircle(
+    circle.map((h) => ({ id: h.id, name: h.name, members: members.get(h.id) ?? [] })),
+    tagged,
+  );
 
   const step = nextStep({
     circleSize: circle.length,
@@ -61,7 +64,7 @@ export default async function FamiliesPage() {
         families={families}
         ownMembers={members.get(person.householdId) ?? []}
         circles={circles}
-        tags={Object.fromEntries(tags)}
+        tags={tagged}
         inviteUrl={`${base}/join/${token}`}
         suggested={suggested.map((s) => ({
           id: s.household.id,

@@ -324,6 +324,17 @@ export async function addFamilyNow(
     await connect(me.householdId, householdId);
   }
 
+  // Which circles they belong to, said at the moment of adding rather than as a
+  // second errand on another screen — the person adding them is the one who
+  // knows, and they know it now.
+  const wanted = formData.getAll('circle').map(String).filter(Boolean);
+  if (wanted.length > 0) {
+    const mine = await circlesFor(me.householdId);
+    for (const circle of mine.filter((c) => wanted.includes(c.id))) {
+      await addToCircle(circle.id, householdId, me.householdId, circle.name, circle.color);
+    }
+  }
+
   revalidatePath('/');
   revalidatePath('/families');
 

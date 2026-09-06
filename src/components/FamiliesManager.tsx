@@ -160,6 +160,7 @@ export function FamiliesManager({
           <div className="px-5 pb-3">
             <AddFamilyInline
               inviteUrl={inviteUrl}
+              circles={circles}
               startOpen
               onClose={() => setAddingFamily(false)}
               onAdded={() => {
@@ -354,7 +355,11 @@ export function FamiliesManager({
                 contact picker beneath it is Chrome-on-Android only — so half
                 the family had no way to add anybody from here at all. */}
             <div className="mt-1 flex flex-col gap-3 border-t border-line pt-3">
-              <AddFamilyInline inviteUrl={inviteUrl} onAdded={() => router.refresh()} />
+              <AddFamilyInline
+                inviteUrl={inviteUrl}
+                circles={circles}
+                onAdded={() => router.refresh()}
+              />
               <ContactPicker />
             </div>
           </>

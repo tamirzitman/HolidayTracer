@@ -19,7 +19,9 @@ import {
   suggestionsFor,
   unansweredUpcoming,
   circleTags,
+  circlesFor,
 } from '@/lib/data';
+import { byCircle } from '@/lib/circle-order';
 import { nextStep } from '@/lib/next-step';
 import { getSessionPhone } from '@/lib/session';
 
@@ -116,11 +118,14 @@ export default async function Page({
   // Knowing where everyone else is, is the reward for saying where you are.
   const circleStatus = current ? await circleAnswers(holiday.key, person.householdId) : [];
 
-  const [suggested, unanswered, tags] = await Promise.all([
+  const [suggested, unanswered, tags, circles] = await Promise.all([
     suggestionsFor(person.householdId),
     unansweredUpcoming(person.householdId),
     circleTags(person.householdId),
+    circlesFor(person.householdId),
   ]);
+  const tagged = Object.fromEntries(tags);
+
   const step = nextStep({
     circleSize: circle.length,
     suggestions: suggested.length,
@@ -151,7 +156,7 @@ export default async function Page({
     <AnswerForm
       key={holiday.key}
       holiday={holiday}
-      households={circle}
+      households={byCircle(circle, tagged)}
       current={current}
       host={host}
       daysAway={daysUntil(holiday.date)}
@@ -159,17 +164,21 @@ export default async function Page({
       impliedByGuest={impliedByGuest}
       inviteUrl={inviteUrl}
       guests={guests.map((g) => ({ id: g.id, name: g.name, members: whoIsIn(g.id) }))}
-      circleStatus={circleStatus.map((c) => ({
-        id: c.household.id,
-        name: c.household.name,
-        kind: c.kind,
-        hostName: c.hostName,
-        byName: c.byName,
-        byProxy: c.byProxy,
-        members: whoIsIn(c.household.id),
-      }))}
+      circleStatus={byCircle(
+        circleStatus.map((c) => ({
+          id: c.household.id,
+          name: c.household.name,
+          kind: c.kind,
+          hostName: c.hostName,
+          byName: c.byName,
+          byProxy: c.byProxy,
+          members: whoIsIn(c.household.id),
+        })),
+        tagged,
+      )}
       circleSize={circle.length}
-      tags={Object.fromEntries(tags)}
+      tags={tagged}
+      circles={circles}
       us={{
         id: person.householdId,
         name: households.find((h) => h.id === person.householdId)?.name ?? 'אנחנו',
