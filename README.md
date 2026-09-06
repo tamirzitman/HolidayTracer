@@ -94,6 +94,12 @@ copy-sheet -- --apply` does it. One way only — the source is read and never
 written — and the scratch sheet's contents are dumped to a `.sheet-backup-*.json`
 first. `--from` and `--to` point it somewhere else.
 
+**Empty, to start over.** `npm run clear-sheet` says what it would empty in the
+scratch sheet; `npm run clear-sheet -- --apply` does it, leaving every tab with
+its header row and nothing else. The holidays are kept — they are the calendar,
+not anybody's record — unless `--holidays` says otherwise. It refuses to touch
+the sheet in `SHEET_ID`.
+
 **Back to the start.** `PLAYGROUND=1 npm run reset` restores the scratch sheet to a
 fixed cast — a family with two people, one with a single person, one nobody has
 joined, and a suggestion waiting to be taken up — and prints the numbers to sign in

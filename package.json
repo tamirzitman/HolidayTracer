@@ -16,7 +16,8 @@
     "connect-all": "tsx scripts/connect-all.mts",
     "align": "tsx scripts/align-headers.mts",
     "reset": "tsx scripts/reset-playground.mts",
-    "copy-sheet": "tsx --env-file=.env.local scripts/copy-sheet.mts"
+    "copy-sheet": "tsx --env-file=.env.local scripts/copy-sheet.mts",
+    "clear-sheet": "tsx --env-file=.env.local scripts/clear-sheet.mts"
   },
   "dependencies": {
     "googleapis": "^176.0.0",
