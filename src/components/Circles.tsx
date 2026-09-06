@@ -77,9 +77,8 @@ export function Circles({
   const router = useRouter();
   const [making, setMaking] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
-  // Leaving is asked before it is done, and the ✕ sits a thumb's width from
-  // "עריכה" — the same shape as turning down a suggestion, so the two read as
-  // the same kind of thing.
+  // Leaving is asked before it is done. It is held here rather than inside the
+  // editor so that folding the row away puts the question back unanswered.
   const [leaving, setLeaving] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
