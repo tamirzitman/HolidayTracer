@@ -163,9 +163,9 @@ check('a number can be typed, not only picked from contacts',
 
 // Typing a number the app already knows joins that family rather than a copy.
 const beforeCold = rows('Households').length;
-await stranger.fill('input[name=familyFirstNames]', 'אבא ואמא');
+await stranger.fill('input[name=familyName]', 'אבא ואמא');
 await stranger.fill('input[name=familyPhone]', DAD);
-await stranger.click('form:has(input[name=familyFirstNames]) button[type=submit]');
+await stranger.click('form:has(input[name=familyName]) button[type=submit]');
 await stranger.waitForSelector('text=נוספו, וכבר נבחרו');
 await stranger.waitForTimeout(1500);
 check('a typed number that is known makes no second household',
@@ -198,9 +198,9 @@ if (await stranger.isVisible('text=שינוי תשובה')) await stranger.click
 await stranger.click('text=מתארחים אצל…');
 await stranger.click('text=לא מוצאים? הוסיפו משפחה');
 await stranger.waitForSelector('input[name=familyPhone]');
-await stranger.fill('input[name=familyFirstNames]', 'דנה ויוסי');
+await stranger.fill('input[name=familyName]', 'דנה ויוסי');
 await stranger.fill('input[name=familyPhone]', '050-222-3333');
-await stranger.click('form:has(input[name=familyFirstNames]) button[type=submit]');
+await stranger.click('form:has(input[name=familyName]) button[type=submit]');
 await stranger.waitForSelector('text=נוספו, וכבר נבחרו');
 await stranger.waitForTimeout(1500);
 // Added while looking for a host, so it is the host — going back to hunt for
@@ -273,6 +273,31 @@ await stranger.click(`li:has-text("${takeUp}") >> text=הוספה`);
 await stranger.waitForTimeout(1800);
 check(`taking one up connects the two families (${takeUp})`,
   rows('Connections').length === beforeSuggest + 2);
+
+// And the whole list in one tap, for the case a parent's invitation makes:
+// their list is most of yours, and taking it a row at a time is work for
+// nothing.
+await stranger.reload();
+await stranger.waitForSelector('text=המעגלים שלי');
+const offeredNow = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
+  els.map((e) => e.innerText.split('\n')[0].trim()),
+);
+if (offeredNow.length > 1) {
+  const minePre = await stranger.$$eval('#families li', (els) => els.length);
+  await stranger.click('text=הוספת כולן');
+  await stranger.waitForTimeout(3500);
+  await stranger.reload();
+  await stranger.waitForSelector('text=המעגלים שלי');
+  const minePost = await stranger.$$eval('#families li', (els) => els.length);
+  const leftOver = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
+    els.map((e) => e.innerText.split('\n')[0].trim()),
+  );
+  check(`and all of it goes in one tap (${minePre} → ${minePost})`,
+    minePost === minePre + offeredNow.length &&
+      offeredNow.every((n) => !leftOver.includes(n)));
+} else {
+  check(`and all of it goes in one tap (only ${offeredNow.length} offered)`, true);
+}
 await stranger.goto(BASE);
 await stranger.waitForSelector('nav');
 if (await stranger.isVisible('text=שינוי תשובה')) await stranger.click('text=שינוי תשובה');
@@ -414,7 +439,7 @@ check('and it is a ＋ with two words, not a sentence',
 check('and the nudge is a mark on that list, not a button the width of the screen',
   await circleCard.locator('a[href^="https://wa.me/?text="]').isVisible());
 check('and the form itself is not duplicated here',
-  (await dad.$$('main input[name=familySurname]')).length === 0);
+  (await dad.$$('main input[name=familyName]')).length === 0);
 
 // ── invite a family that is not in the app at all ────────────────────────────
 await dad.click('nav >> text=המעגלים');
@@ -547,13 +572,13 @@ check('and two circles put those families at the head',
 // Adding a family says which circle it belongs to at the same time — whoever
 // adds them knows it then, not on a later screen.
 await dad.click('[aria-label="הוספת משפחה"]');
-await dad.waitForSelector('input[name=familyFirstNames]');
+await dad.waitForSelector('input[name=familyName]');
 check('adding a family offers the circles it could belong to',
   await dad.isVisible('text=לאיזה מעגל?'));
 const beforeWithCircle = rows('Households').length;
-await dad.fill('input[name=familyFirstNames]', 'שכנים מהבניין');
-await dad.click('form:has(input[name=familyFirstNames]) label:has-text("צד אבא") input[type=checkbox]');
-await dad.click('form:has(input[name=familyFirstNames]) button[type=submit]');
+await dad.fill('input[name=familyName]', 'שכנים מהבניין');
+await dad.click('form:has(input[name=familyName]) label:has-text("צד אבא") input[type=checkbox]');
+await dad.click('form:has(input[name=familyName]) button[type=submit]');
 await dad.waitForTimeout(2500);
 check('a family added with a circle ticked is one new household',
   rows('Households').length === beforeWithCircle + 1);
@@ -581,8 +606,8 @@ check('and can be thought better of', !(await dad.isVisible('text=כן, לצאת
 // A family the circle needs that is on nobody's list yet, added from here
 // rather than by leaving the circle half-filled.
 const beforeInCircle = rows('Households').length;
-await dad.fill('input[aria-label="הוספת משפחה למעגל"]', 'בני דודים מהצפון');
-await dad.click('[aria-label="הוספת המשפחה למעגל"]');
+await dad.fill('#circles input[aria-label="משפחה חדשה למעגל"]', 'בני דודים מהצפון');
+await dad.click('#circles [aria-label="הוספה — משפחה חדשה למעגל"]');
 await dad.waitForTimeout(2500);
 check('a family can be added from inside the circle',
   rows('Households').length === beforeInCircle + 1 &&
@@ -592,30 +617,26 @@ check('and it lands in that circle, not only on the list',
   rows('Circles').some((r) => r[1] === cousinsId && r[2] === 'add'));
 await dad.click('#circles button:has-text("צד אבא")');
 
+// Being put in a circle is joining it. The families in it arrive on the
+// newcomer's own list rather than as offers to accept one at a time — which is
+// what "we are all one circle" meant in the first place.
 await newcomer.reload();
 await newcomer.waitForSelector('text=המעגלים שלי');
-const waitingNames = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) =>
+const mineNow = await newcomer.$$eval('#families li p.font-semibold', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`the circle's families arrive on the list, not as offers (${mineNow.join(', ')})`,
+  ['דנה ויוסי', 'אח ואשתו', 'אחות ובעלה'].every((n) => mineNow.includes(n)));
+const stillOffered = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) =>
   els.map((e) => e.innerText.split('\n')[0].trim()),
 );
-const waiting = waitingNames.length;
-check(`inside the circle one voucher is enough (${waitingNames.join(', ')})`,
-  ['דנה ויוסי', 'אח ואשתו', 'אחות ובעלה'].every((n) => waitingNames.includes(n)));
-check('while a family outside it still needs two',
-  !waitingNames.includes('רן ומיכל ברק'));
-const mineBefore = await newcomer.$$eval('section:first-of-type li', (els) => els.length);
-await newcomer.click('text=הוספת כולן');
-await newcomer.waitForTimeout(4000);
-await newcomer.reload();
-await newcomer.waitForSelector('text=המעגלים שלי');
-const mineAfter = await newcomer.$$eval('section:first-of-type li', (els) => els.length);
-const leftNames = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) =>
-  els.map((e) => e.innerText.split('\n')[0].trim()),
-);
-// What the button promises is that everything *offered* goes in — not that the
-// section empties. Taking up three families can make a fourth eligible, since
-// two of your families now know somebody a moment ago only one of them did.
-check(`and all of it goes in one tap (${mineBefore} → ${mineAfter}, left: ${leftNames.join(', ') || 'none'})`,
-  mineAfter === mineBefore + waiting && waitingNames.every((n) => !leftNames.includes(n)));
+check(`and nothing is left to accept (${stillOffered.join(', ') || 'none'})`,
+  ['דנה ויוסי', 'אח ואשתו', 'אחות ובעלה'].every((n) => !stillOffered.includes(n)));
+check('while a family outside the circle is still not on the list',
+  !mineNow.includes('רן ומיכל ברק-שגיא'));
+// Both ways: the families in it can see the newcomer too.
+check('and the circle sees them back',
+  rows('Connections').some((r) => r[0] === 'hh_brother' && r[1] === newcomerId && r[2] === 'add'));
 // Back to the question, where the dropdown has to be opened again.
 await newcomer.goto(BASE);
 await newcomer.waitForSelector('nav');
@@ -684,7 +705,7 @@ await dad.click('text=שינוי תשובה');
 await dad.waitForSelector('text=מתארחים אצל…');
 await dad.click('text=מתארחים אצל…');
 await dad.click('text=לא מוצאים? הוסיפו משפחה');
-await dad.fill('input[name=familySurname]', 'כהן');
+await dad.fill('input[name=familyName]', 'כהן');
 await dad.click('text=הוספה');
 await dad.waitForTimeout(1500);
 check('a family can be added while answering', rows('Households').length === beforeAdd + 1);
@@ -828,7 +849,7 @@ check('a family can be added while filling in history',
   await gapRow.getByText('לא מוצאים? הוסיפו משפחה').isVisible());
 const beforeHistoryAdd = rows('Households').length;
 await gapRow.getByText('לא מוצאים? הוסיפו משפחה').click();
-await gapRow.locator('input[name=familySurname]').fill('שגיא');
+await gapRow.locator('input[name=familyName]').fill('שגיא');
 await gapRow.getByRole('button', { name: 'הוספה', exact: true }).click();
 await dad.waitForTimeout(1800);
 check('and adding one from history opens a household',
@@ -1026,9 +1047,8 @@ await dad.goto(BASE);
 if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
 await dad.click('text=מתארחים אצל…');
 await dad.click('text=לא מוצאים? הוסיפו משפחה');
-await dad.fill('input[name=familyFirstNames]', 'רות ואורי');
-await dad.fill('input[name=familySurname]', 'לוי');
-await dad.click('form:has(input[name=familyFirstNames]) button[type=submit]');
+await dad.fill('input[name=familyName]', 'רות ואורי לוי');
+await dad.click('form:has(input[name=familyName]) button[type=submit]');
 await dad.waitForTimeout(1500);
 check('a family added by name is one new household',
   rows('Households').length === beforeJoin + 1);

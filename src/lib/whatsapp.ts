@@ -32,6 +32,16 @@ export const shareApp = (url: string): string =>
   )}`;
 
 /**
+ * Inviting a whole circle at once, for the family's group chat. Whoever opens
+ * it joins the circle — and so joins everybody already in it — which is what
+ * makes it worth pasting somewhere several people will read it.
+ */
+export const inviteToCircle = (circleName: string, url: string): string =>
+  `https://wa.me/?text=${encodeURIComponent(
+    `אנחנו עוקבים באפליקציה אחרי מי מארח בכל חג. זה קישור ל«${circleName}» — מי שנכנס מצטרף לכולנו:\n${url}`,
+  )}`;
+
+/**
  * A nudge for one holiday, for the family's group chat. Counts, never names:
  * a message pasted into a group is read by everyone in it, and "מעיין וגל עוד
  * לא ענו" is a different thing to say than "ענו 3 מתוך 6".

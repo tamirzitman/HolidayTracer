@@ -146,26 +146,10 @@ export function JoinForm({
         <fieldset className="flex flex-col gap-3">
           <legend className="mb-2 text-sm font-semibold text-muted">המשפחה שלכם</legend>
 
-          {!claim && (
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-muted">
-                איך היא תיקרא לאחרים?
-              </span>
-              <input
-                name="householdName"
-                type="text"
-                required
-                placeholder="עמוס וליאת כהן"
-                value={householdName}
-                onChange={(e) => setHouseholdName(e.target.value)}
-                className={field}
-              />
-            </label>
-          )}
-
-          {/* Most people arriving on a link are new. The ones somebody already
-              added by name are the exception, and an exception should not be a
-              dropdown everybody has to read past. */}
+          {/* Above the box, not below it. Somebody who has already typed a
+              family name has decided they are new, and a panel offering the
+              alternative underneath arrives after the decision — which is how
+              one family became two. */}
           {claimable.length > 0 &&
             (claiming || claim ? (
               <label className="flex flex-col gap-2">
@@ -229,6 +213,23 @@ export function JoinForm({
                 </svg>
               </button>
             ))}
+          {!claim && (
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-muted">
+                {claimable.length > 0 ? 'או שאתם משפחה חדשה — איך היא תיקרא?' : 'איך היא תיקרא לאחרים?'}
+              </span>
+              <input
+                name="householdName"
+                type="text"
+                required
+                placeholder="עמוס וליאת כהן"
+                value={householdName}
+                onChange={(e) => setHouseholdName(e.target.value)}
+                className={field}
+              />
+            </label>
+          )}
+
 
         </fieldset>
       )}

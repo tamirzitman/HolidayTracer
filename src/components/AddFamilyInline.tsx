@@ -166,29 +166,20 @@ export function AddFamilyInline({
         </button>
       )}
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-semibold text-muted">איך הם ייקראו אצלכם?</legend>
-        {/* Split the same way as registering a family, so names made here and
-            names made there come out looking alike. A picked contact goes into
-            the first names, since that is what an address book usually holds. */}
-        <div className="flex gap-2" key={picked?.phone ?? 'empty'}>
-          <input
-            name="familyFirstNames"
-            type="text"
-            defaultValue={picked?.name ?? ''}
-            placeholder="שמות פרטיים"
-            aria-label="שמות פרטיים"
-            className={`${field} grow`}
-          />
-          <input
-            name="familySurname"
-            type="text"
-            placeholder="שם משפחה"
-            aria-label="שם משפחה"
-            className={`${field} grow`}
-          />
-        </div>
-      </fieldset>
+      {/* One box. Two — first names and a surname — asked people to take a
+          name apart before writing it down, and the grey example says the shape
+          better than a pair of labels did. */}
+      <label className="flex flex-col gap-2">
+        <span className="text-sm font-semibold text-muted">איך הם ייקראו אצלכם?</span>
+        <input
+          key={picked?.phone ?? 'empty'}
+          name="familyName"
+          type="text"
+          defaultValue={picked?.name ?? ''}
+          placeholder="עמוס וליאת כהן"
+          className={field}
+        />
+      </label>
 
       {/* Which side of the family they are on, while we are here. Whoever is
           adding them knows it now; asking again later on another screen is a

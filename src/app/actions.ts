@@ -301,10 +301,7 @@ export async function addFamilyNow(
   const me = await currentHousehold();
   if ('error' in me) return me;
 
-  const name = familyName(
-    String(formData.get('familyFirstNames') ?? ''),
-    String(formData.get('familySurname') ?? ''),
-  );
+  const name = String(formData.get('familyName') ?? '').trim().replace(/\s+/g, ' ');
   const phone = normalizePhone(String(formData.get('familyPhone') ?? ''));
   if (!name && !phone) return { error: 'צריך שם למשפחה' };
 
@@ -524,6 +521,29 @@ export async function setCircleMember(
   revalidatePath('/families');
   revalidatePath('/');
   return { savedAt: new Date().toISOString() };
+}
+
+/**
+ * A family on our list, by name alone, handed straight back.
+ *
+ * For the circle being made right now: with nothing on the list there is
+ * nothing to tick, and sending somebody away to add a family first loses the
+ * circle they were halfway through naming.
+ */
+export async function addFamilyByName(
+  name: string,
+): Promise<{ id?: string; name?: string; error?: string }> {
+  const me = await currentHousehold();
+  if ('error' in me) return { error: me.error };
+
+  const wanted = name.trim().replace(/\s+/g, ' ');
+  if (!wanted) return { error: 'צריך שם למשפחה' };
+
+  const householdId = await addHousehold(wanted);
+  await connect(me.householdId, householdId);
+  revalidatePath('/families');
+  revalidatePath('/');
+  return { id: householdId, name: wanted };
 }
 
 /**

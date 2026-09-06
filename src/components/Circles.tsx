@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  addFamilyByName,
   addFamilyToCircle,
   leaveCircle,
   makeCircle,
@@ -11,6 +12,8 @@ import {
   type ActionResult,
 } from '@/app/actions';
 import { CIRCLE_COLORS, colorOf, colorName } from '@/lib/circle-colors';
+import { inviteToCircle } from '@/lib/whatsapp';
+import { WhatsAppMark } from './WhatsApp';
 import {
   BackButton,
   CrossIcon,
@@ -70,9 +73,12 @@ export function CircleDots({
 export function Circles({
   circles,
   families,
+  inviteUrl,
 }: {
   circles: CircleView[];
   families: { id: string; name: string }[];
+  /** Our standing join link, for inviting a whole circle at once. */
+  inviteUrl: string;
 }) {
   const router = useRouter();
   const [making, setMaking] = useState(false);
@@ -151,6 +157,7 @@ export function Circles({
                 <CircleEditor
                   circle={circle}
                   families={families}
+                  inviteUrl={inviteUrl}
                   leaving={leaving === circle.id}
                   busy={busy === circle.id}
                   onAskLeave={() => setLeaving(circle.id)}
@@ -181,6 +188,9 @@ function NewCircle({
   onDone: () => void;
 }) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(makeCircle, {});
+  // Families made while filling this in. They are ticked, since adding one here
+  // is saying it belongs.
+  const [extra, setExtra] = useState<{ id: string; name: string }[]>([]);
   useEffect(() => {
     if (state.savedAt) onDone();
   }, [state.savedAt, onDone]);
@@ -198,24 +208,29 @@ function NewCircle({
 
       <fieldset className="flex flex-col gap-1">
         <legend className="mb-2 text-sm font-semibold text-muted">מי שייך אליו?</legend>
-        {families.length === 0 ? (
-          <p className="text-sm text-muted">עוד אין משפחות במעגל שלכם.</p>
-        ) : (
-          families.map((family) => (
-            <label
-              key={family.id}
-              className="flex items-center gap-3 rounded-xl border border-line bg-ground px-3 py-2"
-            >
-              <input
-                type="checkbox"
-                name="member"
-                value={family.id}
-                className="h-5 w-5 shrink-0 accent-brand"
-              />
-              <span className="min-w-0 break-words text-ink">{family.name}</span>
-            </label>
-          ))
-        )}
+        {[...families, ...extra].map((family) => (
+          <label
+            key={family.id}
+            className="flex items-center gap-3 rounded-xl border border-line bg-ground px-3 py-2"
+          >
+            <input
+              type="checkbox"
+              name="member"
+              value={family.id}
+              defaultChecked={extra.some((e) => e.id === family.id)}
+              className="h-5 w-5 shrink-0 accent-brand"
+            />
+            <span className="min-w-0 break-words text-ink">{family.name}</span>
+          </label>
+        ))}
+        {/* A family nobody has added yet — which is every family when the list
+            is empty, and a circle with nothing to tick is a dead end. */}
+        <NewFamilyHere
+          label="משפחה חדשה למעגל"
+          onAdded={(family: { id: string; name: string }) =>
+            setExtra((was) => [...was, family])
+          }
+        />
       </fieldset>
 
       <ErrorNote>{state.error}</ErrorNote>
@@ -237,6 +252,7 @@ function NewCircle({
 function CircleEditor({
   circle,
   families,
+  inviteUrl,
   leaving,
   busy: leavingBusy,
   onAskLeave,
@@ -245,6 +261,8 @@ function CircleEditor({
 }: {
   circle: CircleView;
   families: { id: string; name: string }[];
+  /** Our standing join link, for inviting the whole circle at once. */
+  inviteUrl: string;
   leaving: boolean;
   busy: boolean;
   onAskLeave: () => void;
@@ -347,6 +365,20 @@ function CircleEditor({
         <span className="text-xs text-muted">{colorName(color)}</span>
       </div>
 
+      {/* Everyone in a circle is in it together, so inviting to it is one link
+          for the family group rather than a row of separate invitations. */}
+      <a
+        href={inviteToCircle(circle.name, inviteUrl)}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`הזמנה ל${circle.name} בוואטסאפ`}
+        title="הזמנה למעגל — מי שנכנס מצטרף לכולם"
+        className="inline-flex items-center gap-2 self-start text-sm font-bold text-whatsapp"
+      >
+        <WhatsAppMark />
+        הזמנה למעגל
+      </a>
+
       <ErrorNote>{error}</ErrorNote>
 
       {/* Leaving lives here, at the end, rather than as a small grey ✕ beside
@@ -397,6 +429,48 @@ function CircleEditor({
  * which circle they belong to.
  */
 function NewInCircle({ circleId, onAdded }: { circleId: string; onAdded: () => void }) {
+  return (
+    <NewFamilyField
+      label="משפחה חדשה למעגל"
+      onSubmit={async (name) => {
+        const result = await addFamilyToCircle(circleId, name);
+        if (result.error) return { error: result.error };
+        onAdded();
+        return {};
+      }}
+    />
+  );
+}
+
+/** A family for the circle being made: added to our list, and ticked here. */
+function NewFamilyHere({
+  onAdded,
+  label,
+}: {
+  onAdded: (family: { id: string; name: string }) => void;
+  label: string;
+}) {
+  return (
+    <NewFamilyField
+      label={label}
+      onSubmit={async (name) => {
+        const made = await addFamilyByName(name);
+        if (made.error || !made.id) return { error: made.error ?? 'משהו השתבש' };
+        onAdded({ id: made.id, name: made.name ?? name });
+        return {};
+      }}
+    />
+  );
+}
+
+/** The field itself: a name, and a ＋ that means add. */
+function NewFamilyField({
+  label,
+  onSubmit,
+}: {
+  label: string;
+  onSubmit: (name: string) => Promise<{ error?: string }>;
+}) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -405,14 +479,13 @@ function NewInCircle({ circleId, onAdded }: { circleId: string; onAdded: () => v
     if (!name.trim()) return;
     setBusy(true);
     setError('');
-    const result = await addFamilyToCircle(circleId, name.trim());
+    const result = await onSubmit(name.trim());
     setBusy(false);
     if (result.error) {
       setError(result.error);
       return;
     }
     setName('');
-    onAdded();
   }
 
   return (
@@ -428,11 +501,11 @@ function NewInCircle({ circleId, onAdded }: { circleId: string; onAdded: () => v
               add();
             }
           }}
-          placeholder="משפחה חדשה למעגל"
-          aria-label="הוספת משפחה למעגל"
+          placeholder={label}
+          aria-label={label}
           className={`${field} py-2 text-base`}
         />
-        <IconButton label="הוספת המשפחה למעגל" onClick={add} disabled={busy || !name.trim()}>
+        <IconButton label={`הוספה — ${label}`} onClick={add} disabled={busy || !name.trim()}>
           <PlusIcon />
         </IconButton>
       </div>

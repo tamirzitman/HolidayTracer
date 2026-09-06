@@ -134,9 +134,9 @@ export function CopyIcon() {
 }
 
 /**
- * An occasion of our own: the same calendar the tab bar uses for a holiday,
- * with a person on it. A birthday or a memorial is a holiday somebody made, so
- * it says so in the same language rather than in a word.
+ * An occasion of ours: the tab bar's calendar with a star on it. A person drawn
+ * inside a date square is mush at this size — the star reads at a glance, and
+ * says "one of ours" without pretending to be a portrait.
  */
 export function OccasionIcon({ className = 'h-5 w-5' }: { className?: string }) {
   return (
@@ -148,12 +148,9 @@ export function OccasionIcon({ className = 'h-5 w-5' }: { className?: string }) 
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="12" cy="13.5" r="1.9" stroke="currentColor" strokeWidth="1.7" />
       <path
-        d="M8.6 18.5c0-1.6 1.5-2.8 3.4-2.8s3.4 1.2 3.4 2.8"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
+        d="m12 11.6 1.13 2.29 2.52.37-1.82 1.78.43 2.51L12 17.36l-2.26 1.19.43-2.51-1.82-1.78 2.52-.37L12 11.6Z"
+        fill="currentColor"
       />
     </svg>
   );

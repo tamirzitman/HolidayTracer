@@ -200,7 +200,11 @@ export function FamiliesManager({
           </ul>
         )}
       </section>
-      <Circles circles={circles} families={families.map((f) => ({ id: f.id, name: f.name }))} />
+      <Circles
+        circles={circles}
+        families={families.map((f) => ({ id: f.id, name: f.name }))}
+        inviteUrl={inviteUrl}
+      />
 
       {/* Circles drift apart as people add families of their own. Rather than ask
           anyone to keep the lists in step, this reads the overlap off the

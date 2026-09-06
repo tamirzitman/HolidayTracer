@@ -15,7 +15,6 @@ import { formatDayAndDate } from '@/lib/dates';
 import { holidayEmoji } from '@/lib/holiday-emoji';
 import {
   BackButton,
-  OccasionIcon,
   DatePill,
   ErrorNote,
   Title,
@@ -481,15 +480,6 @@ export function AnswerForm({
 
       {/* A family's own date is a holiday like any other, so the way to them is
           among the holidays rather than behind our own name. */}
-      <Link
-        href="/occasions"
-        aria-label="המועדים שלנו"
-        title="המועדים שלנו"
-        className="self-center rounded-full border border-line p-2 text-brand transition active:scale-95"
-      >
-        <OccasionIcon />
-      </Link>
-
       {/* Before answering, say what answering is *for*. Only with a circle to
           reveal: promising to show where everybody is, to somebody who has
           nobody on their list yet, is a promise the next screen cannot keep. */}

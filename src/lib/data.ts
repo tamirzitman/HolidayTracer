@@ -716,7 +716,8 @@ export async function createCircle(
 ): Promise<string> {
   const id = randomUUID().replace(/-/g, '').slice(0, 12);
   const at = new Date().toISOString();
-  for (const member of [householdId, ...members.filter((m) => m !== householdId)]) {
+  const all = [householdId, ...members.filter((m) => m !== householdId)];
+  for (const member of all) {
     await appendRow(TABS.circles, HEADERS.circles, [
       id,
       member,
@@ -726,6 +727,16 @@ export async function createCircle(
       householdId,
       at,
     ]);
+  }
+
+  // A circle is a claim that these families belong together, so they are
+  // introduced to each other on the spot rather than suggested to each other
+  // one at a time.
+  for (const a of all) {
+    for (const b of all) {
+      if (a >= b) continue;
+      if (!(await isConnected(a, b))) await connect(a, b);
+    }
   }
   return id;
 }
@@ -742,6 +753,7 @@ export async function addToCircle(
   name: string,
   color: string,
 ): Promise<void> {
+  const already = await circleMembers(circleId);
   await appendRow(TABS.circles, HEADERS.circles, [
     circleId,
     householdId,
@@ -751,6 +763,15 @@ export async function addToCircle(
     addedBy,
     new Date().toISOString(),
   ]);
+
+  // Joining a circle is joining the families in it. Offering them afterwards as
+  // suggestions asked the newcomer to accept, one at a time, the very thing
+  // being put in the circle already said — and left whoever added them looking
+  // at a circle whose members could not see each other.
+  for (const other of already) {
+    if (other === householdId) continue;
+    if (!(await isConnected(householdId, other))) await connect(householdId, other);
+  }
 }
 
 /** Who put this household in this circle, if they are in it at all. */
