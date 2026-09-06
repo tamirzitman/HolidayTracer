@@ -86,8 +86,15 @@ const linkFromRow = async (page, familyName) => {
     const seen = await page.$$eval('#families li', (els) =>
       els.map((e) => e.innerText.replace(/\n/g, ' | ')),
     );
+    const conn = rows('Connections')
+      .filter((r) => r[0] === 'hh_parents')
+      .map((r) => `${r[1]}:${r[2]}`)
+      .join(' ');
     throw new Error(
-      `no invitation on the row for "${familyName}". #families holds:\n  ${seen.join('\n  ')}`,
+      `no invitation on the row for "${familyName}".\n` +
+        `#families holds:\n  ${seen.join('\n  ')}\n` +
+        `Households (${rows('Households').length}): ${rows('Households').map((r) => `${r[0]}=${r[1]}`).join(', ')}\n` +
+        `hh_parents connections: ${conn}`,
     );
   }
   await row.getByRole('button', { name: /הזמנה בוואטסאפ/ }).click();
@@ -98,12 +105,11 @@ const linkFromRow = async (page, familyName) => {
   return rows('Invites').at(-1);
 };
 
-/** Bringing somebody into our own house — from the menu under our own name. */
+/** Bringing somebody into our own house — from the row about our own house. */
 const addToOurHouse = async (page) => {
-  await page.goto(BASE);
-  await page.waitForSelector('nav');
+  await page.goto(`${BASE}/families`);
+  await page.waitForSelector('text=הבית שלנו');
   const before = rows('Invites').length;
-  await page.click('button[aria-haspopup="menu"]');
   await page.click('text=הוספת בן בית');
   for (let i = 0; i < 40 && rows('Invites').length === before; i += 1) {
     await page.waitForTimeout(250);
@@ -416,7 +422,9 @@ await dad.waitForURL('**/families');
 check('the tab bar reaches the circles screen', await dad.isVisible('text=המעגלים שלי'));
 const beforeInvite = rows('Invites').length;
 await dad.click('[aria-label="העתקת קישור הזמנה"]');
-await dad.waitForSelector('text=שליחה בוואטסאפ');
+for (let i = 0; i < 40 && rows('Invites').length === beforeInvite; i += 1) {
+  await dad.waitForTimeout(250);
+}
 check('an invite link is created', rows('Invites').length === beforeInvite + 1);
 check('the invite is a family invite', inv(rows('Invites').at(-1), 'kind') === 'family');
 const token = inv(rows('Invites').at(-1), 'token');
@@ -515,7 +523,7 @@ check(`the families in it are dotted on their rows (${circleDots})`, circleDots 
 // Leaving is not a grey ✕ beside the pencil: it takes us out of something
 // other people are in, so it lives inside the editor, marked as what it is,
 // and it asks first.
-await dad.click('[aria-label="עריכת צד אבא"]');
+await dad.click('#circles button:has-text("צד אבא")');
 check('leaving is not offered from the row itself',
   (await dad.locator('[aria-label="לצאת מהמעגל צד אבא"]').count()) === 0);
 await dad.click('text=יציאה מהמעגל');
@@ -537,7 +545,7 @@ check('a family can be added from inside the circle',
 const cousinsId = rows('Households').find((r) => r[1] === 'בני דודים מהצפון')[0];
 check('and it lands in that circle, not only on the list',
   rows('Circles').some((r) => r[1] === cousinsId && r[2] === 'add'));
-await dad.click('[aria-label="סגירת צד אבא"]');
+await dad.click('#circles button:has-text("צד אבא")');
 
 await newcomer.reload();
 await newcomer.waitForSelector('text=המעגלים שלי');
@@ -844,15 +852,21 @@ await forwarded.close();
 // The general link is untouched by any of that.
 await dad.goto(`${BASE}/families`);
 await dad.waitForSelector('text=המעגלים שלי');
-await dad.click('button[aria-haspopup="menu"]');
-check('our own house is invited from the menu under our own name',
+check('our own house is invited from its own row, not from the menu',
   await dad.isVisible('text=הוספת בן בית'));
-await dad.keyboard.press('Escape');
+check('and the menu keeps only what belongs to nobody\'s row',
+  !(await dad.isVisible('[role=menu]')));
 if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
+const beforeReusable = rows('Invites').length;
 await dad.click('[aria-label="העתקת קישור הזמנה"]');
-await dad.waitForSelector('text=שליחה בוואטסאפ');
+for (let i = 0; i < 40 && rows('Invites').length === beforeReusable; i += 1) {
+  await dad.waitForTimeout(250);
+}
+// What "reusable" actually means, rather than a sentence saying so: aimed at
+// nobody, so there is nothing for spendInvite to close.
+const reusable = rows('Invites').at(-1);
 check('a link with no number stays reusable',
-  await dad.isVisible('text=הקישור פתוח לשבועיים'));
+  !inv(reusable, 'for_phone') && !inv(reusable, 'for_household_id') && !inv(reusable, 'used_at'));
 
 // ── an invite link cannot quietly put somebody on your list ──────────────────
 const friend = await open();
@@ -980,8 +994,14 @@ const theirHousehold = rows('Households').find((r) => r[1] === 'רות ואור�
 // becoming two.
 await dad.goto(`${BASE}/families`);
 if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
+const beforeShared = rows('Invites').length;
 await dad.click('[aria-label="העתקת קישור הזמנה"]');
-await dad.waitForSelector('text=העתקת הקישור');
+for (let i = 0; i < 40 && rows('Invites').length === beforeShared; i += 1) {
+  await dad.waitForTimeout(250);
+}
+check('copying the invitation makes one, without changing the screen',
+  rows('Invites').length === beforeShared + 1 &&
+    (await dad.isVisible('#invite button:has-text("הזמנה בוואטסאפ")')));
 const shared = inv(rows('Invites').at(-1), 'token');
 const viaGroup = await open();
 await viaGroup.goto(`${BASE}/join/${shared}`);

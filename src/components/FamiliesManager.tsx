@@ -18,6 +18,7 @@ import { WhatsAppMark, type Member } from './WhatsApp';
 import { inviteVia } from '@/lib/whatsapp';
 import {
   BackButton,
+  CheckIcon,
   CopyIcon,
   CrossIcon,
   ErrorNote,
@@ -110,6 +111,35 @@ export function FamiliesManager({
     }
   }
 
+  /**
+   * Copying the invitation, and nothing else. It used to mint the link and then
+   * show a second layout with a full-width copy button — two taps and a change
+   * of scenery for one small errand.
+   */
+  async function copyLink() {
+    setBusy('family');
+    setLinkError('');
+    try {
+      const made = await newInviteLink('family');
+      if (!made.token) {
+        setLinkError(made.error ?? 'משהו השתבש, נסו שוב');
+        return;
+      }
+      const url = `${window.location.origin}/join/${made.token}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2500);
+      } catch {
+        // Some browsers will not write to the clipboard after an await. Show
+        // the link rather than losing it.
+        setLink(url);
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-col items-center gap-2 text-center">
@@ -131,6 +161,7 @@ export function FamiliesManager({
             <AddFamilyInline
               inviteUrl={inviteUrl}
               startOpen
+              onClose={() => setAddingFamily(false)}
               onAdded={() => {
                 setAddingFamily(false);
                 router.refresh();
@@ -273,28 +304,23 @@ export function FamiliesManager({
       <HiddenSuggestions hidden={hidden} />
 
       <div id="invite" className={`${card} flex flex-col gap-3`}>
-        <div className="flex items-center gap-2">
-          {link && <BackButton onClick={() => setLink('')} />}
-          <h2 className={sectionHeading}>הזמנה</h2>
-        </div>
+        <h2 className={sectionHeading}>הזמנה</h2>
 
         {link ? (
           <>
-            <a
-              href={inviteVia(link)}
-              target="_blank"
-              rel="noreferrer"
-              className={`${primaryButton} inline-flex items-center justify-center gap-2`}
-            >
-              <WhatsAppMark />
-              שליחה בוואטסאפ
-            </a>
+            {/* The clipboard refused — a browser that will not write outside a
+                tap it recognises. The link itself, then, to copy by hand. */}
+            <input
+              readOnly
+              dir="ltr"
+              value={link}
+              onFocus={(e) => e.currentTarget.select()}
+              aria-label="קישור ההזמנה"
+              className={`${field} text-sm`}
+            />
             <button type="button" onClick={copy} className={secondaryButton}>
               {copied ? 'הקישור הועתק ✓' : 'העתקת הקישור'}
             </button>
-            <p className="text-center text-xs text-muted">
-              הקישור פתוח לשבועיים ואפשר לשלוח אותו ליותר מאחד — נוח לקבוצה של המשפחה.
-            </p>
           </>
         ) : (
           <>
@@ -311,11 +337,11 @@ export function FamiliesManager({
               {/* The same link, for pasting anywhere else — a mark beside the
                   button rather than a second line of words under it. */}
               <IconButton
-                label="העתקת קישור הזמנה"
+                label={copied ? 'הקישור הועתק' : 'העתקת קישור הזמנה'}
                 disabled={busy !== null || sharing}
-                onClick={() => makeLink('family')}
+                onClick={copyLink}
               >
-                <CopyIcon />
+                {copied ? <CheckIcon /> : <CopyIcon />}
               </IconButton>
             </div>
             <p className="-mt-1 text-center text-xs text-muted">
@@ -368,13 +394,7 @@ function HiddenSuggestions({ hidden }: { hidden: { id: string; name: string }[] 
     <section className={`${card} flex flex-col gap-1 p-0`}>
       <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
         <h2 className={sectionHeading}>מוסתרות מההצעות</h2>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="shrink-0 text-xs font-bold text-brand underline underline-offset-4"
-        >
-          סגירה
-        </button>
+        <BackButton onClick={() => setOpen(false)} />
       </div>
       <ul className="divide-y divide-line">
         {hidden.map((family) => (
@@ -433,6 +453,10 @@ function HiddenSuggestions({ hidden }: { hidden: { id: string; name: string }[] 
  */
 function OwnHouse({ name, members }: { name: string; members: Member[] }) {
   const [editing, setEditing] = useState(false);
+  // Inviting a partner or a grown child. It lived under the menu at the top of
+  // every screen, which is not where anybody looks for it — this row is what it
+  // is about.
+  const { busy: adding, start, stop, go } = useHandoff();
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(
     nameOurHousehold,
     {},
@@ -479,6 +503,23 @@ function OwnHouse({ name, members }: { name: string; members: Member[] }) {
       <IconButton label="שינוי שם המשפחה שלנו" onClick={() => setEditing(true)}>
         <PencilIcon />
       </IconButton>
+      <button
+        type="button"
+        disabled={adding}
+        onClick={async () => {
+          start();
+          const made = await newInviteLink('household', '');
+          if (!made.token) {
+            stop();
+            return;
+          }
+          go(inviteVia(`${window.location.origin}/join/${made.token}`));
+        }}
+        className={`${chipButton} inline-flex items-center gap-2`}
+      >
+        <WhatsAppMark />
+        {adding ? 'רגע…' : 'הוספת בן בית'}
+      </button>
     </div>
   );
 }

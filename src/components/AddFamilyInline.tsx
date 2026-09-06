@@ -27,8 +27,14 @@ import {
  * dropdown was the whole friction this was meant to remove. And a family with a
  * number nobody has signed in with is one you can invite on the spot.
  */
-export function AddFamilyInline({ onAdded, inviteUrl, startOpen = false }: {
+export function AddFamilyInline({ onAdded, onClose, inviteUrl, startOpen = false }: {
   onAdded?: (householdId: string) => void;
+  /**
+   * Folded away again. Opened by a ＋ that already said what it is for, this
+   * has no business leaving its own "לא מוצאים?" link behind when it closes —
+   * a way in that was not there before the ＋ was pressed.
+   */
+  onClose?: () => void;
   inviteUrl: string;
   /** Opened by something else — a ＋ that has already said what it is for. */
   startOpen?: boolean;
@@ -75,6 +81,7 @@ export function AddFamilyInline({ onAdded, inviteUrl, startOpen = false }: {
   const close = () => {
     setDismissed(state.savedAt ?? '');
     setOpen(false);
+    onClose?.();
   };
 
   if (state.householdId && dismissed !== (state.savedAt ?? '')) {
@@ -111,16 +118,22 @@ export function AddFamilyInline({ onAdded, inviteUrl, startOpen = false }: {
         ) : (
           <p className="text-sm text-muted">אפשר להמשיך ולאשר את התשובה.</p>
         )}
-        <button type="button" onClick={close} className={quietButton}>
-          סגירה
-        </button>
+
       </div>
     );
   }
 
+  // Opened from outside, closing means going away entirely: the ＋ that opened
+  // it is the way back in.
+  if (!open && startOpen) return null;
+
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className={`${quietButton} text-center`}>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`${quietButton} text-center`}
+      >
         לא מוצאים? הוסיפו משפחה
       </button>
     );
@@ -134,7 +147,7 @@ export function AddFamilyInline({ onAdded, inviteUrl, startOpen = false }: {
   return (
     <form action={formAction} className={`${card} flex flex-col gap-3`}>
       <div className="flex items-center gap-2">
-        <BackButton onClick={() => setOpen(false)} />
+        <BackButton onClick={close} />
         <h2 className={sectionHeading}>הוספת משפחה</h2>
       </div>
 

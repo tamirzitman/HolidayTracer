@@ -12,15 +12,14 @@ import {
 } from '@/app/actions';
 import { CIRCLE_COLORS, colorOf, colorName } from '@/lib/circle-colors';
 import {
+  BackButton,
   CrossIcon,
   ErrorNote,
   IconButton,
-  PencilIcon,
   PlusIcon,
   card,
   chipButton,
   field,
-  quietButton,
   sectionHeading,
 } from './ui';
 
@@ -110,27 +109,44 @@ export function Circles({
         <ul className="divide-y divide-line">
           {circles.map((circle) => (
             <li key={circle.id} className="flex flex-col gap-2 px-5 py-3">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {/* The row is the control. A pencil beside it asked people to aim
+                  at a small target for the only thing the row does. */}
+              <button
+                type="button"
+                onClick={() => setOpen(open === circle.id ? null : circle.id)}
+                aria-expanded={open === circle.id}
+                className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 text-start"
+              >
                 <span
                   className="h-3.5 w-3.5 shrink-0 rounded-full ring-1 ring-black/10"
                   style={{ backgroundColor: colorOf(circle.color) }}
                   aria-hidden="true"
                 />
-                <p className="min-w-0 grow basis-32 font-semibold break-words text-ink">
+                <span className="min-w-0 grow basis-32 font-semibold break-words text-ink">
                   {circle.name}
-                </p>
+                </span>
                 <span className="text-sm text-muted">
                   {circle.members.length === 0
                     ? 'רק אתם'
                     : `${circle.members.length} משפחות`}
                 </span>
-                <IconButton
-                  label={open === circle.id ? `סגירת ${circle.name}` : `עריכת ${circle.name}`}
-                  onClick={() => setOpen(open === circle.id ? null : circle.id)}
+                <svg
+                  viewBox="0 0 24 24"
+                  className={`h-4 w-4 shrink-0 text-muted transition ${
+                    open === circle.id ? 'rotate-180' : ''
+                  }`}
+                  fill="none"
+                  aria-hidden="true"
                 >
-                  <PencilIcon />
-                </IconButton>
-              </div>
+                  <path
+                    d="M6 9l6 6 6-6"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
 
               {open === circle.id && (
                 <CircleEditor
@@ -172,6 +188,10 @@ function NewCircle({
 
   return (
     <form action={formAction} className="flex flex-col gap-3 border-t border-line px-5 py-4">
+      <div className="flex items-center gap-2">
+        <BackButton onClick={onDone} />
+        <h3 className={sectionHeading}>מעגל חדש</h3>
+      </div>
       <label className="flex flex-col gap-2">
         <span className="text-sm font-semibold text-muted">איך תקראו למעגל?</span>
         <input name="name" type="text" required placeholder="צד אבא" className={field} />
@@ -201,14 +221,9 @@ function NewCircle({
 
       <ErrorNote>{state.error}</ErrorNote>
 
-      <div className="flex items-center gap-4">
-        <button type="submit" disabled={pending} className={chipButton}>
-          {pending ? 'רגע…' : 'יצירת המעגל'}
-        </button>
-        <button type="button" onClick={onDone} className={quietButton}>
-          ביטול
-        </button>
-      </div>
+      <button type="submit" disabled={pending} className={chipButton}>
+        {pending ? 'רגע…' : 'יצירת המעגל'}
+      </button>
     </form>
   );
 }

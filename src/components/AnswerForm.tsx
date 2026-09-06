@@ -443,9 +443,7 @@ export function AnswerForm({
                   <button type="submit" disabled={pending} className={primaryButton}>
                     {pending ? 'רגע…' : 'אישור'}
                   </button>
-                  <button type="button" onClick={() => setChoosingHost(false)} className={quietButton}>
-                    חזרה
-                  </button>
+                  <BackButton onClick={() => setChoosingHost(false)} />
                 </>
               )}
 
