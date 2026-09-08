@@ -157,7 +157,7 @@ export function FamiliesManager({
           </IconButton>
         </div>
         {addingFamily && (
-          <div className="px-5 pb-3">
+          <div className="flex flex-col gap-3 px-5 pb-3">
             <AddFamilyInline
               inviteUrl={inviteUrl}
               circles={circles}
@@ -168,10 +168,14 @@ export function FamiliesManager({
                 router.refresh();
               }}
             />
+            {/* Beside typing a name rather than at the foot of the screen, and
+                the only way into contacts now: this one takes several at a
+                time, which is what anybody opening an address book wants. */}
+            <ContactPicker />
           </div>
         )}
         {families.length === 0 ? (
-          <p className="p-6 text-center text-muted">עדיין אין אף משפחה. הזמינו מישהו למטה.</p>
+          <p className="p-6 text-center text-muted">עדיין אין אף משפחה — אפשר להוסיף כאן למעלה.</p>
         ) : (
           <ul className="divide-y divide-line">
             {families.map((family) => (
@@ -364,7 +368,6 @@ export function FamiliesManager({
                 circles={circles}
                 onAdded={() => router.refresh()}
               />
-              <ContactPicker />
             </div>
           </>
         )}

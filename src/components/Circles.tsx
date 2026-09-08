@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   addFamilyByName,
@@ -153,6 +153,20 @@ export function Circles({
                 </svg>
               </button>
 
+              {/* Inviting the circle is the errand people come here for most, so
+                  it is on the row rather than behind opening it. */}
+              <a
+                href={inviteToCircle(circle.name, inviteUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`הזמנה ל${circle.name} בוואטסאפ`}
+                title="מי שנכנס מהקישור מצטרף לכל המעגל"
+                className="inline-flex items-center gap-2 self-start text-sm font-bold text-whatsapp"
+              >
+                <WhatsAppMark />
+                הזמנה למעגל
+              </a>
+
               {open === circle.id && (
                 <CircleEditor
                   circle={circle}
@@ -278,6 +292,15 @@ function CircleEditor({
   // round trip away — so without this the tick springs back and the row reads
   // as broken until the answer lands. A refusal puts it back where it was.
   const [members, setMembers] = useState(circle.members);
+  // …and taken from the sheet again whenever it says something new. Seeded once
+  // and never re-read, this held the membership as it was when the editor
+  // opened: a family added from the field below landed in the circle on the
+  // server and sat here unticked, so it looked as though adding had not put it
+  // anywhere and wanted a tick of its own.
+  const fromSheet = circle.members.join(',');
+  useEffect(() => {
+    setMembers(fromSheet ? fromSheet.split(',') : []);
+  }, [fromSheet]);
 
   async function toggle(householdId: string, inCircle: boolean) {
     const before = members;
@@ -364,20 +387,6 @@ function CircleEditor({
         </div>
         <span className="text-xs text-muted">{colorName(color)}</span>
       </div>
-
-      {/* Everyone in a circle is in it together, so inviting to it is one link
-          for the family group rather than a row of separate invitations. */}
-      <a
-        href={inviteToCircle(circle.name, inviteUrl)}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={`הזמנה ל${circle.name} בוואטסאפ`}
-        title="הזמנה למעגל — מי שנכנס מצטרף לכולם"
-        className="inline-flex items-center gap-2 self-start text-sm font-bold text-whatsapp"
-      >
-        <WhatsAppMark />
-        הזמנה למעגל
-      </a>
 
       <ErrorNote>{error}</ErrorNote>
 
@@ -474,6 +483,7 @@ function NewFamilyField({
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const box = useRef<HTMLInputElement>(null);
 
   async function add() {
     if (!name.trim()) return;
@@ -486,12 +496,16 @@ function NewFamilyField({
       return;
     }
     setName('');
+    // Straight on to the next one. A circle is filled in a handful of names,
+    // and reaching for the field again between each is most of the work.
+    box.current?.focus();
   }
 
   return (
     <div className="flex flex-col gap-1 pt-1">
       <div className="flex items-center gap-2">
         <input
+          ref={box}
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}

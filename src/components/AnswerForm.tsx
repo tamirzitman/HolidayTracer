@@ -520,13 +520,7 @@ export function AnswerForm({
       {answered && circleStatus.length > 0 && (
         <Circle
           families={circleStatus}
-          reminder={remindAbout(
-            holiday.nameHe,
-            formatDayAndDate(holiday.date),
-            circleStatus.filter((f) => f.kind !== 'none').length + (answered ? 1 : 0),
-            circleStatus.length + 1,
-            appUrl,
-          )}
+          reminder={remindAbout(holiday.nameHe, formatDayAndDate(holiday.date), appUrl)}
           holidayKey={holiday.key}
           hosts={[us, ...households]}
           tags={tags}

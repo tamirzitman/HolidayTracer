@@ -438,6 +438,13 @@ check('and it is a ＋ with two words, not a sentence',
   (await circleCard.locator('a[href="/families"]').innerText()).trim() === 'הוספת משפחה');
 check('and the nudge is a mark on that list, not a button the width of the screen',
   await circleCard.locator('a[href^="https://wa.me/?text="]').isVisible());
+// No counts: "ענו 3 מתוך 10" was true of the sender's list and of nobody
+// else's, so it read as a claim about a list the reader could not see.
+const nudge = decodeURIComponent(
+  (await circleCard.locator('a[href^="https://wa.me/?text="]').getAttribute('href')) ?? '',
+);
+check(`the reminder counts nobody's families (${nudge.split('\n')[0].slice(-40)})`,
+  !/\d+\s*מתוך\s*\d+/.test(nudge) && nudge.includes('מי מארח'));
 check('and the form itself is not duplicated here',
   (await dad.$$('main input[name=familyName]')).length === 0);
 
@@ -544,6 +551,16 @@ await dad.reload();
 await dad.waitForSelector('text=צד אבא');
 const circleDots = await dad.$$eval('#families li [aria-label^="מעגלים:"]', (e) => e.length);
 check(`the families in it are dotted on their rows (${circleDots})`, circleDots === 4);
+// Inviting the circle is the errand people come for most, so it is on the row
+// rather than behind opening it.
+const circleInvite = await dad.getAttribute(
+  '#circles a[aria-label="הזמנה לצד אבא בוואטסאפ"]',
+  'href',
+);
+check('the circle carries its invitation on the row itself',
+  Boolean(circleInvite) && decodeURIComponent(circleInvite).includes('צד אבא'));
+check('and the invitation says that whoever opens it joins everybody',
+  decodeURIComponent(circleInvite ?? '').includes('מצטרף לכולנו'));
 
 // The list is ordered by the circles rather than scattered: families in more of
 // them first, and the same combination together.
@@ -615,6 +632,13 @@ check('a family can be added from inside the circle',
 const cousinsId = rows('Households').find((r) => r[1] === 'בני דודים מהצפון')[0];
 check('and it lands in that circle, not only on the list',
   rows('Circles').some((r) => r[1] === cousinsId && r[2] === 'add'));
+// Ticked, because adding it here already said it belongs. The editor used to
+// read its membership once and never again, so a family added below sat
+// unticked and looked as though it had gone nowhere.
+check('and shows as in the circle without being ticked by hand',
+  await dad.locator('#circles label', { hasText: 'בני דודים מהצפון' })
+    .locator('input[type=checkbox]')
+    .isChecked());
 await dad.click('#circles button:has-text("צד אבא")');
 
 // Being put in a circle is joining it. The families in it arrive on the
@@ -758,8 +782,13 @@ await dad.context().addInitScript(
   [NEWCOMER, UNKNOWN],
 );
 
+// Choosing from contacts sits beside typing a name, at the head of the list
+// both of them fill — and it is the only way in now, since it takes several at
+// a time where the one it replaced took exactly one.
 await dad.goto(`${BASE}/families`);
+await dad.click('[aria-label="הוספת משפחה"]');
 check('the picker appears when the browser has one', await dad.isVisible('text=בחירה מאנשי הקשר'));
+check('and it is the only one', (await dad.$$('text=בחירה מאנשי הקשר')).length === 1);
 await dad.click('text=בחירה מאנשי הקשר');
 await dad.waitForSelector('text=/נוספו:|כבר ברשימה:/');
 check('a contact already in the app is reported as already there',
@@ -767,16 +796,26 @@ check('a contact already in the app is reported as already there',
 // A contact nobody has signed in from is not just an invite to send: it is
 // offered as a family to add, so the name in our phone becomes a family we can
 // answer for — after we have looked at the list.
-check('a contact who is not is offered for adding', await dad.isVisible('text=שכנים'));
+// By the field itself, not by text on the row: the name lives in an input now,
+// and a text match would find the unrelated family called שכנים מהבניין.
+const nameBox = dad.locator('input[aria-label^="שם המשפחה עבור"]');
+check('a contact who is not is offered for adding', (await nameBox.count()) === 1);
 check('and nothing is written before we confirm',
   !rows('Households').some((r) => r[1] === 'שכנים'));
 const beforeContacts = rows('Households').length;
+// "שכנים" is a note to self in an address book, not what a family is called,
+// and everyone in the circle will read whatever goes in — so it can be put
+// right before anybody else sees it.
+check('a name out of the address book can be corrected first',
+  (await nameBox.inputValue()) === 'שכנים');
+await nameBox.fill('משפחת שכנוביץ');
 await dad.click('button:has-text("הוספת המשפחה")');
-await dad.waitForSelector('text=נוספו: שכנים');
+await dad.waitForSelector('text=נוספו: משפחת שכנוביץ');
 check('confirming adds them as a family',
   rows('Households').length === beforeContacts + 1);
-const neighbours = rows('Households').find((r) => r[1] === 'שכנים');
-check('with the name from our address book', Boolean(neighbours));
+const neighbours = rows('Households').find((r) => r[1] === 'משפחת שכנוביץ');
+check('under the name we corrected, not the one in the phone',
+  Boolean(neighbours) && !rows('Households').some((r) => r[1] === 'שכנים'));
 check('and their number tied to it',
   rows('People').some((r) => r[0] === '+972540001122' && r[2] === neighbours[0]));
 check('and connected to us, so we can answer for them',
@@ -1022,9 +1061,11 @@ check(`picking between them is offered (${chooser.join(', ')})`,
 
 // Message for a family that is here, invite for one that is not — everywhere.
 await dad.goto(`${BASE}/families`);
-const marks = await dad.$$eval('section a[href*="wa.me"], section button[aria-label*="וואטסאפ"]',
-  (els) => els.length);
-check(`the circles list carries no per-family marks (${marks})`, marks === 0);
+const marks = await dad.$$eval(
+  '#families a[href*="wa.me"], #families button[aria-label*="וואטסאפ"]',
+  (els) => els.length,
+);
+check(`the families list carries no per-family marks (${marks})`, marks === 0);
 // The contact picker is Chrome-on-Android only, so without this the families
 // screen offers an iPhone no way to add anybody at all.
 check('and a family can be added by name from the families screen',
@@ -1136,7 +1177,15 @@ check(`the panel that moves holds the holiday itself (${travels})`,
   travels.includes('ערב ראש השנה'));
 
 // ── occasions belong to one family ───────────────────────────────────────────
-const SOON = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+// The soonest day no seeded holiday already occupies. A fixed "three days from
+// now" eventually lands on one of them — it landed on ערב ראש השנה — and then
+// two holidays share a date and which one the front page opens on is a toss-up.
+const taken = new Set(rows('Holidays').map((r) => r[3]));
+let free = new Date(Date.now() + 86_400_000);
+while (taken.has(free.toISOString().slice(0, 10))) {
+  free = new Date(free.getTime() + 86_400_000);
+}
+const SOON = free.toISOString().slice(0, 10);
 // Reached through the household menu, from wherever you happen to be.
 await dad.click('button[aria-haspopup=menu]');
 await dad.waitForSelector('[role=menu]');

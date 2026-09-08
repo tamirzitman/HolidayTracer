@@ -4,9 +4,7 @@ import { useActionState, useCallback, useEffect, useState } from 'react';
 import { useCloseOnAway } from '@/lib/dismiss';
 import { addFamilyNow, newInviteLink, type AddedFamily } from '@/app/actions';
 import { WhatsAppMark } from './WhatsApp';
-import { contactPickerAvailable, pickContacts } from '@/lib/contacts';
 import { inviteVia } from '@/lib/whatsapp';
-import { formatPhone } from '@/lib/phone';
 import { colorOf } from '@/lib/circle-colors';
 import {
   BackButton,
@@ -55,8 +53,6 @@ export function AddFamilyInline({
   // the component remembers — without it "סגירה" set open to false and the card
   // went on rendering, because it is reached before the open check.
   const [dismissed, setDismissed] = useState('');
-  const [picker] = useState(contactPickerAvailable);
-  const [picked, setPicked] = useState<{ name: string; phone: string } | null>(null);
   // A link made for the number just typed: theirs alone, and spent once they
   // are in. Falls back to the family's general link if minting one fails.
   const [personal, setPersonal] = useState('');
@@ -148,11 +144,6 @@ export function AddFamilyInline({
     );
   }
 
-  async function choose() {
-    const contacts = await pickContacts(false);
-    if (contacts[0]) setPicked(contacts[0]);
-  }
-
   return (
     <form action={formAction} className={`${card} flex flex-col gap-3`}>
       <div className="flex items-center gap-2">
@@ -160,22 +151,14 @@ export function AddFamilyInline({
         <h2 className={sectionHeading}>הוספת משפחה</h2>
       </div>
 
-      {picker && (
-        <button type="button" onClick={choose} className={secondaryButton}>
-          {picked ? 'בחירת איש קשר אחר' : 'בחירה מאנשי הקשר'}
-        </button>
-      )}
-
       {/* One box. Two — first names and a surname — asked people to take a
           name apart before writing it down, and the grey example says the shape
           better than a pair of labels did. */}
       <label className="flex flex-col gap-2">
         <span className="text-sm font-semibold text-muted">איך הם ייקראו אצלכם?</span>
         <input
-          key={picked?.phone ?? 'empty'}
           name="familyName"
           type="text"
-          defaultValue={picked?.name ?? ''}
           placeholder="עמוס וליאת כהן"
           className={field}
         />
@@ -206,9 +189,8 @@ export function AddFamilyInline({
         </fieldset>
       )}
 
-      {/* Typed as well as picked. The contact picker only exists in Chrome on
-          Android, and half the family is on an iPhone — leaving them no way at
-          all to attach a number would make the picker's absence a dead end. */}
+      {/* Optional, and typed: choosing from contacts is its own control beside
+          this one, and it takes several at a time. */}
       <label className="flex flex-col gap-2">
         <span className="text-sm font-semibold text-muted">מספר טלפון (לא חובה)</span>
         <input
@@ -217,8 +199,6 @@ export function AddFamilyInline({
           inputMode="tel"
           dir="ltr"
           autoComplete="off"
-          defaultValue={picked?.phone ? formatPhone(picked.phone) : ''}
-          key={picked?.phone ?? 'empty'}
           placeholder="050-123-4567"
           title="עם מספר הם יוכלו להיכנס בעצמם ולענות בעצמם. בלעדיו אפשר לענות שהתארחתם אצלם, ולהשלים את המספר בהמשך."
           className={field}

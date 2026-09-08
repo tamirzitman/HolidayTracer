@@ -53,7 +53,9 @@ export function ContactPicker() {
   async function addChosen() {
     setBusy(true);
     try {
-      const outcome = await addContacts(pending.filter((c) => chosen.includes(c.phone)));
+      const outcome = await addContacts(
+        pending.filter((c) => chosen.includes(c.phone) && c.name.trim()),
+      );
       setAdded(outcome.added);
       setPending([]);
       router.refresh();
@@ -107,10 +109,20 @@ export function ContactPicker() {
                         }
                         className="h-5 w-5 shrink-0 accent-brand"
                       />
-                      <span className="min-w-0 grow">
-                        <span className="font-semibold break-words text-ink">
-                          {contact.name || 'איש קשר'}
-                        </span>{' '}
+                      <span className="flex min-w-0 grow flex-col gap-1">
+                        <input
+                          type="text"
+                          value={contact.name}
+                          onChange={(e) =>
+                            setPending(
+                              pending.map((c) =>
+                                c.phone === contact.phone ? { ...c, name: e.target.value } : c,
+                              ),
+                            )
+                          }
+                          aria-label={`שם המשפחה עבור ${formatPhone(contact.phone)}`}
+                          className="w-full rounded-lg border border-line bg-surface px-2 py-1 font-semibold text-ink"
+                        />
                         <span dir="ltr" className="text-xs text-muted">
                           {formatPhone(contact.phone)}
                         </span>
@@ -132,7 +144,8 @@ export function ContactPicker() {
                     : `הוספת ${chosen.length} משפחות`}
               </button>
               <p className="text-xs text-muted">
-                השם נלקח מאנשי הקשר שלכם. מי שייכנס עם המספר הזה יוכל לתקן אותו.
+                השמות מגיעים מאנשי הקשר שלכם ואפשר לתקן אותם כאן — כולם במעגל
+                יראו את מה שנכתב. מי שייכנס עם המספר הזה יוכל לשנות אותו בעצמו.
               </p>
             </div>
           )}
