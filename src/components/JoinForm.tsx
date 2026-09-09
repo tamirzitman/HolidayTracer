@@ -3,7 +3,16 @@
 import { useActionState, useState } from 'react';
 import { register, type ActionResult } from '@/app/actions';
 import { formatPhone } from '@/lib/phone';
-import { ErrorNote, Title, card, field, primaryButton, quietButton, secondaryButton } from './ui';
+import {
+  Busy,
+  ErrorNote,
+  Title,
+  card,
+  field,
+  primaryButton,
+  quietButton,
+  secondaryButton,
+} from './ui';
 
 /**
  * Signing up — with an invite or without one.
@@ -272,7 +281,7 @@ export function JoinForm({
             disabled={pending}
             className={primaryButton}
           >
-            {pending ? 'רגע…' : 'כן, זו המשפחה שלנו'}
+            <Busy busy={pending}>כן, זו המשפחה שלנו</Busy>
           </button>
           <button
             type="submit"
@@ -297,7 +306,7 @@ export function JoinForm({
             disabled={pending}
             className={primaryButton}
           >
-            {pending ? 'רגע…' : `סיום — ולהצטרף ל${invitedBy}`}
+            <Busy busy={pending}>{`סיום — ולהצטרף ל${invitedBy}`}</Busy>
           </button>
           <button
             type="submit"
@@ -311,7 +320,7 @@ export function JoinForm({
         </>
       ) : (
         <button type="submit" disabled={pending} className={primaryButton}>
-          {pending ? 'רגע…' : 'סיום'}
+          <Busy busy={pending}>סיום</Busy>
         </button>
       )}
     </form>

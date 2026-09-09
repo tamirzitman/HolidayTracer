@@ -18,6 +18,7 @@ import { inviteToCircle } from '@/lib/whatsapp';
 import { WhatsAppMark } from './WhatsApp';
 import {
   BackButton,
+  Busy,
   CrossIcon,
   ErrorNote,
   IconButton,
@@ -190,12 +191,21 @@ function NewCircle({
   onDone: () => void;
 }) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(makeCircle, {});
-  // Families made while filling this in. They are ticked, since adding one here
-  // is saying it belongs.
+  // Families made while filling this in, held only until the list from the
+  // server catches up — adding one revalidates this screen, so a moment later
+  // the same family arrives in `families` and this copy is the same household
+  // written twice.
   const [extra, setExtra] = useState<{ id: string; name: string }[]>([]);
+  // Ticked by id rather than left to the DOM. A family added here is ticked
+  // because adding it here already said it belongs, and which of the two
+  // arrivals renders first is a race an uncontrolled box would take its answer
+  // from.
+  const [ticked, setTicked] = useState<string[]>([]);
   useEffect(() => {
     if (state.savedAt) onDone();
   }, [state.savedAt, onDone]);
+
+  const shown = [...families, ...extra.filter((e) => !families.some((f) => f.id === e.id))];
 
   return (
     <form action={formAction} className="flex flex-col gap-3 border-t border-line px-5 py-4">
@@ -210,7 +220,7 @@ function NewCircle({
 
       <fieldset className="flex flex-col gap-1">
         <legend className="mb-2 text-sm font-semibold text-muted">מי שייך אליו?</legend>
-        {[...families, ...extra].map((family) => (
+        {shown.map((family) => (
           <label
             key={family.id}
             className="flex items-center gap-3 rounded-xl border border-line bg-ground px-3 py-2"
@@ -219,7 +229,14 @@ function NewCircle({
               type="checkbox"
               name="member"
               value={family.id}
-              defaultChecked={extra.some((e) => e.id === family.id)}
+              checked={ticked.includes(family.id)}
+              onChange={(e) =>
+                setTicked((was) =>
+                  e.target.checked
+                    ? [...was, family.id]
+                    : was.filter((id) => id !== family.id),
+                )
+              }
               className="h-5 w-5 shrink-0 accent-brand"
             />
             <span className="min-w-0 break-words text-ink">{family.name}</span>
@@ -229,16 +246,17 @@ function NewCircle({
             is empty, and a circle with nothing to tick is a dead end. */}
         <NewFamilyHere
           label="משפחה חדשה למעגל"
-          onAdded={(family: { id: string; name: string }) =>
-            setExtra((was) => [...was, family])
-          }
+          onAdded={(family: { id: string; name: string }) => {
+            setExtra((was) => (was.some((e) => e.id === family.id) ? was : [...was, family]));
+            setTicked((was) => (was.includes(family.id) ? was : [...was, family.id]));
+          }}
         />
       </fieldset>
 
       <ErrorNote>{state.error}</ErrorNote>
 
       <button type="submit" disabled={pending} className={chipButton}>
-        {pending ? 'רגע…' : 'יצירת המעגל'}
+        <Busy busy={pending}>יצירת המעגל</Busy>
       </button>
     </form>
   );
@@ -403,7 +421,7 @@ function CircleEditor({
                 onClick={onLeave}
                 className="rounded-full border border-danger px-4 py-1.5 text-sm font-bold text-danger transition active:scale-95 disabled:opacity-50"
               >
-                {leavingBusy ? 'רגע…' : 'כן, לצאת מהמעגל'}
+                <Busy busy={leavingBusy}>כן, לצאת מהמעגל</Busy>
               </button>
               <button type="button" onClick={onCancelLeave} className="text-sm text-muted">
                 ביטול
@@ -466,7 +484,7 @@ function CircleInvite({ circleId, name }: { circleId: string; name: string }) {
         className="inline-flex items-center gap-2 self-start text-sm font-bold text-whatsapp disabled:opacity-50"
       >
         <WhatsAppMark />
-        {busy ? 'רגע…' : 'הזמנה למעגל'}
+        <Busy busy={busy}>הזמנה למעגל</Busy>
       </button>
       <ErrorNote>{error}</ErrorNote>
     </div>

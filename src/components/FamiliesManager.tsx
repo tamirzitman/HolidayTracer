@@ -18,6 +18,7 @@ import { WhatsAppMark, type Member } from './WhatsApp';
 import { inviteVia } from '@/lib/whatsapp';
 import {
   BackButton,
+  Busy,
   CheckIcon,
   CopyIcon,
   CrossIcon,
@@ -258,7 +259,7 @@ export function FamiliesManager({
                 className={`${primaryButton} inline-flex grow items-center justify-center gap-2`}
               >
                 <WhatsAppMark />
-                {sharing ? 'רגע…' : 'הזמנה בוואטסאפ'}
+                <Busy busy={sharing}>הזמנה בוואטסאפ</Busy>
               </button>
               {/* The same link, for pasting anywhere else — a mark beside the
                   button rather than a second line of words under it. */}
@@ -334,7 +335,7 @@ function OwnHouse({ name, members }: { name: string; members: Member[] }) {
         <ErrorNote>{state.error}</ErrorNote>
         <div className="flex items-center gap-4">
           <button type="submit" disabled={pending} className={chipButton}>
-            {pending ? 'רגע…' : 'שמירה'}
+            <Busy busy={pending}>שמירה</Busy>
           </button>
           <button type="button" onClick={() => setEditing(false)} className={quietButton}>
             ביטול
@@ -370,7 +371,7 @@ function OwnHouse({ name, members }: { name: string; members: Member[] }) {
         className={`${chipButton} inline-flex items-center gap-2`}
       >
         <WhatsAppMark />
-        {adding ? 'רגע…' : 'הוספת בן בית'}
+        <Busy busy={adding}>הוספת בן בית</Busy>
       </button>
     </div>
   );
@@ -460,7 +461,7 @@ function FamilyRow({
               }
               className="rounded-full border border-danger px-4 py-1.5 text-sm font-bold text-danger transition active:scale-95 disabled:opacity-50"
             >
-              {busy ? 'רגע…' : canDelete ? 'כן, למחוק' : 'כן, להסיר'}
+              <Busy busy={busy}>{canDelete ? 'כן, למחוק' : 'כן, להסיר'}</Busy>
             </button>
             <button type="button" onClick={() => setConfirming(false)} className="text-sm text-muted">
               ביטול
@@ -522,7 +523,7 @@ function RowInvite({ householdId, members }: { householdId: string; members: Mem
         className={`${chipButton} inline-flex items-center gap-2`}
       >
         <WhatsAppMark />
-        {busy ? 'רגע…' : 'הזמנה בוואטסאפ'}
+        <Busy busy={busy}>הזמנה בוואטסאפ</Busy>
       </button>
       <ErrorNote>{error}</ErrorNote>
     </div>

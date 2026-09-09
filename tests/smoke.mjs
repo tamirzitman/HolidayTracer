@@ -546,6 +546,27 @@ await dad.fill('input[name=name]', 'צד אמא');
 for (const id of ['hh_a', 'hh_sister']) {
   await dad.click(`input[type=checkbox][value="${id}"]`);
 }
+
+// A family added while filling the form in appears once. Adding one revalidates
+// this screen, so it arrives twice — from the field here and from the server's
+// own list a moment later — and both rows carried the same household id.
+const beforeNewHere = rows('Households').length;
+await dad.fill('input[aria-label="משפחה חדשה למעגל"]', 'שכנים מלמטה');
+await dad.click('[aria-label="הוספה — משפחה חדשה למעגל"]');
+for (let i = 0; i < 40 && rows('Households').length === beforeNewHere; i += 1) {
+  await dad.waitForTimeout(250);
+}
+await dad.waitForTimeout(2000);
+const boxes = await dad.$$eval('form:has(input[name=name]) label', (els) =>
+  els.map((e) => e.innerText.trim()).filter(Boolean),
+);
+check(`a family added while making a circle is listed once (${boxes.filter((b) => b.includes('שכנים')).length})`,
+  boxes.filter((b) => b.includes('שכנים מלמטה')).length === 1);
+check('and comes ticked, because adding it here said it belongs',
+  await dad.locator('form:has(input[name=name]) label', { hasText: 'שכנים מלמטה' })
+    .locator('input[type=checkbox]')
+    .isChecked());
+
 await dad.click('text=יצירת המעגל');
 await dad.waitForTimeout(2500);
 await dad.reload();
@@ -668,6 +689,14 @@ check('and it is aimed at nobody in particular', inv(circleInvite, 'for_phone') 
 // pick yourself out of is how one family becomes two.
 const guest = await open();
 await guest.goto(`${BASE}/join/${inv(circleInvite, 'token')}`);
+await guest.waitForSelector('input[name=phone]');
+// Before a number is asked for. A name and a link are not enough to decide by:
+// somebody handed this in a family group has to be told what it is, and what
+// opening it does.
+const doorstep = await guest.innerText('main');
+check(`the door says what this is before asking for a number (${doorstep.split('\n')[2] ?? ''})`,
+  doorstep.includes('מי מארח') && doorstep.includes('צד אבא') &&
+    doorstep.includes('מצטרף לכל המעגל'));
 await guest.fill('input[name=phone]', COUSIN);
 await guest.click('button[type=submit]');
 await guest.waitForSelector('input[name=firstName]');

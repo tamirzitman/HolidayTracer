@@ -15,6 +15,7 @@ import { formatDayAndDate } from '@/lib/dates';
 import { holidayEmoji } from '@/lib/holiday-emoji';
 import {
   BackButton,
+  Busy,
   DatePill,
   ErrorNote,
   Title,
@@ -444,7 +445,7 @@ export function AnswerForm({
                     ))}
                   </select>
                   <button type="submit" disabled={pending} className={primaryButton}>
-                    {pending ? 'רגע…' : 'אישור'}
+                    <Busy busy={pending}>אישור</Busy>
                   </button>
                   <BackButton onClick={() => setChoosingHost(false)} />
                 </>
@@ -741,7 +742,7 @@ function AnswerForThem({
             ))}
           </select>
           <button type="submit" disabled={pending} className={chipButton}>
-            {pending ? 'רגע…' : 'שמירה'}
+            <Busy busy={pending}>שמירה</Busy>
           </button>
         </>
       ) : (

@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { acceptInvite, type ActionResult } from '@/app/actions';
-import { ErrorNote, Title, card, primaryButton, quietButton } from './ui';
+import { Busy, ErrorNote, Title, card, primaryButton, quietButton } from './ui';
 
 /**
  * Somebody already in the app has opened an invite link. Connecting is not
@@ -41,7 +41,9 @@ export function ConnectPrompt({
       <ErrorNote>{state.error}</ErrorNote>
 
       <button type="submit" name="connect" value="yes" disabled={pending} className={primaryButton}>
-        {pending ? 'רגע…' : circleName ? `להצטרף ל«${circleName}»` : `להצטרף ל${invitedBy}`}
+        <Busy busy={pending}>
+          {circleName ? `להצטרף ל«${circleName}»` : `להצטרף ל${invitedBy}`}
+        </Busy>
       </button>
       <button type="submit" name="connect" value="no" disabled={pending} className={quietButton}>
         לא, רק רציתי את האפליקציה

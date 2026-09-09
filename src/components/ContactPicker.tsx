@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { addContacts, connectContacts, type ContactResult } from '@/app/actions';
 import { contactPickerAvailable, pickContacts } from '@/lib/contacts';
 import { formatPhone } from '@/lib/phone';
-import { ErrorNote, secondaryButton } from './ui';
+import { Busy, ErrorNote, secondaryButton } from './ui';
 
 
 /**
@@ -67,7 +67,7 @@ export function ContactPicker() {
   return (
     <div className="flex flex-col gap-3">
       <button type="button" onClick={choose} disabled={busy} className={secondaryButton}>
-        {busy ? 'רגע…' : 'בחירה מאנשי הקשר'}
+        <Busy busy={busy}>בחירה מאנשי הקשר</Busy>
       </button>
 
       {result && (
@@ -137,11 +137,9 @@ export function ContactPicker() {
                 disabled={busy || chosen.length === 0}
                 className={secondaryButton}
               >
-                {busy
-                  ? 'רגע…'
-                  : chosen.length === 1
-                    ? 'הוספת המשפחה'
-                    : `הוספת ${chosen.length} משפחות`}
+                <Busy busy={busy}>
+                  {chosen.length === 1 ? 'הוספת המשפחה' : `הוספת ${chosen.length} משפחות`}
+                </Busy>
               </button>
               <p className="text-xs text-muted">
                 השמות מגיעים מאנשי הקשר שלכם ואפשר לתקן אותם כאן — כולם במעגל

@@ -7,6 +7,7 @@ import { AddFamilyInline } from './AddFamilyInline';
 import { formatDayAndDate } from '@/lib/dates';
 import {
   BackButton,
+  Busy,
   ErrorNote,
   card,
   chipButton,
@@ -122,7 +123,7 @@ export function HistoryList({
                       ))}
                     </select>
                     <button type="submit" disabled={pending} className={primaryButton}>
-                      {pending ? 'רגע…' : 'שמירה'}
+                      <Busy busy={pending}>שמירה</Busy>
                     </button>
                     <button type="button" onClick={() => setAsGuest(false)} className={quietButton}>
                       בעצם אירחנו

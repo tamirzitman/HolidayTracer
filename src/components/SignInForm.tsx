@@ -2,9 +2,22 @@
 
 import { useActionState } from 'react';
 import { signIn, type ActionResult } from '@/app/actions';
-import { ErrorNote, Title, card, field, primaryButton } from './ui';
+import { Busy, ErrorNote, Title, card, field, primaryButton } from './ui';
 
-export function SignInForm({ invitedBy, token }: { invitedBy?: string; token?: string } = {}) {
+/**
+ * The front door, and the first screen an invitation lands on.
+ *
+ * Arriving on a link, the name of whoever sent it is not enough on its own:
+ * somebody handed a link in a family group has no idea what they are about to
+ * type their number into. One line says what this is and one says what the
+ * circle is called — enough to decide, and not a page about an app that takes
+ * two taps to use.
+ */
+export function SignInForm({
+  invitedBy,
+  circleName,
+  token,
+}: { invitedBy?: string; circleName?: string; token?: string } = {}) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(signIn, {});
 
   return (
@@ -16,7 +29,20 @@ export function SignInForm({ invitedBy, token }: { invitedBy?: string; token?: s
             👋
           </span>
         )}
-        <Title>{invitedBy ? `${invitedBy} הזמינו אתכם` : 'איפה אתם בחג?'}</Title>
+        <Title>
+          {!invitedBy
+            ? 'איפה אתם בחג?'
+            : circleName
+              ? `${invitedBy} הזמינו אתכם למעגל`
+              : `${invitedBy} הזמינו אתכם`}
+        </Title>
+        {circleName && <p className="text-lg font-bold text-brand">«{circleName}»</p>}
+        {invitedBy && (
+          <p className="text-muted">
+            כאן עוקבים אחרי מי מארח בכל חג: עונים בשתי נגיעות, ורואים מיד איפה כל השאר.
+            {circleName && ' כל מי שנכנס מהקישור הזה מצטרף לכל המעגל.'}
+          </p>
+        )}
         <p className="text-muted">הזינו את מספר הטלפון שלכם. פעם אחת, ונזכור אתכם.</p>
       </div>
 
@@ -37,7 +63,7 @@ export function SignInForm({ invitedBy, token }: { invitedBy?: string; token?: s
       <ErrorNote>{state.error}</ErrorNote>
 
       <button type="submit" disabled={pending} className={primaryButton}>
-        {pending ? 'רגע…' : 'כניסה'}
+        <Busy busy={pending}>כניסה</Busy>
       </button>
     </form>
   );

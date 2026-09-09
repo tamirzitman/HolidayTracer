@@ -8,6 +8,7 @@ import { inviteVia } from '@/lib/whatsapp';
 import { colorOf } from '@/lib/circle-colors';
 import {
   BackButton,
+  Busy,
   ErrorNote,
   card,
   field,
@@ -208,7 +209,7 @@ export function AddFamilyInline({
       <ErrorNote>{state.error}</ErrorNote>
 
       <button type="submit" disabled={pending} className={secondaryButton}>
-        {pending ? 'רגע…' : 'הוספה'}
+        <Busy busy={pending}>הוספה</Busy>
       </button>
 
     </form>

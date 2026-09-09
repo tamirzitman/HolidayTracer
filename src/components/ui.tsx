@@ -63,13 +63,42 @@ export function BackButton({ onClick, label = 'חזרה' }: { onClick: () => voi
   );
 }
 
-/** Turning, so a tap that has gone out to the sheet does not look ignored. */
-function Spinner() {
+/**
+ * Turning, so a tap that has gone out to the sheet does not look ignored.
+ *
+ * Sized in em so it matches whatever it sits in: the same mark in a chip and in
+ * a button the width of the screen.
+ */
+export function Spinner({ className = 'h-[1.15em] w-[1.15em]' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4 animate-spin" fill="none" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className={`${className} inline-block animate-spin align-[-0.15em]`}
+      fill="none"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.4" opacity="0.25" />
       <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
     </svg>
+  );
+}
+
+/**
+ * What a button says while it is working.
+ *
+ * It used to say "רגע…" — a word that does not move, which on a slow line
+ * reads as a button that has changed its mind about what it is called rather
+ * than one that is busy. The turning circle says the same thing without
+ * claiming to be the label, and the label stays for anything that reads the
+ * page instead of looking at it.
+ */
+export function Busy({ busy, children }: { busy: boolean; children: React.ReactNode }) {
+  if (!busy) return <>{children}</>;
+  return (
+    <>
+      <Spinner />
+      <span className="sr-only">{children}</span>
+    </>
   );
 }
 
@@ -119,7 +148,7 @@ export function IconButton({
         filled ? 'bg-brand text-ground' : 'text-brand'
       }`}
     >
-      {busy ? <Spinner /> : children}
+      {busy ? <Spinner className="h-4 w-4" /> : children}
     </button>
   );
 }

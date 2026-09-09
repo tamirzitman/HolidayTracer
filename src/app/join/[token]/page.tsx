@@ -52,7 +52,15 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
     );
   }
 
-  if (!phone) return <SignInForm invitedBy={invite.household.name} token={token} />;
+  if (!phone) {
+    return (
+      <SignInForm
+        invitedBy={invite.household.name}
+        circleName={invite.circle?.name}
+        token={token}
+      />
+    );
+  }
 
   // Already registered. Opening a link should never quietly put somebody on
   // your list — a friend who taps it out of curiosity has no business there —

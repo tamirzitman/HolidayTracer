@@ -11,6 +11,7 @@ import { CirclePicker } from './CirclePicker';
 import { formatDayAndDate } from '@/lib/dates';
 import {
   BackButton,
+  Busy,
   ErrorNote,
   Title,
   card,
@@ -102,7 +103,7 @@ export function OccasionsManager({
         <ErrorNote>{state.error}</ErrorNote>
 
         <button type="submit" disabled={adding} className={primaryButton}>
-          {adding ? 'רגע…' : 'הוספה'}
+          <Busy busy={adding}>הוספה</Busy>
         </button>
       </form>
     </div>
@@ -180,7 +181,7 @@ function Row({
           />
           <ErrorNote>{state.error}</ErrorNote>
           <button type="submit" disabled={saving} className={primaryButton}>
-            {saving ? 'רגע…' : 'שמירה'}
+            <Busy busy={saving}>שמירה</Busy>
           </button>
         </form>
       )}
