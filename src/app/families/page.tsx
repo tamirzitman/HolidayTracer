@@ -8,11 +8,9 @@ import {
   getHousehold,
   inviteFor,
   membersByHousehold,
-  hiddenSuggestions,
   circlesFor,
   circleTags,
   standings,
-  suggestionsFor,
   unansweredUpcoming,
 } from '@/lib/data';
 import { byCircle } from '@/lib/circle-order';
@@ -27,15 +25,13 @@ export default async function FamiliesPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [circle, members, token, head, suggested, unanswered, hidden, own, circles, tags, standing] =
+  const [circle, members, token, head, unanswered, own, circles, tags, standing] =
     await Promise.all([
       circleOf(person.householdId),
       membersByHousehold(),
       inviteFor(person.householdId),
       headers(),
-      suggestionsFor(person.householdId),
       unansweredUpcoming(person.householdId),
-      hiddenSuggestions(person.householdId),
       getHousehold(person.householdId),
       circlesFor(person.householdId),
       circleTags(person.householdId),
@@ -53,7 +49,6 @@ export default async function FamiliesPage() {
 
   const step = nextStep({
     circleSize: circle.length,
-    suggestions: suggested.length,
     unanswered: unanswered.length,
     nextHolidayKey: unanswered[0]?.key,
     nextHolidayName: unanswered[0]?.nameHe,
@@ -69,12 +64,6 @@ export default async function FamiliesPage() {
         tags={tagged}
         standing={Object.fromEntries(standing)}
         inviteUrl={`${base}/join/${token}`}
-        suggested={suggested.map((s) => ({
-          id: s.household.id,
-          name: s.household.name,
-          seenBy: s.seenBy,
-        }))}
-        hidden={hidden.map((h) => ({ id: h.id, name: h.name }))}
         ownName={own?.name ?? 'הבית שלנו'}
       />
       <NextStep step={step} />

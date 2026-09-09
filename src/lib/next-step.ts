@@ -16,8 +16,6 @@ export type NextStep = { href: string; label: string; hint: string } | undefined
 export function nextStep(state: {
   /** Families on our list. */
   circleSize: number;
-  /** Circles suggested to us and not yet decided on. */
-  suggestions: number;
   /** Upcoming holidays we have not answered. */
   unanswered: number;
   /** The nearest unanswered holiday, when there is one. */
@@ -36,17 +34,6 @@ export function nextStep(state: {
           label: 'להוסיף את המשפחות שלנו',
           hint: 'בלי אף משפחה אין אצל מי להתארח, ואין מה לראות בחג.',
         };
-  }
-
-  if (state.suggestions > 0 && state.on !== 'families') {
-    return {
-      href: '/families',
-      label:
-        state.suggestions === 1
-          ? 'יש משפחה שמוצעת להוספה'
-          : `יש ${state.suggestions} משפחות שמוצעות להוספה`,
-      hint: 'המשפחות שלכם מכירות אותן, ואתם עוד לא.',
-    };
   }
 
   if (state.unanswered > 0 && state.on !== 'holiday') {

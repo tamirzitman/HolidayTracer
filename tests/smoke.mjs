@@ -47,6 +47,8 @@ const SHEET_TTL_MS = (Number(process.env.SHEET_TTL_MS) || 20_000) + 1_000;
 const SHEET = '.dev-sheet.json';
 const DAD = '050-123-4567';
 const NEWCOMER = `05${String(Date.now()).slice(-8)}`;
+// A second unknown number, for the family that arrives on a circle's link.
+const COUSIN = `05${String(Date.now() + 1).slice(-8)}`;
 
 const sheet = () => JSON.parse(readFileSync(SHEET, 'utf8'));
 const rows = (tab) => (sheet()[tab] ?? []).slice(1);
@@ -183,131 +185,49 @@ const coldSees = await stranger.$$eval('select[name=hostHouseholdId] option', (e
 );
 check(`and they are on the list (${coldSees.join(', ')})`, coldSees.includes('אבא ואמא'));
 
-// One family knowing somebody says nothing about us — it takes two, or a
-// circle saying these people belong together. With only dad's household on our
-// list, everyone he knows is vouched for exactly once.
+// Nobody arrives on your list because somebody else knows them. Families the
+// app offered on a count of vouchers are gone: a household reaches your list
+// when you add it, or when a circle puts it there — an act somebody performed,
+// not a guess the app made about who your family is.
 await stranger.goto(`${BASE}/families`);
 await stranger.waitForSelector('text=המעגלים שלי');
-const onOneVoucher = await stranger.$$eval('section:has-text("מוצע להוספה") li', (e) => e.length);
-check(`one family vouching is not enough on its own (${onOneVoucher})`, onOneVoucher === 0);
+const uninvited = await stranger.$$eval('#families li', (els) =>
+  els.map((e) => e.innerText.split('\n')[0].trim()),
+);
+check(`only what we added is on the list (${uninvited.join(', ')})`,
+  uninvited.length === 1 && uninvited[0].includes('אבא ואמא'));
+check('and nothing is offered on anybody else\'s say-so',
+  (await stranger.$$('section:has-text("מוצע להוספה")')).length === 0);
 
-// A second family on our list, and the families both of them know become
-// suggestions.
+// Adding one by number while answering: the family it belongs to is joined
+// rather than copied, and it is the host straight away — going back to hunt for
+// it in the dropdown was the whole friction this removes.
 await stranger.goto(BASE);
 if (await stranger.isVisible('text=שינוי תשובה')) await stranger.click('text=שינוי תשובה');
 await stranger.click('text=מתארחים אצל…');
 await stranger.click('text=לא מוצאים? הוסיפו משפחה');
 await stranger.waitForSelector('input[name=familyPhone]');
+const beforeKnown = rows('Households').length;
 await stranger.fill('input[name=familyName]', 'דנה ויוסי');
 await stranger.fill('input[name=familyPhone]', '050-222-3333');
 await stranger.click('form:has(input[name=familyName]) button[type=submit]');
 await stranger.waitForSelector('text=נוספו, וכבר נבחרו');
 await stranger.waitForTimeout(1500);
-// Added while looking for a host, so it is the host — going back to hunt for
-// it in the dropdown was the whole friction this removes.
+check('a number the app knows joins that family rather than copying it',
+  rows('Households').length === beforeKnown);
 check('a family added while answering is already chosen',
   (await stranger.$eval('select[name=hostHouseholdId]', (el) =>
     el.selectedOptions[0].textContent.trim())) === 'דנה ויוסי');
 
 await stranger.goto(`${BASE}/families`);
 await stranger.waitForSelector('text=המעגלים שלי');
-const coldSuggested = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
+const afterAdding = await stranger.$$eval('#families li', (els) =>
   els.map((e) => e.innerText.split('\n')[0].trim()),
 );
-check(`two families vouching brings the rest as suggestions (${coldSuggested.length})`,
-  coldSuggested.length >= 2);
-
-// A suggestion turned down should not come back: the families you decided
-// against are exactly the ones your families keep vouching for.
-const dropped = coldSuggested[0];
-// Asked first: the X sits a thumb's width from "הוספה", so it arms rather
-// than acts.
-await stranger.click(`li:has-text("${dropped}") >> [aria-label^="להסיר את"]`);
-check('hiding a suggestion asks before it does it',
-  await stranger.isVisible(`li:has-text("${dropped}") >> text=כן, להסתיר`));
-await stranger.click(`li:has-text("${dropped}") >> text=כן, להסתיר`);
-await stranger.waitForTimeout(1500);
-await stranger.reload();
-await stranger.waitForSelector('text=המעגלים שלי');
-const afterDismiss = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
-  els.map((e) => e.innerText.split('\n')[0].trim()),
-);
-check(`a dismissed suggestion stays gone (${dropped} → ${afterDismiss.length} left)`,
-  !afterDismiss.includes(dropped) && afterDismiss.length === coldSuggested.length - 1);
-
-// Who vouches, by name — the useful question is "who", not "how many".
-const vouching = await stranger.innerText('section:has-text("מוצע להוספה")');
-check(`a suggestion names who knows them (${vouching.split('\n').find((l) => l.startsWith('מכירים אותם')) ?? '—'})`,
-  /מכירים אותם: \S/.test(vouching));
-
-// Hiding is one tap from adding, so it must not be a one-way door.
-check('a hidden family is still reachable',
-  await stranger.isVisible('text=/מוסתר/'));
-await stranger.click('text=/מוסתר/');
-await stranger.waitForSelector('text=מוסתרות מההצעות');
-const hiddenList = stranger.locator('section:has-text("מוסתרות מההצעות") li', { hasText: dropped });
-check(`and named there (${dropped})`, await hiddenList.isVisible());
-// Wanting one of them back is usually wanting them in the circle, so that is
-// one tap from here rather than a trip through the offers to press "הוספה".
-check('and can be added straight from there',
-  await hiddenList.getByText('הוספה').isVisible());
-await hiddenList.getByText('להציע שוב').click();
-await stranger.waitForTimeout(1800);
-await stranger.reload();
-await stranger.waitForSelector('text=המעגלים שלי');
-const backAgain = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
-  els.map((e) => e.innerText.split('\n')[0].trim()),
-);
-check(`putting one back returns it to the offers (${backAgain.length})`,
-  backAgain.includes(dropped));
-// Restored, not connected: an undo of a hiding is not an introduction.
-const hostsNow = await stranger.$$eval('select[name=hostHouseholdId] option', (els) =>
-  els.map((e) => e.textContent.trim()),
-).catch(() => []);
-check('without connecting them', !hostsNow.includes(dropped));
-
-// Taking one up is the other half: a mutual connection, usable at once.
-const takeUp = afterDismiss[0];
-const beforeSuggest = rows('Connections').length;
-await stranger.click(`li:has-text("${takeUp}") >> text=הוספה`);
-await stranger.waitForTimeout(1800);
-check(`taking one up connects the two families (${takeUp})`,
-  rows('Connections').length === beforeSuggest + 2);
-
-// And the whole list in one tap, for the case a parent's invitation makes:
-// their list is most of yours, and taking it a row at a time is work for
-// nothing.
-await stranger.reload();
-await stranger.waitForSelector('text=המעגלים שלי');
-const offeredNow = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
-  els.map((e) => e.innerText.split('\n')[0].trim()),
-);
-if (offeredNow.length > 1) {
-  const minePre = await stranger.$$eval('#families li', (els) => els.length);
-  await stranger.click('text=הוספת כולן');
-  await stranger.waitForTimeout(3500);
-  await stranger.reload();
-  await stranger.waitForSelector('text=המעגלים שלי');
-  const minePost = await stranger.$$eval('#families li', (els) => els.length);
-  const leftOver = await stranger.$$eval('section:has-text("מוצע להוספה") li', (els) =>
-    els.map((e) => e.innerText.split('\n')[0].trim()),
-  );
-  check(`and all of it goes in one tap (${minePre} → ${minePost})`,
-    minePost === minePre + offeredNow.length &&
-      offeredNow.every((n) => !leftOver.includes(n)));
-} else {
-  check(`and all of it goes in one tap (only ${offeredNow.length} offered)`, true);
-}
-await stranger.goto(BASE);
-await stranger.waitForSelector('nav');
-if (await stranger.isVisible('text=שינוי תשובה')) await stranger.click('text=שינוי תשובה');
-await stranger.click('text=מתארחים אצל…');
-await stranger.waitForSelector('select[name=hostHouseholdId]');
-check('and they are pickable straight away',
-  (await stranger.$$eval('select[name=hostHouseholdId] option', (els) =>
-    els.map((e) => e.textContent.trim()))).includes(takeUp));
-await stranger.goto(`${BASE}/families`);
-await stranger.waitForSelector('text=המעגלים שלי');
+// דנה ויוסי is on dad's list too, and dad's other families are not dragged
+// along behind them. Two families on a list is two families.
+check(`adding one family brings one family (${afterAdding.length})`,
+  afterAdding.length === 2 && afterAdding.some((n) => n.includes('דנה ויוסי')));
 
 // Somebody has to vouch for the suite's own protagonist. The stranger just
 // connected to dad's household by typing its number, so the stranger can —
@@ -578,17 +498,17 @@ const options = await newcomer.$$eval('select[name=hostHouseholdId] option', (el
 check(`the newcomer starts with the family that invited them (${options.join(', ') || 'none'})`,
   options.includes('אבא ואמא'));
 
-// ── circles: inside one, a single family vouching is enough ─────────────────
-// The newcomer knows dad and nobody else, so everyone dad knows is vouched for
-// exactly once and none of them clears the bar. A circle is how dad says these
-// people belong together regardless.
+// ── circles: the only way a family reaches anybody's list ───────────────────
+// The newcomer came in on dad's family link, so they have dad and nobody else.
+// Dad's own families are not theirs, and nothing offers them: a circle is how
+// dad says these people belong together, and it is the only way to say it.
 await newcomer.goto(`${BASE}/families`);
 await newcomer.waitForSelector('text=המעגלים שלי');
-const beforeCircle = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) =>
+const beforeCircle = await newcomer.$$eval('#families li', (els) =>
   els.map((e) => e.innerText.split('\n')[0].trim()),
 );
-check(`the inviter's families are not suggested on one voucher (${beforeCircle.join(', ') || 'none'})`,
-  beforeCircle.length === 0);
+check(`the inviter's families are not handed over with the invite (${beforeCircle.join(', ')})`,
+  beforeCircle.length === 1 && beforeCircle[0].includes('אבא ואמא'));
 
 const newcomerId = rows('Households').find((r) => r[1] === 'דנה ויוסי לוי')[0];
 await dad.goto(`${BASE}/families`);
@@ -616,14 +536,8 @@ const circleDots = await dad.$$eval('#families li [aria-label^="מעגלים:"]'
 check(`the families in it are dotted on their rows (${circleDots})`, circleDots === 4);
 // Inviting the circle is the errand people come for most, so it is on the row
 // rather than behind opening it.
-const circleInvite = await dad.getAttribute(
-  '#circles a[aria-label="הזמנה לצד אבא בוואטסאפ"]',
-  'href',
-);
 check('the circle carries its invitation on the row itself',
-  Boolean(circleInvite) && decodeURIComponent(circleInvite).includes('צד אבא'));
-check('and the invitation says that whoever opens it joins everybody',
-  decodeURIComponent(circleInvite ?? '').includes('מצטרף לכולנו'));
+  await dad.isVisible('#circles [aria-label="הזמנה לצד אבא בוואטסאפ"]'));
 
 // The list is ordered by the circles rather than scattered: families in more of
 // them first, and the same combination together.
@@ -705,25 +619,95 @@ check('and shows as in the circle without being ticked by hand',
 await dad.click('#circles button:has-text("צד אבא")');
 
 // Being put in a circle is joining it. The families in it arrive on the
-// newcomer's own list rather than as offers to accept one at a time — which is
-// what "we are all one circle" meant in the first place.
+// newcomer's own list, whole — no offers to accept one at a time, which is what
+// "we are all one circle" meant in the first place.
 await newcomer.reload();
 await newcomer.waitForSelector('text=המעגלים שלי');
 const mineNow = await newcomer.$$eval('#families li button > span.font-semibold', (els) =>
   els.map((e) => e.textContent.trim()),
 );
-check(`the circle's families arrive on the list, not as offers (${mineNow.join(', ')})`,
+check(`the circle's families arrive on the list, whole (${mineNow.join(', ')})`,
   ['דנה ויוסי', 'אח ואשתו', 'אחות ובעלה'].every((n) => mineNow.includes(n)));
-const stillOffered = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) =>
-  els.map((e) => e.innerText.split('\n')[0].trim()),
-);
-check(`and nothing is left to accept (${stillOffered.join(', ') || 'none'})`,
-  ['דנה ויוסי', 'אח ואשתו', 'אחות ובעלה'].every((n) => !stillOffered.includes(n)));
 check('while a family outside the circle is still not on the list',
   !mineNow.includes('רן ומיכל ברק-שגיא'));
 // Both ways: the families in it can see the newcomer too.
 check('and the circle sees them back',
   rows('Connections').some((r) => r[0] === 'hh_brother' && r[1] === newcomerId && r[2] === 'add'));
+
+// ── the circle's own invitation ─────────────────────────────────────────────
+// The message says whoever opens it joins everybody, and now the link says so
+// too: it carries the circle rather than only who sent it. Before this it was
+// the sender's general link with the circle's name written into the words, and
+// it introduced the sender alone.
+const beforeCircleInvite = rows('Invites').length;
+await dad.goto(`${BASE}/families`);
+await dad.waitForSelector('text=המעגלים שלנו');
+// The tap leaves for WhatsApp, and what it leaves with is the message. Read off
+// the request rather than the address bar: the hop out is a real navigation to
+// a host this machine cannot reach, so it is asked for and never arrives.
+let waMessage = '';
+dad.on('request', (r) => {
+  if (r.url().includes('wa.me')) waMessage = decodeURIComponent(r.url());
+});
+await dad.click('[aria-label="הזמנה לצד אבא בוואטסאפ"]');
+for (let i = 0; i < 40 && rows('Invites').length === beforeCircleInvite; i += 1) {
+  await dad.waitForTimeout(250);
+}
+check('the circle mints an invitation of its own', rows('Invites').length === beforeCircleInvite + 1);
+const circleInvite = rows('Invites').at(-1);
+check(`and the message says whoever opens it joins everybody (${waMessage.slice(-60)})`,
+  waMessage.includes('מצטרף לכולנו') && waMessage.includes('צד אבא'));
+check(`and the link carries the circle, not just the sender (${inv(circleInvite, 'kind')})`,
+  inv(circleInvite, 'kind') === 'circle' && inv(circleInvite, 'for_circle_id') !== '');
+// Reusable on purpose: a circle link is pasted into a group, and a link that
+// died on the first opener would bring in one family out of a chat full of them.
+check('and it is aimed at nobody in particular', inv(circleInvite, 'for_phone') === '');
+
+// What the opener is shown: this circle, and the families in it. The sender's
+// other families are not part of this invitation, and a list of strangers to
+// pick yourself out of is how one family becomes two.
+const guest = await open();
+await guest.goto(`${BASE}/join/${inv(circleInvite, 'token')}`);
+await guest.fill('input[name=phone]', COUSIN);
+await guest.click('button[type=submit]');
+await guest.waitForSelector('input[name=firstName]');
+check('the invitation names the circle it is for',
+  await guest.isVisible('text=הזמינו אתכם למעגל') && await guest.isVisible('text=צד אבא'));
+const offered = await guest.$$eval('select[name=claimHouseholdId] option', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`the circle's families are there to choose from (${offered.join(', ')})`,
+  ['דנה ויוסי', 'אח ואשתו', 'אחות ובעלה'].every((n) => offered.includes(n)));
+// רן ומיכל is on dad's list and in no circle with him — the one family that
+// proves this list is the circle's and not the sender's.
+check('and the sender\'s families outside the circle are not',
+  !offered.some((n) => n.includes('רן ומיכל')));
+check('being somebody new is still the first answer', offered.includes('אנחנו משפחה חדשה'));
+
+// Joining is joining the circle, so the whole of it arrives at once — which is
+// the promise the message in the group chat makes.
+await guest.fill('input[name=firstName]', 'תמר');
+await guest.fill('input[name=surname]', 'כהן');
+await guest.fill('input[name=householdName]', 'תמר ואיתי כהן');
+await guest.click('text=/^סיום/');
+await guest.waitForSelector('text=איפה אתם בחג?');
+await guest.goto(`${BASE}/families`);
+await guest.waitForSelector('text=המעגלים שלי');
+const guestList = await guest.$$eval('#families li button > span.font-semibold', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`one link, and the whole circle is on their list (${guestList.join(', ')})`,
+  ['אבא ואמא', 'דנה ויוסי', 'אח ואשתו', 'אחות ובעלה'].every((n) => guestList.includes(n)));
+const guestCircles = await guest.$$eval('#circles li', (els) =>
+  els.map((e) => e.innerText.split('\n')[0].trim()),
+);
+check(`and the circle itself is theirs now (${guestCircles.join(', ')})`,
+  guestCircles.some((c) => c.includes('צד אבא')));
+// Both ways, like every other introduction here.
+const guestId = rows('Households').find((r) => r[1] === 'תמר ואיתי כהן')[0];
+check('and the circle has them back',
+  rows('Connections').some((r) => r[0] === 'hh_sister' && r[1] === guestId && r[2] === 'add'));
+await guest.close();
 // Back to the question, where the dropdown has to be opened again.
 await newcomer.goto(BASE);
 await newcomer.waitForSelector('nav');

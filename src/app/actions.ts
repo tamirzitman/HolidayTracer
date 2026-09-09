@@ -11,15 +11,13 @@ import {
   circleOf,
   connect,
   createInvite,
-  dismissSuggestion,
-  hiddenSuggestions,
+  disconnectFrom,
   circlesFor,
   createCircle,
   addToCircle,
   removeFromCircle,
   labelCircle,
   whoAdded,
-  restoreSuggestion,
   findPerson,
   getHousehold,
   getLatestAnswer,
@@ -30,7 +28,6 @@ import {
   isConnected,
   readInvite,
   recordConflicts,
-  suggestionsFor,
   claimableIn,
   unjoinedNamed,
   renameHousehold,
@@ -80,11 +77,10 @@ export async function signIn(_prev: ActionResult, formData: FormData): Promise<A
 }
 
 /**
- * Signing up. An invite is a shortcut, not a gate: it introduces two families
- * in one step and offers the inviter's circle to start from. Without one, a
- * person still registers — they simply arrive with nobody on their list and
- * add the families they care about, and each family they add brings the
- * families it knows along as suggestions.
+ * Signing up. An invite is a shortcut, not a gate: a family link introduces two
+ * families in one step, and a circle link puts the opener in a circle and so on
+ * the list of everybody in it. Without one, a person still registers — they
+ * simply arrive with nobody on their list and add the families they care about.
  */
 export async function register(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const phone = await getSessionPhone();
@@ -159,14 +155,27 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
 
   await addPerson({ phone, name, householdId });
 
-  // Registering and joining somebody's circle are two things, and the form asks
-  // about the second one separately.
-  // Only the family that invited them. Their circle used to be offered here as a
-  // checklist, which asked the least-informed person at the least-informed
-  // moment to judge families they had not seen — and that job is now done, in
-  // context and with evidence, by the suggestions on the circles screen.
+  // What the link actually does, and it is asked about rather than assumed.
+  //
+  // A circle link joins the circle, which is joining everybody in it at once —
+  // that is what the message pasted into the family group promised, and until
+  // now it introduced only the sender. A family link introduces the two
+  // families and nobody else.
   if (invite && String(formData.get('connect') ?? 'yes') === 'yes') {
-    if (householdId !== invite.household.id) await connect(householdId, invite.household.id);
+    if (invite.circle) {
+      const inside = invite.circle.members.some((m) => m.household.id === householdId);
+      if (!inside) {
+        await addToCircle(
+          invite.circle.id,
+          householdId,
+          invite.household.id,
+          invite.circle.name,
+          invite.circle.color,
+        );
+      }
+    } else if (householdId !== invite.household.id) {
+      await connect(householdId, invite.household.id);
+    }
   }
 
   // A link sent to one person is spent now they are in: forwarded on, it brings
@@ -194,7 +203,20 @@ export async function acceptInvite(
   const invite = await readInvite(String(formData.get('token') ?? '').trim());
   if (!invite) return { error: 'הקישור כבר לא בתוקף' };
 
-  if (invite.household.id !== me.householdId) {
+  // A circle link joins the circle — everybody in it, at once. Connecting only
+  // to whoever forwarded it would leave them looking at a circle whose families
+  // they cannot see, which is the thing circles exist to stop.
+  if (invite.circle) {
+    if (!invite.circle.members.some((m) => m.household.id === me.householdId)) {
+      await addToCircle(
+        invite.circle.id,
+        me.householdId,
+        invite.household.id,
+        invite.circle.name,
+        invite.circle.color,
+      );
+    }
+  } else if (invite.household.id !== me.householdId) {
     if (!(await isConnected(me.householdId, invite.household.id))) {
       await connect(me.householdId, invite.household.id);
     }
@@ -521,7 +543,7 @@ export async function dropFamily(householdId: string): Promise<ActionResult> {
     return { error: 'המשפחה הזו לא ברשימה שלכם' };
   }
 
-  await dismissSuggestion(me.householdId, householdId);
+  await disconnectFrom(me.householdId, householdId);
   revalidatePath('/families');
   revalidatePath('/');
   return { savedAt: new Date().toISOString() };
@@ -532,9 +554,9 @@ export async function dropFamily(householdId: string): Promise<ActionResult> {
 /**
  * A new circle, named, with the families ticked for it.
  *
- * A circle is a claim that these people belong together, and the only thing it
- * does is lower the bar for suggesting them to each other: inside one, a single
- * family vouching is enough, where outside it takes two.
+ * A circle is a claim that these people belong together, and it acts on it:
+ * everybody in one is put on everybody else's list, and whoever opens the
+ * circle's link joins all of them at once.
  */
 export async function makeCircle(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const me = await currentHousehold();
@@ -677,66 +699,6 @@ export async function leaveCircle(circleId: string): Promise<ActionResult> {
 }
 
 /**
- * Taking up one of the families suggested on the families screen. Only a
- * household that is actually being suggested can be added, so this cannot be
- * used to reach into the sheet and connect to an arbitrary id.
- */
-export async function addSuggested(householdId: string): Promise<ActionResult> {
-  const me = await currentHousehold();
-  if ('error' in me) return me;
-
-  // Hidden counts too. Putting one back among the offers and then adding it is
-  // two taps for one decision — and the decision was already made by opening
-  // the hidden list and pointing at them.
-  const [suggested, hidden] = await Promise.all([
-    suggestionsFor(me.householdId),
-    hiddenSuggestions(me.householdId),
-  ]);
-  if (
-    !suggested.some((s) => s.household.id === householdId) &&
-    !hidden.some((h) => h.id === householdId)
-  ) {
-    return { error: 'המשפחה הזו לא בהצעות שלכם' };
-  }
-
-  await connect(me.householdId, householdId);
-  revalidatePath('/families');
-  revalidatePath('/');
-  return {};
-}
-
-/** Turning down a suggestion, so it stops being offered. */
-/**
- * Putting back a family hidden from the suggestions. It does not connect them —
- * they simply return to being offered, which is what an undo of a hiding means.
- */
-export async function restoreSuggested(householdId: string): Promise<ActionResult> {
-  const me = await currentHousehold();
-  if ('error' in me) return me;
-
-  const hidden = await hiddenSuggestions(me.householdId);
-  if (!hidden.some((h) => h.id === householdId)) return { error: 'המשפחה הזו לא מוסתרת' };
-
-  await restoreSuggestion(me.householdId, householdId);
-  revalidatePath('/families');
-  return { savedAt: new Date().toISOString() };
-}
-
-export async function dismissSuggested(householdId: string): Promise<ActionResult> {
-  const me = await currentHousehold();
-  if ('error' in me) return me;
-
-  const suggested = await suggestionsFor(me.householdId);
-  if (!suggested.some((s) => s.household.id === householdId)) {
-    return { error: 'המשפחה הזו לא בהצעות שלכם' };
-  }
-
-  await dismissSuggestion(me.householdId, householdId);
-  revalidatePath('/families');
-  return {};
-}
-
-/**
  * A link to send. With a number it is that person's alone and dies once they
  * use it; without one it is the family's general link, reusable until it ages
  * out — which is what a link pasted into a group chat has to be.
@@ -793,6 +755,26 @@ export async function newInviteLink(
     }
   }
   return { token: await createInvite(me.householdId, kind, phone, forHouseholdId) };
+}
+
+/**
+ * A link for one circle, for the family's group chat.
+ *
+ * Whoever opens it lands in the circle and on the list of everybody in it. The
+ * message always said so; until this link carried the circle it introduced only
+ * the sender, and everybody else had to be found some other way.
+ *
+ * Reusable on purpose — a circle link is aimed at a group, not a person — and
+ * only a circle we are in can be handed out.
+ */
+export async function circleInviteLink(circleId: string): Promise<InviteLink> {
+  const me = await currentHousehold();
+  if ('error' in me) return { error: me.error };
+
+  const mine = (await circlesFor(me.householdId)).find((c) => c.id === circleId);
+  if (!mine) return { error: 'המעגל הזה לא שלכם' };
+
+  return { token: await createInvite(me.householdId, 'circle', '', '', circleId) };
 }
 
 async function currentHousehold(): Promise<{ householdId: string } | ActionResult & { error: string }> {

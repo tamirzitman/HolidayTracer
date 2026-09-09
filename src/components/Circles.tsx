@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   addFamilyByName,
   addFamilyToCircle,
+  circleInviteLink,
   leaveCircle,
   makeCircle,
   nameCircle,
@@ -12,6 +13,7 @@ import {
   type ActionResult,
 } from '@/app/actions';
 import { CIRCLE_COLORS, colorOf, colorName } from '@/lib/circle-colors';
+import { useHandoff } from '@/lib/handoff';
 import { inviteToCircle } from '@/lib/whatsapp';
 import { WhatsAppMark } from './WhatsApp';
 import {
@@ -65,20 +67,17 @@ export function CircleDots({
 /**
  * The circles we are in, and what is in them.
  *
- * They do one thing: inside a circle, one family vouching for somebody is
- * enough to suggest them, where outside it takes two. So this screen is about
- * grouping families, not about permissions — nothing here changes who sees
- * which holiday.
+ * A circle is how families find each other here, and now the only way: everyone
+ * in one is on everyone else's list, and its link brings whoever opens it into
+ * all of them at once. It is still not about permissions — nothing here changes
+ * who sees which holiday, or who may answer for whom.
  */
 export function Circles({
   circles,
   families,
-  inviteUrl,
 }: {
   circles: CircleView[];
   families: { id: string; name: string }[];
-  /** Our standing join link, for inviting a whole circle at once. */
-  inviteUrl: string;
 }) {
   const router = useRouter();
   const [making, setMaking] = useState(false);
@@ -101,8 +100,8 @@ export function Circles({
 
       {circles.length === 0 && !making && (
         <p className="px-5 pb-4 text-sm text-muted">
-          מעגל מסמן משפחות מאותו צד — ואז מספיקה משפחה אחת שמכירה מישהו כדי
-          שיוצע לכם.
+          מעגל הוא צד אחד של המשפחה. כל מי שבתוכו רואה את כולם, ומי שנכנס
+          מקישור ההזמנה מצטרף לכולם בבת אחת.
         </p>
       )}
 
@@ -155,23 +154,12 @@ export function Circles({
 
               {/* Inviting the circle is the errand people come here for most, so
                   it is on the row rather than behind opening it. */}
-              <a
-                href={inviteToCircle(circle.name, inviteUrl)}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`הזמנה ל${circle.name} בוואטסאפ`}
-                title="מי שנכנס מהקישור מצטרף לכל המעגל"
-                className="inline-flex items-center gap-2 self-start text-sm font-bold text-whatsapp"
-              >
-                <WhatsAppMark />
-                הזמנה למעגל
-              </a>
+              <CircleInvite circleId={circle.id} name={circle.name} />
 
               {open === circle.id && (
                 <CircleEditor
                   circle={circle}
                   families={families}
-                  inviteUrl={inviteUrl}
                   leaving={leaving === circle.id}
                   busy={busy === circle.id}
                   onAskLeave={() => setLeaving(circle.id)}
@@ -266,7 +254,6 @@ function NewCircle({
 function CircleEditor({
   circle,
   families,
-  inviteUrl,
   leaving,
   busy: leavingBusy,
   onAskLeave,
@@ -275,8 +262,6 @@ function CircleEditor({
 }: {
   circle: CircleView;
   families: { id: string; name: string }[];
-  /** Our standing join link, for inviting the whole circle at once. */
-  inviteUrl: string;
   leaving: boolean;
   busy: boolean;
   onAskLeave: () => void;
@@ -436,6 +421,54 @@ function CircleEditor({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The circle's own invitation.
+ *
+ * Its link carries the circle, so whoever opens it is asked which of *these*
+ * families they are and lands among all of them. It used to be the household's
+ * general link with the circle's name written into the message — which said
+ * "everyone here joins us all" and delivered an introduction to the sender
+ * alone.
+ *
+ * Minted on the tap, like every other link here: the token has to exist before
+ * there is anything to send, and a window opened after that wait is blocked as
+ * a pop-up, so this navigates the tab instead. WhatsApp takes over, and Back
+ * comes home.
+ */
+function CircleInvite({ circleId, name }: { circleId: string; name: string }) {
+  const { busy, start, stop, go } = useHandoff();
+  const [error, setError] = useState('');
+
+  async function invite() {
+    start();
+    setError('');
+    const made = await circleInviteLink(circleId);
+    if (!made.token) {
+      setError(made.error ?? 'משהו השתבש');
+      stop();
+      return;
+    }
+    go(inviteToCircle(name, `${window.location.origin}/join/${made.token}`));
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={invite}
+        disabled={busy}
+        aria-label={`הזמנה ל${name} בוואטסאפ`}
+        title="מי שנכנס מהקישור מצטרף לכל המעגל"
+        className="inline-flex items-center gap-2 self-start text-sm font-bold text-whatsapp disabled:opacity-50"
+      >
+        <WhatsAppMark />
+        {busy ? 'רגע…' : 'הזמנה למעגל'}
+      </button>
+      <ErrorNote>{error}</ErrorNote>
     </div>
   );
 }

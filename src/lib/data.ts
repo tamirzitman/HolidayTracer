@@ -206,12 +206,13 @@ async function fetchSheet(): Promise<Sheet> {
       .map((row) => ({
         token: cell(row, invitesTab.headers, 'token'),
         createdBy: cell(row, invitesTab.headers, 'created_by'),
-        // Links written before there were two kinds are family invites.
-        kind: (cell(row, invitesTab.headers, 'kind') || 'family') as 'family' | 'household',
+        // Links written before there were kinds at all are family invites.
+        kind: (cell(row, invitesTab.headers, 'kind') || 'family') as Invite['kind'],
         createdAt: cell(row, invitesTab.headers, 'created_at'),
         forPhone: cell(row, invitesTab.headers, 'for_phone'),
         usedAt: cell(row, invitesTab.headers, 'used_at'),
         forHouseholdId: cell(row, invitesTab.headers, 'for_household_id'),
+        forCircleId: cell(row, invitesTab.headers, 'for_circle_id'),
       }))
       .filter((i) => i.token && i.createdBy),
 
@@ -706,12 +707,6 @@ export async function circleTags(
   return tags;
 }
 
-/** Whoever shares a circle with us — the households one voucher is enough for. */
-async function sharingACircleWith(householdId: string): Promise<Set<string>> {
-  const circles = await circlesFor(householdId);
-  return new Set(circles.flatMap((c) => c.members));
-}
-
 /**
  * A new circle, with us in it.
  *
@@ -826,104 +821,17 @@ export async function labelCircle(
   ]);
 }
 
-/**
- * Families that the families you know all know, and you don't.
- *
- * Circles overlap heavily — a brother's list is most of yours, a parent's may
- * be all of it — but the overlap drifts as people add families of their own.
- * Rather than ask anyone to keep the lists in step, this reads the overlap off
- * the connections that already exist: a household in several of your families'
- * circles but not in yours is almost certainly one of yours too. The count is
- * the evidence, and it is what the list is ordered by.
- */
-export async function suggestionsFor(
-  householdId: string,
-): Promise<{ household: Household; seenBy: string[] }[]> {
-  const sheet = await loadSheet();
-  const mine = await circleOf(householdId);
-  const state = connectionState(sheet.connections, householdId);
-
-  // Turned down before, so don't offer it again. A suggestion that keeps coming
-  // back is worse than no suggestion: the families you have decided against are
-  // exactly the ones your families will keep vouching for. `reconsider` is not
-  // here: that is a hiding undone, and they belong back among the offers.
-  const known = new Set([
-    householdId,
-    ...mine.map((h) => h.id),
-    ...[...state.entries()].filter(([, action]) => action === 'remove').map(([id]) => id),
-  ]);
-
-  // Who vouches, by name. A count answers "how many" when the useful question
-  // is "who" — and with a handful of families the names are shorter to read
-  // than the number is to interpret.
-  const seenBy = new Map<string, string[]>();
-  for (const family of mine) {
-    for (const theirs of await circleOf(family.id)) {
-      if (known.has(theirs.id)) continue;
-      seenBy.set(theirs.id, [...(seenBy.get(theirs.id) ?? []), family.name]);
-    }
-  }
-
-  // Two of your families vouching is evidence; one is that family's own
-  // acquaintance, which says nothing about you. A circle is how you say
-  // otherwise: put a household in one of yours and one voucher is enough,
-  // because you have already said these people belong together.
-  //
-  // The threshold is fixed rather than scaled to the size of your list. A rule
-  // that rose as you added families took offers away at the moment you acted on
-  // one — accept a suggestion, and the rest of that family's circle vanished.
-  const together = await sharingACircleWith(householdId);
-
-  return [...seenBy.entries()]
-    .filter(([id, who]) => who.length >= 2 || together.has(id))
-    .map(([id, who]) => ({
-      household: sheet.households.find((h) => h.id === id),
-      seenBy: [...who].sort((a, b) => a.localeCompare(b, 'he')),
-    }))
-    .filter((s): s is { household: Household; seenBy: string[] } => s.household !== undefined)
-    .sort(
-      (a, b) =>
-        b.seenBy.length - a.seenBy.length ||
-        a.household.name.localeCompare(b.household.name, 'he'),
-    );
-}
-
-/**
- * Families hidden from the suggestions. Kept reachable because dismissing one
- * is a tap next to "הוספה" and the two are easy to confuse — a hiding nobody
- * can see is a mistake nobody can undo.
- */
-export async function hiddenSuggestions(householdId: string): Promise<Household[]> {
-  const sheet = await loadSheet();
-  const state = connectionState(sheet.connections, householdId);
-  return [...state.entries()]
-    .filter(([, action]) => action === 'remove')
-    .map(([id]) => sheet.households.find((h) => h.id === id))
-    .filter((h): h is Household => h !== undefined && h.active)
-    .sort((a, b) => a.name.localeCompare(b.name, 'he'));
-}
-
-/** Undoing a hiding: back among the suggestions, still not connected. */
-export async function restoreSuggestion(householdId: string, other: string): Promise<void> {
-  await appendRow(TABS.connections, HEADERS.connections, [
-    householdId,
-    other,
-    'reconsider',
-    new Date().toISOString(),
-  ]);
-}
-
 export async function isConnected(a: string, b: string): Promise<boolean> {
   return connectionState((await loadSheet()).connections, a).get(b) === 'add';
 }
 
 /**
- * Turning down a suggestion, for good. One-way on purpose: deciding a family is
- * not yours says nothing about whether you belong on theirs, and it is not a
- * deletion — a newer 'add' row, from taking them up later or from a number
- * typed in, wins over it.
+ * Taking a family off our own list. One-way on purpose: deciding a family is
+ * not ours says nothing about whether we belong on theirs, and it is not a
+ * deletion — a newer 'add' row, from a circle or a number typed in, wins over
+ * it, so this can be undone by simply meeting them again.
  */
-export async function dismissSuggestion(householdId: string, other: string): Promise<void> {
+export async function disconnectFrom(householdId: string, other: string): Promise<void> {
   await appendRow(TABS.connections, HEADERS.connections, [
     householdId,
     other,
@@ -941,11 +849,13 @@ export async function connect(a: string, b: string): Promise<void> {
 
 export async function createInvite(
   householdId: string,
-  kind: 'family' | 'household',
+  kind: Invite['kind'],
   /** Aimed at one number, which makes the link single-use. */
   forPhone = '',
   /** Aimed at a family already on the list, which makes it single-use too. */
   forHouseholdId = '',
+  /** The circle it joins them to. Reusable on purpose: a circle link is for a group. */
+  forCircleId = '',
 ): Promise<string> {
   const token = randomUUID().replace(/-/g, '').slice(0, 12);
   await appendRow(TABS.invites, HEADERS.invites, [
@@ -956,6 +866,7 @@ export async function createInvite(
     forPhone,
     '',
     forHouseholdId,
+    forCircleId,
   ]);
   return token;
 }
@@ -1030,15 +941,32 @@ const expired = (invite: { createdAt: string }): boolean => {
  * back to ordinary sign-up, so somebody holding a dead link still gets the app;
  * they simply arrive introduced to nobody.
  */
+/**
+ * A circle as an invitation carries it: what to call it, and exactly which
+ * households are in it.
+ *
+ * The members are the whole of what an opener is shown. A circle link says
+ * "you are one of us" — the families in the circle are the ones they might
+ * *be*, and the inviter's other families are nobody's business on the way in.
+ */
+export type InvitedCircle = {
+  id: string;
+  name: string;
+  color: string;
+  members: { household: Household; joined: boolean }[];
+};
+
 export async function readInvite(
   token: string,
 ): Promise<
   | {
       household: Household;
-      kind: 'family' | 'household';
+      kind: Invite['kind'];
       forPhone: string;
       /** The family this link makes them, when it names one. */
       forHousehold: Household | undefined;
+      /** The circle this link joins, when it is a circle link. */
+      circle: InvitedCircle | undefined;
     }
   | undefined
 > {
@@ -1058,6 +986,31 @@ export async function readInvite(
   if (!invite || expired(invite) || invite.usedAt) return undefined;
   const household = sheet.households.find((h) => h.id === invite.createdBy);
   if (!household) return undefined;
+  // The circle as the inviter has it: their name and colour for it are the ones
+  // in the message, so they are what the opener should see on the way in. Their
+  // own to change afterwards, like everyone else's.
+  let circle: InvitedCircle | undefined;
+  if (invite.kind === 'circle' && invite.forCircleId) {
+    const rows = [...circleState(sheet.circles).values()].filter(
+      (r) => r.circleId === invite.forCircleId && r.action === 'add',
+    );
+    const mine = rows.find((r) => r.householdId === invite.createdBy);
+    if (!mine) return undefined;
+    const joined = new Set(sheet.people.map((p) => p.householdId));
+    circle = {
+      id: invite.forCircleId,
+      name: mine.name,
+      color: mine.color,
+      members: rows
+        .map((r) => sheet.households.find((h) => h.id === r.householdId))
+        .filter((h): h is Household => h !== undefined)
+        .map((h) => ({ household: h, joined: joined.has(h.id) }))
+        // A family added by name that nobody has signed into is the likeliest
+        // thing for an opener to be, so it is offered first.
+        .sort((a, b) => Number(a.joined) - Number(b.joined)),
+    };
+  }
+
   return {
     household,
     kind: invite.kind,
@@ -1065,6 +1018,7 @@ export async function readInvite(
     forHousehold: invite.forHouseholdId
       ? sheet.households.find((h) => h.id === invite.forHouseholdId)
       : undefined,
+    circle,
   };
 }
 

@@ -81,7 +81,8 @@ for (const a of active) {
 // no invite aimed at a number could let anybody in. The suite carries the same
 // trap so that can never pass unnoticed again.
 sheet.Invites = [
-  ['token', 'created_by', 'kind', 'created_at', 'circle', 'for_phone', 'used_at', 'for_household_id'],
+  ['token', 'created_by', 'kind', 'created_at', 'circle', 'for_phone', 'used_at', 'for_household_id',
+    'for_circle_id'],
 ];
 
 sheet.Circles = [

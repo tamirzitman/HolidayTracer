@@ -62,8 +62,8 @@ export type Answer = StoredAnswer & { householdId: string };
 
 /**
  * A directed row: "I can see them". Adding a family writes both directions;
- * hiding one writes a remove event for your side only, so the other family is
- * never silently cut off.
+ * taking one off your list writes a remove for your side only, so the other
+ * family keeps you and everything you have both answered.
  *
  * Append-only like the answers, because a tab that gets rewritten can lose rows
  * when two people act at the same moment.
@@ -72,28 +72,27 @@ export type Connection = {
   householdId: string;
   connectedTo: string;
   /**
-   *  - `add`         on each other's lists
-   *  - `remove`      hidden: turned down as a suggestion, so it is not offered again
-   *  - `reconsider`  the hiding undone — not connected, but suggestible once more
+   *  - `add`     on each other's lists
+   *  - `remove`  off ours: they stay on everybody else's
    *
-   * `reconsider` exists because hiding must not be a one-way door. Appending an
-   * `add` to undo it would connect two families that were only ever suggested,
-   * which is a different thing entirely.
+   * Anything else — `reconsider` from the days of suggestions — reads as not
+   * connected, which is what it always meant.
    */
-  action: 'add' | 'remove' | 'reconsider';
+  action: 'add' | 'remove';
   at: string;
 };
 
 /**
- * A link, because nobody types phone numbers. Two kinds:
+ * A link, because nobody types phone numbers. Three kinds:
  *   family    — the opener names a new household, connected to the inviter
  *   household — the opener joins the inviter's own household (a spouse, a grown child)
+ *   circle    — the opener joins a circle, and so everybody already in it
  * Reusable: one link can go in a WhatsApp group and bring in several families.
  */
 export type Invite = {
   token: string;
   createdBy: string;
-  kind: 'family' | 'household';
+  kind: 'family' | 'household' | 'circle';
   createdAt: string;
   /**
    * The number this link was made for, when it was made for one person. A link
@@ -112,12 +111,20 @@ export type Invite = {
    * themselves in, no family name to invent. Single-use, like a personal link.
    */
   forHouseholdId: string;
+  /**
+   * The circle this link joins. Whoever opens it lands in that circle and on
+   * the list of everybody in it — which is what the message pasted into a
+   * family group says it does, and what it could not do while the link carried
+   * only who sent it.
+   */
+  forCircleId: string;
 };
 
 /**
- * A household's standing in one circle. Circles group families so that one
- * family vouching for somebody is enough to suggest them — outside a circle it
- * takes two — and nothing else: they do not decide who sees which holiday.
+ * A household's standing in one circle. A circle is the whole of how families
+ * find each other here: everybody in one is on everybody else's list, and
+ * whoever opens its link joins all of them at once. It decides nothing else —
+ * not who sees which holiday, and not who may answer for whom.
  */
 export type CircleRow = {
   circleId: string;
@@ -156,6 +163,7 @@ export const HEADERS = {
   connections: ['household_id', 'connected_to', 'action', 'at'],
   invites: [
     'token', 'created_by', 'kind', 'created_at', 'for_phone', 'used_at', 'for_household_id',
+    'for_circle_id',
   ],
   // One row says everything about one household's place in one circle: whether
   // they are in it, and — because the name and the colour are each household's

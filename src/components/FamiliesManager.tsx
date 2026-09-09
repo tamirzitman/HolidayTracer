@@ -4,14 +4,11 @@ import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useState } from 'react';
 import { useHandoff } from '@/lib/handoff';
 import {
-  addSuggested,
   deleteFamily,
-  dismissSuggested,
   dropFamily,
   renameFamily,
   nameOurHousehold,
   newInviteLink,
-  restoreSuggested,
   type ActionResult,
 } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
@@ -44,8 +41,6 @@ export function FamiliesManager({
   families,
   ownMembers,
   inviteUrl,
-  suggested,
-  hidden,
   ownName,
   circles,
   tags,
@@ -56,10 +51,6 @@ export function FamiliesManager({
   ownMembers: Member[];
   /** This family's standing join link, for the families nobody has joined yet. */
   inviteUrl: string;
-  /** Families your families know and you don't, with which of them vouch. */
-  suggested: { id: string; name: string; seenBy: string[] }[];
-  /** Families turned down before, so a mistaken tap can be taken back. */
-  hidden: { id: string; name: string }[];
   /** What our own household is called. */
   ownName: string;
   /** The circles we are in, as we named and coloured them. */
@@ -74,8 +65,6 @@ export function FamiliesManager({
   const [busy, setBusy] = useState<'family' | 'household' | null>(null);
   const [linkError, setLinkError] = useState('');
   const { busy: sharing, start: startShare, stop: stopShare, go: goShare } = useHandoff();
-  const [adding, setAdding] = useState<string | null>(null);
-  const [hiding, setHiding] = useState<string | null>(null);
   const [addingFamily, setAddingFamily] = useState(false);
   const [openFamily, setOpenFamily] = useState<string | null>(null);
   const router = useRouter();
@@ -231,104 +220,7 @@ export function FamiliesManager({
           </ul>
         )}
       </section>
-      <Circles
-        circles={circles}
-        families={families.map((f) => ({ id: f.id, name: f.name }))}
-        inviteUrl={inviteUrl}
-      />
-
-      {/* Circles drift apart as people add families of their own. Rather than ask
-          anyone to keep the lists in step, this reads the overlap off the
-          connections that already exist. */}
-      {suggested.length > 0 && (
-        <section className={`${card} flex flex-col gap-1 p-0`}>
-          <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
-            <h2 className={sectionHeading}>מוצע להוספה</h2>
-            {/* The case a parent's invitation makes: their list is all of yours,
-                and taking it one row at a time is work for nothing. */}
-            {suggested.length > 1 && (
-              <button
-                type="button"
-                disabled={adding !== null}
-                onClick={async () => {
-                  setAdding('all');
-                  try {
-                    for (const family of suggested) await addSuggested(family.id);
-                  } finally {
-                    setAdding(null);
-                  }
-                }}
-                className="shrink-0 text-xs font-bold text-brand underline underline-offset-4"
-              >
-                {adding === 'all' ? 'רגע…' : 'הוספת כולן'}
-              </button>
-            )}
-          </div>
-          <ul className="divide-y divide-line">
-            {suggested.map((family) => (
-              <li key={family.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3.5">
-                <div className="min-w-0 grow basis-40">
-                  <p className="font-semibold break-words text-ink">{family.name}</p>
-                  {/* Who vouches, not how many: with a handful of families the
-                      names are quicker to read than a count is to interpret. */}
-                  <p className="text-sm text-muted">
-                    מכירים אותם: {family.seenBy.slice(0, 2).join(', ')}
-                    {family.seenBy.length > 2 && ` ועוד ${family.seenBy.length - 2}`}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    type="button"
-                    disabled={adding === family.id}
-                    onClick={async () => {
-                      setAdding(family.id);
-                      try {
-                        await addSuggested(family.id);
-                      } finally {
-                        setAdding(null);
-                      }
-                    }}
-                    className={chipButton}
-                  >
-                    {adding === family.id ? 'רגע…' : 'הוספה'}
-                  </button>
-                  {/* Turned down for good. Without this the families you have
-                      decided against are exactly the ones that keep coming
-                      back, because your families keep vouching for them.
-                      Asked first, like everything else that takes away — this
-                      one sits a thumb's width from "הוספה". */}
-                  {hiding === family.id ? (
-                    <button
-                      type="button"
-                      disabled={adding === family.id}
-                      onClick={async () => {
-                        setAdding(family.id);
-                        try {
-                          await dismissSuggested(family.id);
-                        } finally {
-                          setAdding(null);
-                          setHiding(null);
-                        }
-                      }}
-                      className={quietButton}
-                    >
-                      {adding === family.id ? 'רגע…' : 'כן, להסתיר'}
-                    </button>
-                  ) : (
-                    <IconButton
-                      label={`להסיר את ${family.name} מההצעות`}
-                      disabled={adding === family.id}
-                      onClick={() => setHiding(family.id)}
-                    >
-                      <CrossIcon />
-                    </IconButton>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <Circles circles={circles} families={families.map((f) => ({ id: f.id, name: f.name }))} />
 
       {/* Our own house, for the same reason: the person to invite into it is a
           row, not a kind of invitation to pick out of a list. */}
@@ -336,8 +228,6 @@ export function FamiliesManager({
         <h2 className={`px-5 pt-4 pb-1 ${sectionHeading}`}>הבית שלנו</h2>
         <OwnHouse name={ownName} members={ownMembers} />
       </section>
-
-      <HiddenSuggestions hidden={hidden} />
 
       <div id="invite" className={`${card} flex flex-col gap-3`}>
         <h2 className={sectionHeading}>הזמנה</h2>
@@ -402,84 +292,6 @@ export function FamiliesManager({
       </div>
 
     </div>
-  );
-}
-
-/**
- * The families turned down before. Folded away by default — it is a correction,
- * not a list anybody needs — and one line when there is nothing to correct.
- *
- * It exists because dismissing sits one tap from adding: the two are easy to
- * confuse, and a hiding nobody can see is a mistake nobody can undo.
- */
-function HiddenSuggestions({ hidden }: { hidden: { id: string; name: string }[] }) {
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState<string | null>(null);
-
-  if (hidden.length === 0) return null;
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="self-center text-xs font-semibold text-muted underline underline-offset-4"
-      >
-        {hidden.length === 1 ? 'משפחה אחת מוסתרת' : `${hidden.length} משפחות מוסתרות`}
-      </button>
-    );
-  }
-
-  return (
-    <section className={`${card} flex flex-col gap-1 p-0`}>
-      <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
-        <h2 className={sectionHeading}>מוסתרות מההצעות</h2>
-        <BackButton onClick={() => setOpen(false)} />
-      </div>
-      <ul className="divide-y divide-line">
-        {hidden.map((family) => (
-          <li key={family.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3">
-            <p className="min-w-0 grow basis-40 break-words text-ink">{family.name}</p>
-            {/* Adding is what somebody opening this list is usually here for,
-                so it is the button. Sending one back to the offers first and
-                adding it there was two taps for one decision. */}
-            <button
-              type="button"
-              disabled={busy === family.id}
-              onClick={async () => {
-                setBusy(family.id);
-                try {
-                  await addSuggested(family.id);
-                } finally {
-                  setBusy(null);
-                }
-              }}
-              className={chipButton}
-            >
-              {busy === family.id ? 'רגע…' : 'הוספה'}
-            </button>
-            <button
-              type="button"
-              disabled={busy === family.id}
-              onClick={async () => {
-                setBusy(family.id);
-                try {
-                  await restoreSuggested(family.id);
-                } finally {
-                  setBusy(null);
-                }
-              }}
-              className={quietButton}
-            >
-              להציע שוב
-            </button>
-          </li>
-        ))}
-      </ul>
-      <p className="px-5 pb-3 text-xs text-muted">
-        «הוספה» מחברת אתכם עכשיו. «להציע שוב» רק מחזירה אותן לרשימת ההצעות.
-      </p>
-    </section>
   );
 }
 

@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { BottomNav } from '@/components/BottomNav';
 import { HouseholdMenu } from '@/components/HouseholdMenu';
 import { ShareApp } from '@/components/ShareApp';
-import { findPerson, getHousehold, suggestionsFor, unansweredUpcoming } from '@/lib/data';
+import { findPerson, getHousehold, unansweredUpcoming } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 import { usingLocalSheet } from '@/lib/sheet';
 import './globals.css';
@@ -27,15 +27,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const signedIn = Boolean(person);
 
   // What each tab is holding. History is never marked: see BottomNav.
-  const [suggested, unanswered] = person
-    ? await Promise.all([
-        suggestionsFor(person.householdId),
-        unansweredUpcoming(person.householdId),
-      ])
-    : [[], []];
+  // The circles tab is never marked either: nothing accumulates there waiting
+  // to be dealt with — families arrive on the list already, through a circle.
+  const unanswered = person ? await unansweredUpcoming(person.householdId) : [];
   const waiting = {
     '/': unanswered.length > 0,
-    '/families': suggested.length > 0,
+    '/families': false,
   };
 
   const head = await headers();

@@ -17,7 +17,6 @@ import {
   inviteFor,
   membersByHousehold,
   todayInIsrael,
-  suggestionsFor,
   unansweredUpcoming,
   circleTags,
   circlesFor,
@@ -61,6 +60,7 @@ export default async function Page({
         token=""
         invitedBy=""
         kind="family"
+        circleName=""
         claimable={[]}
         joiningAs=""
         onLeave={signOut}
@@ -111,8 +111,7 @@ export default async function Page({
   // Knowing where everyone else is, is the reward for saying where you are.
   const circleStatus = current ? await circleAnswers(holiday.key, person.householdId) : [];
 
-  const [suggested, unanswered, tags, circles] = await Promise.all([
-    suggestionsFor(person.householdId),
+  const [unanswered, tags, circles] = await Promise.all([
     unansweredUpcoming(person.householdId),
     circleTags(person.householdId),
     circlesFor(person.householdId),
@@ -121,7 +120,6 @@ export default async function Page({
 
   const step = nextStep({
     circleSize: circle.length,
-    suggestions: suggested.length,
     unanswered: unanswered.length,
     nextHolidayKey: unanswered[0]?.key,
     nextHolidayName: unanswered[0]?.nameHe,

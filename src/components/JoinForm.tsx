@@ -6,15 +6,20 @@ import { formatPhone } from '@/lib/phone';
 import { ErrorNote, Title, card, field, primaryButton, quietButton, secondaryButton } from './ui';
 
 /**
- * Signing up — with an invite or without one. An invite is only a shortcut: it
- * names who introduced you, offers their family to claim, and their circle to
- * start from. Arriving cold skips all three and simply asks who you are.
+ * Signing up — with an invite or without one.
+ *
+ * An invite is a shortcut, and which one depends on the link. A family link
+ * names who introduced you and offers their family to claim. A circle link says
+ * which circle you are being asked into and lists the families in it — those
+ * are the ones you might *be*, and the sender's other families are nobody's
+ * business on the way in. Arriving cold asks only who you are.
  */
 export function JoinForm({
   phone,
   token,
   invitedBy,
   kind,
+  circleName,
   claimable,
   joiningAs,
   onLeave,
@@ -22,17 +27,19 @@ export function JoinForm({
   phone: string;
   token: string;
   invitedBy: string;
-  kind: 'family' | 'household';
+  kind: 'family' | 'household' | 'circle';
+  /** The circle this link is for, when it is a circle link. */
+  circleName: string;
   /**
    * The family this link makes them. Set, there is nothing to ask about the
    * family at all — the link already said which one, and it was sent to them.
    */
   joiningAs: string;
-  /** Families already on the inviter's list, which this newcomer may belong to. */
   /**
-   * Families the inviter knows that this person might be. `joined` separates
-   * the two quite different cases: a family added by name that nobody has
-   * signed into, and a family a relative is already signed into.
+   * The families this person might be: the circle's members on a circle link,
+   * the inviter's list on a family one. `joined` separates the two quite
+   * different cases — a family added by name that nobody has signed into, and a
+   * family a relative is already signed into.
    */
   claimable: { id: string; name: string; joined: boolean }[];
   /**
@@ -47,9 +54,12 @@ export function JoinForm({
   // "עמוס וליאת כהן" — so filling it in from one person's name is wrong more
   // often than right, and a wrong answer already in the box is worse than an
   // empty one: people accept it. An example in grey says the shape instead.
-  // Claiming an existing family is the rarer path, so it waits behind a line of
-  // text rather than sitting in the way of everyone who is genuinely new.
-  const [claiming, setClaiming] = useState(false);
+  // Claiming an existing family is the rarer path on a family link, so it waits
+  // behind a line of text rather than sitting in the way of everyone who is
+  // genuinely new. On a circle link it is the likely path — the circle was
+  // filled in by name and one of those names is probably theirs — so the list
+  // is open from the start.
+  const [claiming, setClaiming] = useState(kind === 'circle' && claimable.length > 0);
 
   // Held rather than left to the DOM: React empties an uncontrolled form once
   // its action returns, so anything the server answers with — an error, or the
@@ -71,8 +81,13 @@ export function JoinForm({
             ? 'נעים להכיר'
             : kind === 'household'
               ? `הצטרפות ל${invitedBy}`
-              : `${invitedBy} הזמינו אתכם`}
+              : kind === 'circle'
+                ? `${invitedBy} הזמינו אתכם למעגל`
+                : `${invitedBy} הזמינו אתכם`}
         </Title>
+        {kind === 'circle' && circleName && (
+          <p className="text-lg font-bold text-brand">«{circleName}»</p>
+        )}
         <p className="text-muted">
           נרשמים עם המספר <span dir="ltr">{formatPhone(phone)}</span>
         </p>
@@ -142,7 +157,10 @@ export function JoinForm({
         </fieldset>
       )}
 
-      {kind === 'family' && !joiningAs && (
+      {/* Circle links land here too: they never name one household, so what
+          they ask is the same question — which of these families are you, or
+          are you a new one. */}
+      {kind !== 'household' && !joiningAs && (
         <fieldset className="flex flex-col gap-3">
           <legend className="mb-2 text-sm font-semibold text-muted">המשפחה שלכם</legend>
 
@@ -153,7 +171,9 @@ export function JoinForm({
           {claimable.length > 0 &&
             (claiming || claim ? (
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-semibold text-muted">בחרו את המשפחה שלכם</span>
+                <span className="text-sm font-semibold text-muted">
+                  {kind === 'circle' ? 'מי אתם מבין המשפחות במעגל?' : 'בחרו את המשפחה שלכם'}
+                </span>
                 <select
                   name="claimHouseholdId"
                   value={claim}

@@ -43,6 +43,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
           token=""
           invitedBy=""
           kind="family"
+          circleName=""
           claimable={[]}
           joiningAs=""
           onLeave={signOut}
@@ -83,12 +84,30 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       );
     }
 
+    // Already there? Nothing to ask. For a circle link that means already in
+    // the circle — being connected to whoever sent it is not the same thing,
+    // and the rest of the circle is exactly what the link is offering.
     const inviterId = invite.household.id;
-    if (person.householdId === inviterId || (await isConnected(person.householdId, inviterId))) {
-      redirect('/');
-    }
-    return <ConnectPrompt token={token} invitedBy={invite.household.name} />;
+    const settled = invite.circle
+      ? invite.circle.members.some((m) => m.household.id === person.householdId)
+      : person.householdId === inviterId || (await isConnected(person.householdId, inviterId));
+    if (settled) redirect('/');
+    return (
+      <ConnectPrompt
+        token={token}
+        invitedBy={invite.household.name}
+        circleName={invite.circle?.name ?? ''}
+      />
+    );
   }
+
+  // A circle link shows the circle and nothing but: the families in it are the
+  // ones the opener might be, and the sender's other families are not part of
+  // this invitation. A family link still offers the sender's list, which is the
+  // only list it can mean.
+  const claimable = invite.circle
+    ? invite.circle.members
+    : await claimableIn(invite.household.id);
 
   return (
     <JoinForm
@@ -96,9 +115,10 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       token={token}
       invitedBy={invite.household.name}
       kind={invite.kind}
+      circleName={invite.circle?.name ?? ''}
       joiningAs={invite.forHousehold?.name ?? ''}
       onLeave={signOut}
-      claimable={(await claimableIn(invite.household.id)).map((c) => ({
+      claimable={claimable.map((c) => ({
         id: c.household.id,
         name: c.household.name,
         joined: c.joined,
