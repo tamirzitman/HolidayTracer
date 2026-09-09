@@ -34,6 +34,8 @@ import {
   claimableIn,
   unjoinedNamed,
   renameHousehold,
+  standingOf,
+  deactivateHousehold,
   membersByHousehold,
   spendInvite,
 } from '@/lib/data';
@@ -453,6 +455,75 @@ export async function deleteOccasion(
   revalidatePath('/');
   revalidatePath('/occasions');
   revalidatePath('/history');
+  return { savedAt: new Date().toISOString() };
+}
+
+/**
+ * Correcting the name of a family we put on the list ourselves.
+ *
+ * Ours to fix only while it is still our note about them: the moment somebody
+ * signs in as that family the name is theirs, and they can put it right from
+ * their own screen.
+ */
+export async function renameFamily(
+  householdId: string,
+  name: string,
+): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const wanted = name.trim().replace(/\s+/g, ' ');
+  if (!wanted) return { error: 'צריך שם למשפחה' };
+
+  const standing = await standingOf(householdId, me.householdId);
+  if (!standing.addedByUs) return { error: 'רק מי שהוסיף אותם יכול לשנות את השם' };
+  if (standing.joined) return { error: 'מישהו מהמשפחה כבר נרשם — השם שלהם לשנות' };
+
+  await renameHousehold(householdId, wanted);
+  revalidatePath('/families');
+  revalidatePath('/');
+  return { savedAt: new Date().toISOString() };
+}
+
+/**
+ * Undoing an addition: a family typed in by mistake, that nobody has arrived in
+ * and nothing has been said about.
+ *
+ * It goes for everybody, not only for us. What anyone else loses is a name on a
+ * list — there is no person behind it and no answer about it — and leaving a
+ * typo standing in other people's circles because it reached one is worse.
+ */
+export async function deleteFamily(householdId: string): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const standing = await standingOf(householdId, me.householdId);
+  if (!standing.addedByUs) return { error: 'רק מי שהוסיף אותם יכול למחוק' };
+  if (standing.joined) return { error: 'מישהו מהמשפחה כבר נרשם — אפשר להסיר מהרשימה שלכם' };
+  if (standing.answeredFor) return { error: 'יש כבר תשובות עליהם — אפשר להסיר מהרשימה שלכם' };
+
+  await deactivateHousehold(householdId);
+  revalidatePath('/families');
+  revalidatePath('/');
+  revalidatePath('/history');
+  return { savedAt: new Date().toISOString() };
+}
+
+/**
+ * Off our own list, and nobody else's. For the family that cannot be deleted
+ * because it is somebody's real record — they keep their household, their
+ * answers and everyone else's lists, and simply stop appearing on ours.
+ */
+export async function dropFamily(householdId: string): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+  if (!(await isConnected(me.householdId, householdId))) {
+    return { error: 'המשפחה הזו לא ברשימה שלכם' };
+  }
+
+  await dismissSuggestion(me.householdId, householdId);
+  revalidatePath('/families');
+  revalidatePath('/');
   return { savedAt: new Date().toISOString() };
 }
 

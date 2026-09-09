@@ -63,6 +63,16 @@ export function BackButton({ onClick, label = 'חזרה' }: { onClick: () => voi
   );
 }
 
+/** Turning, so a tap that has gone out to the sheet does not look ignored. */
+function Spinner() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 animate-spin" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.4" opacity="0.25" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /**
  * A control that is only an icon: no label beside it, the name carried by
  * aria-label and title instead.
@@ -76,23 +86,40 @@ export function IconButton({
   label,
   onClick,
   disabled,
+  busy = false,
+  filled = false,
   children,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /**
+   * Working. A mark that does not change while a write goes out reads as a tap
+   * that did nothing, and the second tap is somebody trying again.
+   */
+  busy?: boolean;
+  /**
+   * The button that finishes what the field beside it started. A bare mark next
+   * to a text box is decoration until somebody guesses otherwise; filled in, it
+   * is plainly the thing to press, and plainly greyed while there is nothing to
+   * press it for.
+   */
+  filled?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || busy}
       aria-label={label}
+      aria-busy={busy || undefined}
       title={label}
-      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted transition active:scale-95 disabled:opacity-50"
+      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full transition active:scale-95 disabled:opacity-40 ${
+        filled ? 'bg-brand text-ground' : 'text-brand'
+      }`}
     >
-      {children}
+      {busy ? <Spinner /> : children}
     </button>
   );
 }

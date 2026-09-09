@@ -11,6 +11,7 @@ import {
   hiddenSuggestions,
   circlesFor,
   circleTags,
+  standings,
   suggestionsFor,
   unansweredUpcoming,
 } from '@/lib/data';
@@ -26,7 +27,7 @@ export default async function FamiliesPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [circle, members, token, head, suggested, unanswered, hidden, own, circles, tags] =
+  const [circle, members, token, head, suggested, unanswered, hidden, own, circles, tags, standing] =
     await Promise.all([
       circleOf(person.householdId),
       membersByHousehold(),
@@ -38,6 +39,7 @@ export default async function FamiliesPage() {
       getHousehold(person.householdId),
       circlesFor(person.householdId),
       circleTags(person.householdId),
+      standings(person.householdId),
     ]);
 
   const base = `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
@@ -65,6 +67,7 @@ export default async function FamiliesPage() {
         ownMembers={members.get(person.householdId) ?? []}
         circles={circles}
         tags={tagged}
+        standing={Object.fromEntries(standing)}
         inviteUrl={`${base}/join/${token}`}
         suggested={suggested.map((s) => ({
           id: s.household.id,

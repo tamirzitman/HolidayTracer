@@ -49,6 +49,14 @@ export type Sheet = {
   connections: Connection[];
   invites: Invite[];
   circles: CircleRow[];
+  /**
+   * Households that were switched off. They are gone from `households` — no
+   * screen should show them — but their ids are kept here so that the next one
+   * created never takes an id back. A reused id inherits the old household's
+   * connections, answers and circle rows, which is a stranger's family walking
+   * into yours.
+   */
+  retired: string[];
 };
 
 const TAB_LIST = [
@@ -97,6 +105,26 @@ async function fetchSheet(): Promise<Sheet> {
     ]),
   );
 
+  // Collapsed by id, newest row winning, exactly as the holidays below are.
+  // Every tab here only ever grows: correcting a family's name appends a row
+  // rather than editing one, and without this the family appears once per name
+  // it has ever had — which is what a rename looked like from the outside.
+  // Collapsing *before* the active check matters too: with it the other way
+  // round, a household switched off would be resurrected by whichever older row
+  // still said TRUE.
+  const allHouseholds = [
+    ...new Map(
+      householdsTab.body
+        .map((row) => ({
+          id: cell(row, householdsTab.headers, 'household_id'),
+          name: cell(row, householdsTab.headers, 'name'),
+          active: isTrue(cell(row, householdsTab.headers, 'active')),
+        }))
+        .filter((h) => h.id && h.name)
+        .map((h) => [h.id, h] as const),
+    ).values(),
+  ];
+
   return {
     // Append-only like everything else: the last row for a key is the one that counts,
     // so switching an occasion off is another row rather than a rewrite.
@@ -119,25 +147,8 @@ async function fetchSheet(): Promise<Sheet> {
       ).values(),
     ],
 
-    // Collapsed by id, newest row winning, exactly as the holidays above are.
-    // Every tab here only ever grows: correcting a family's name appends a row
-    // rather than editing one, and without this the family appears once per
-    // name it has ever had — which is what a rename looked like from the
-    // outside. Collapsing *before* the active check matters too: with it the
-    // other way round, a household switched off would be resurrected by
-    // whichever older row still said TRUE.
-    households: [
-      ...new Map(
-        householdsTab.body
-          .map((row) => ({
-            id: cell(row, householdsTab.headers, 'household_id'),
-            name: cell(row, householdsTab.headers, 'name'),
-            active: isTrue(cell(row, householdsTab.headers, 'active')),
-          }))
-          .filter((h) => h.id && h.name)
-          .map((h) => [h.id, h] as const),
-      ).values(),
-    ].filter((h) => h.active),
+    households: allHouseholds.filter((h) => h.active),
+    retired: allHouseholds.filter((h) => !h.active).map((h) => h.id),
 
     // The same rule, keyed by number: one row per person, the last one written.
     people: [
@@ -1071,9 +1082,93 @@ export async function renameHousehold(householdId: string, name: string): Promis
   ]);
 }
 
+/**
+ * What a family added by name can still have done to it.
+ *
+ * A household typed in by mistake should be correctable, and a household that
+ * has become somebody's real record should not — the line between the two is
+ * whether anybody has arrived in it or anything has been said about it.
+ */
+export type FamilyStanding = {
+  /** We are the household that put them on the list. */
+  addedByUs: boolean;
+  /** Somebody has signed in as them. Then the name is theirs to change, not ours. */
+  joined: boolean;
+  /** An answer names them — theirs, or somebody's about them. Then it is a record. */
+  answeredFor: boolean;
+};
+
+/**
+ * Who first put this household on anybody's list.
+ *
+ * Not stored: creating a family writes `us → them` before anything else can
+ * mention them, so the earliest connection pointing at them names whoever
+ * added them. A household nobody ever connected to is nobody's.
+ */
+function addedBy(sheet: Sheet, householdId: string): string | undefined {
+  return sheet.connections.find((c) => c.connectedTo === householdId)?.householdId;
+}
+
+export async function standingOf(
+  householdId: string,
+  us: string,
+): Promise<FamilyStanding> {
+  const sheet = await loadSheet();
+  return {
+    addedByUs: addedBy(sheet, householdId) === us,
+    joined: sheet.people.some((p) => p.householdId === householdId),
+    answeredFor: sheet.answers.some(
+      (a) => a.householdId === householdId || a.hostHouseholdId === householdId,
+    ),
+  };
+}
+
+/** The standing of every family on our list, for the rows that show them. */
+export async function standings(us: string): Promise<Map<string, FamilyStanding>> {
+  const sheet = await loadSheet();
+  const joined = new Set(sheet.people.map((p) => p.householdId));
+  const spokenOf = new Set(
+    sheet.answers.flatMap((a) => [a.householdId, a.hostHouseholdId]).filter(Boolean),
+  );
+  const standing = new Map<string, FamilyStanding>();
+  for (const household of sheet.households) {
+    standing.set(household.id, {
+      addedByUs: addedBy(sheet, household.id) === us,
+      joined: joined.has(household.id),
+      answeredFor: spokenOf.has(household.id),
+    });
+  }
+  return standing;
+}
+
+/**
+ * Taking a household off the list for good — the row stays, switched off, like
+ * everything else here. Only ever for a family nobody has joined and nothing
+ * has been said about, so what is lost is the name and nothing more.
+ */
+export async function deactivateHousehold(householdId: string): Promise<void> {
+  const sheet = await loadSheet();
+  const household = sheet.households.find((h) => h.id === householdId);
+  if (!household) return;
+
+  // Out of the circles first, while the household is still readable. A circle
+  // counts its members by their rows, so one left behind would have the circle
+  // claim a family it cannot show.
+  const inCircles = [...circleState(sheet.circles).values()].filter(
+    (r) => r.householdId === householdId && r.action === 'add',
+  );
+  for (const row of inCircles) await removeFromCircle(row.circleId, householdId);
+
+  await appendRow(TABS.households, HEADERS.households, [householdId, household.name, 'FALSE']);
+}
+
 export async function addHousehold(name: string): Promise<string> {
-  const used = (await loadSheet()).households
-    .map((h) => Number(h.id))
+  const sheet = await loadSheet();
+  // Retired households count. Their rows are still on the tab, and so are the
+  // connections, answers and circle memberships that named them — hand the id
+  // out again and the next family created inherits somebody else's world.
+  const used = [...sheet.households.map((h) => h.id), ...sheet.retired]
+    .map(Number)
     .filter((n) => Number.isInteger(n));
   const id = String(Math.max(0, ...used) + 1);
   await appendRow(TABS.households, HEADERS.households, [id, name, 'TRUE']);

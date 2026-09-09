@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   addFamilyByName,
@@ -284,6 +284,12 @@ function CircleEditor({
   onLeave: () => void;
 }) {
   const router = useRouter();
+  // Refreshing the list is a second round trip after the write, and it is the
+  // one that puts the new family on screen. Inside a transition it is something
+  // we can still be waiting on — without it the ＋ went quiet the moment the
+  // write returned and the row appeared a second later out of nowhere, which
+  // read as a tap that had not worked.
+  const [refreshing, startRefresh] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [name, setName] = useState(circle.name);
@@ -350,7 +356,11 @@ function CircleEditor({
         {/* A family nobody has added yet. Ticking a list of families we already
             have is no use when the one we mean is not in it, and going away to
             add them loses the circle we were in the middle of filling. */}
-        <NewInCircle circleId={circle.id} onAdded={() => router.refresh()} />
+        <NewInCircle
+          circleId={circle.id}
+          pending={refreshing}
+          onAdded={() => startRefresh(() => router.refresh())}
+        />
       </fieldset>
 
       <label className="flex flex-col gap-1">
@@ -437,10 +447,20 @@ function CircleEditor({
  * in our list and in this circle in one go, since being here at all is saying
  * which circle they belong to.
  */
-function NewInCircle({ circleId, onAdded }: { circleId: string; onAdded: () => void }) {
+function NewInCircle({
+  circleId,
+  pending,
+  onAdded,
+}: {
+  circleId: string;
+  /** The list is still coming back. The ＋ stays busy until it has. */
+  pending: boolean;
+  onAdded: () => void;
+}) {
   return (
     <NewFamilyField
       label="משפחה חדשה למעגל"
+      pending={pending}
       onSubmit={async (name) => {
         const result = await addFamilyToCircle(circleId, name);
         if (result.error) return { error: result.error };
@@ -475,9 +495,12 @@ function NewFamilyHere({
 /** The field itself: a name, and a ＋ that means add. */
 function NewFamilyField({
   label,
+  pending = false,
   onSubmit,
 }: {
   label: string;
+  /** Work still going on above us — the ＋ says so too. */
+  pending?: boolean;
   onSubmit: (name: string) => Promise<{ error?: string }>;
 }) {
   const [name, setName] = useState('');
@@ -519,7 +542,16 @@ function NewFamilyField({
           aria-label={label}
           className={`${field} py-2 text-base`}
         />
-        <IconButton label={`הוספה — ${label}`} onClick={add} disabled={busy || !name.trim()}>
+        {/* Busy while the write goes out, and dimmed rather than dead before
+            there is anything to add: an unlit ＋ that never answers reads as a
+            broken button, and the second tap is somebody trying again. */}
+        <IconButton
+          label={`הוספה — ${label}`}
+          busy={busy || pending}
+          disabled={!name.trim()}
+          filled
+          onClick={add}
+        >
           <PlusIcon />
         </IconButton>
       </div>

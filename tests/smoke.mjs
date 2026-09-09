@@ -324,6 +324,61 @@ check('and goes straight out in one tap',
 check('with the link itself a mark beside it, not a second line of words',
   await stranger.isVisible('#invite [aria-label="העתקת קישור הזמנה"]'));
 
+// ── a family we added: correcting it, and taking it back ────────────────────
+// A name we typed is our note about them, so it is ours to fix — until somebody
+// signs in as that family, when the name becomes theirs.
+await stranger.goto(`${BASE}/families`);
+await stranger.waitForSelector('text=המעגלים שלי');
+const typo = stranger.locator('#families li').filter({ hasText: 'דנה ויוסי' }).last();
+await typo.getByRole('button', { expanded: false }).first().click();
+check('a family we added opens what can be done about it',
+  await stranger.isVisible('text=/מחיקת המשפחה|הסרה מהרשימה שלנו/'));
+
+// דנה ויוסי has people in it, so it is a record rather than our note.
+check('a family somebody has signed into cannot be renamed by us',
+  await stranger.isVisible('text=השם שלהם לשנות'));
+check('and is removed from our list rather than deleted',
+  await stranger.isVisible('text=הסרה מהרשימה שלנו'));
+
+// One we typed ourselves, that nobody has joined: ours to correct and to undo.
+const beforeTypo = rows('Households').length;
+await stranger.click('[aria-label="הוספת משפחה"]');
+await stranger.waitForSelector('input[name=familyName]');
+await stranger.fill('input[name=familyName]', 'משפחת טעות');
+await stranger.click('form:has(input[name=familyName]) button[type=submit]');
+await stranger.waitForTimeout(2000);
+check('a family added by name is one new household',
+  rows('Households').length === beforeTypo + 1);
+const typoId = rows('Households').at(-1)[0];
+
+await stranger.goto(`${BASE}/families`);
+await stranger.waitForSelector('text=משפחת טעות');
+const mine = stranger.locator('#families li').filter({ hasText: 'משפחת טעות' }).last();
+await mine.getByRole('button', { expanded: false }).first().click();
+await stranger.waitForSelector('input[value="משפחת טעות"]');
+await stranger.fill('input[value="משפחת טעות"]', 'משפחת תיקון');
+await stranger.click('[aria-label="שמירת השם"]');
+await stranger.waitForTimeout(2000);
+check('the name we gave them is ours to correct',
+  rows('Households').some((r) => r[1] === 'משפחת תיקון'));
+check('and correcting it is a row, not an edit', rows('Households').length === beforeTypo + 2);
+
+await stranger.goto(`${BASE}/families`);
+await stranger.waitForSelector('text=משפחת תיקון');
+const fixed = stranger.locator('#families li').filter({ hasText: 'משפחת תיקון' }).last();
+await fixed.getByRole('button', { expanded: false }).first().click();
+await stranger.click('text=מחיקת המשפחה');
+check('deleting asks before it does it', await stranger.isVisible('text=כן, למחוק'));
+await stranger.click('text=כן, למחוק');
+await stranger.waitForTimeout(2000);
+await stranger.reload();
+await stranger.waitForSelector('text=המעגלים שלי');
+check('a family nobody joined can be taken back',
+  !(await stranger.isVisible('text=משפחת תיקון')));
+check('and the tab only grew — switched off, never erased',
+  rows('Households').length === beforeTypo + 3 &&
+    rows('Households').at(-1)[2] === 'FALSE');
+
 // ── correcting our own family's name ────────────────────────────────────────
 // The name is often not ours to begin with — somebody added us from a name in
 // their phone — so this is a correction, and it lives on the row that shows the
@@ -346,7 +401,7 @@ check('and it is a row, not an edit', rows('Households').length === beforeRename
 const named = rows('Households').filter((r) => r[1].includes('רן ומיכל'));
 check(`while the old name is gone from the app (${named.length} rows for one family)`,
   named.length === 2 && !(await stranger.innerText('main')).includes('רן ומיכל ברק\n'));
-const listed = await stranger.$$eval('#families li p.font-semibold', (els) =>
+const listed = await stranger.$$eval('#families li button > span.font-semibold', (els) =>
   els.map((e) => e.textContent.trim()),
 );
 check(`and every family is listed once (${listed.length})`,
@@ -505,6 +560,12 @@ check(`joining a circle is asked, not assumed (${joinButtons.length} answers)`,
 await newcomer.click('text=/^סיום/');
 await newcomer.waitForSelector('text=איפה אתם בחג?');
 check('the newcomer is in', rows('Households').some((r) => r[1] === 'דנה ויוסי לוי'));
+// Ids are handed out once and never again. A deleted household leaves its
+// connections, answers and circle rows behind on the tabs, all naming its id —
+// so a family created afterwards that took the id back would open the app
+// inside somebody else's circle.
+check(`and takes a fresh id, not the deleted family's (${typoId})`,
+  rows('Households').find((r) => r[1] === 'דנה ויוסי לוי')[0] !== typoId);
 check('the family name is the two fields joined',
   rows('Households').some((r) => r[1] === 'דנה ויוסי לוי'));
 
@@ -523,9 +584,11 @@ check(`the newcomer starts with the family that invited them (${options.join(', 
 // people belong together regardless.
 await newcomer.goto(`${BASE}/families`);
 await newcomer.waitForSelector('text=המעגלים שלי');
-const beforeCircle = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (e) => e.length);
-check(`the inviter's families are not suggested on one voucher (${beforeCircle})`,
-  beforeCircle === 0);
+const beforeCircle = await newcomer.$$eval('section:has-text("מוצע להוספה") li', (els) =>
+  els.map((e) => e.innerText.split('\n')[0].trim()),
+);
+check(`the inviter's families are not suggested on one voucher (${beforeCircle.join(', ') || 'none'})`,
+  beforeCircle.length === 0);
 
 const newcomerId = rows('Households').find((r) => r[1] === 'דנה ויוסי לוי')[0];
 await dad.goto(`${BASE}/families`);
@@ -575,7 +638,7 @@ await dad.reload();
 await dad.waitForSelector('text=צד אמא');
 const ordered = await dad.$$eval('#families li', (els) =>
   els.map((e) => ({
-    name: e.querySelector('p')?.textContent.trim() ?? '',
+    name: e.querySelector('button > span.font-semibold')?.textContent.trim() ?? '',
     dots: e.querySelectorAll('[aria-label^="מעגלים:"] span').length,
   })),
 );
@@ -646,7 +709,7 @@ await dad.click('#circles button:has-text("צד אבא")');
 // what "we are all one circle" meant in the first place.
 await newcomer.reload();
 await newcomer.waitForSelector('text=המעגלים שלי');
-const mineNow = await newcomer.$$eval('#families li p.font-semibold', (els) =>
+const mineNow = await newcomer.$$eval('#families li button > span.font-semibold', (els) =>
   els.map((e) => e.textContent.trim()),
 );
 check(`the circle's families arrive on the list, not as offers (${mineNow.join(', ')})`,

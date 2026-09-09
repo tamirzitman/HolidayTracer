@@ -5,7 +5,10 @@ import { useActionState, useEffect, useState } from 'react';
 import { useHandoff } from '@/lib/handoff';
 import {
   addSuggested,
+  deleteFamily,
   dismissSuggested,
+  dropFamily,
+  renameFamily,
   nameOurHousehold,
   newInviteLink,
   restoreSuggested,
@@ -46,6 +49,7 @@ export function FamiliesManager({
   ownName,
   circles,
   tags,
+  standing,
 }: {
   families: Family[];
   /** The people in our own household, for a link that lets one of them in elsewhere. */
@@ -62,6 +66,8 @@ export function FamiliesManager({
   circles: CircleView[];
   /** Which of our circles each family is in, for the dots on their row. */
   tags: Record<string, { id: string; name: string; color: string }[]>;
+  /** What can still be done to each family: renamed, deleted, or only dropped. */
+  standing: Record<string, { addedByUs: boolean; joined: boolean; answeredFor: boolean }>;
 }) {
   const [link, setLink] = useState('');
   const [copied, setCopied] = useState(false);
@@ -71,6 +77,7 @@ export function FamiliesManager({
   const [adding, setAdding] = useState<string | null>(null);
   const [hiding, setHiding] = useState<string | null>(null);
   const [addingFamily, setAddingFamily] = useState(false);
+  const [openFamily, setOpenFamily] = useState<string | null>(null);
   const router = useRouter();
 
   async function makeLink(kind: 'family' | 'household') {
@@ -179,26 +186,46 @@ export function FamiliesManager({
         ) : (
           <ul className="divide-y divide-line">
             {families.map((family) => (
-              <li key={family.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3.5">
-                <div className="min-w-0 grow basis-40">
-                  <p className="flex flex-wrap items-center gap-2 font-semibold break-words text-ink">
-                    {family.name}
-                    <CircleDots tags={tags[family.id] ?? []} />
-                  </p>
-                  {/* Say what the state actually is. "טרם הצטרפו" left people
-                      guessing whether the family was missing something, when
-                      all it means is that nobody from it has opened the app. */}
-                  <span className="text-sm text-muted">
-                    {family.members.length === 0
-                      ? 'עוד לא נרשמו לאפליקציה'
-                      : family.members.map((m) => m.name).join(', ')}
-                  </span>
+              <li key={family.id} className="flex flex-col gap-2 px-5 py-3.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  {/* The row opens what can be done about the family, the same
+                      way a circle's row does. */}
+                  <button
+                    type="button"
+                    onClick={() => setOpenFamily(openFamily === family.id ? null : family.id)}
+                    aria-expanded={openFamily === family.id}
+                    className="flex min-w-0 grow basis-40 flex-col text-start"
+                  >
+                    <span className="flex flex-wrap items-center gap-2 font-semibold break-words text-ink">
+                      {family.name}
+                      <CircleDots tags={tags[family.id] ?? []} />
+                    </span>
+                    {/* Say what the state actually is. "טרם הצטרפו" left people
+                        guessing whether the family was missing something, when
+                        all it means is that nobody from it has opened the app. */}
+                    <span className="text-sm text-muted">
+                      {family.members.length === 0
+                        ? 'עוד לא נרשמו לאפליקציה'
+                        : family.members.map((m) => m.name).join(', ')}
+                    </span>
+                  </button>
+                  {/* The invitation belongs on the row of the family it is for.
+                      The link carries who they are, so opening it asks their name
+                      and nothing else — no list to find themselves in, and no
+                      family name to invent. */}
+                  <RowInvite householdId={family.id} members={family.members} />
                 </div>
-                {/* The invitation belongs on the row of the family it is for.
-                    The link carries who they are, so opening it asks their name
-                    and nothing else — no list to find themselves in, and no
-                    family name to invent. */}
-                <RowInvite householdId={family.id} members={family.members} />
+
+                {openFamily === family.id && (
+                  <FamilyRow
+                    family={family}
+                    standing={standing[family.id] ?? { addedByUs: false, joined: true, answeredFor: true }}
+                    onDone={() => {
+                      setOpenFamily(null);
+                      router.refresh();
+                    }}
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -347,7 +374,8 @@ export function FamiliesManager({
                   button rather than a second line of words under it. */}
               <IconButton
                 label={copied ? 'הקישור הועתק' : 'העתקת קישור הזמנה'}
-                disabled={busy !== null || sharing}
+                busy={busy === 'family' && !copied}
+                disabled={sharing}
                 onClick={copyLink}
               >
                 {copied ? <CheckIcon /> : <CopyIcon />}
@@ -532,6 +560,111 @@ function OwnHouse({ name, members }: { name: string; members: Member[] }) {
         <WhatsAppMark />
         {adding ? 'רגע…' : 'הוספת בן בית'}
       </button>
+    </div>
+  );
+}
+
+/**
+ * What can still be done about a family on our list.
+ *
+ * Three states, and which one a family is in is not a matter of taste: a name
+ * we typed is ours to fix or take back; a family somebody has signed into, or
+ * that an answer names, is a record, and all we can do is stop carrying it.
+ */
+function FamilyRow({
+  family,
+  standing,
+  onDone,
+}: {
+  family: Family;
+  standing: { addedByUs: boolean; joined: boolean; answeredFor: boolean };
+  onDone: () => void;
+}) {
+  const [name, setName] = useState(family.name);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [confirming, setConfirming] = useState(false);
+
+  const canRename = standing.addedByUs && !standing.joined;
+  const canDelete = canRename && !standing.answeredFor;
+
+  async function run(work: () => Promise<ActionResult>) {
+    setBusy(true);
+    setError('');
+    const result = await work();
+    setBusy(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    onDone();
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl bg-brand-wash p-3">
+      {canRename ? (
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-muted">איך הם נקראים אצלנו</span>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={`${field} py-2 text-base`}
+            />
+            <IconButton
+              label="שמירת השם"
+              busy={busy}
+              disabled={!name.trim() || name === family.name}
+              onClick={() => run(() => renameFamily(family.id, name))}
+            >
+              <CheckIcon />
+            </IconButton>
+          </div>
+        </label>
+      ) : (
+        <p className="text-xs text-muted">
+          {standing.joined
+            ? 'מישהו מהמשפחה כבר נרשם — השם שלהם לשנות.'
+            : 'הוסיפו אותם מרשימה של מישהו אחר, אז השם לא שלנו לשנות.'}
+        </p>
+      )}
+
+      <ErrorNote>{error}</ErrorNote>
+
+      {confirming ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-ink">
+            {canDelete
+              ? `למחוק את «${family.name}»? אף אחד עוד לא נרשם אליהם ואין עליהם תשובות, אז הם ייעלמו גם אצל השאר.`
+              : `להסיר את «${family.name}» מהרשימה שלנו? הם יישארו אצל כל השאר, עם כל מה שענו.`}
+          </p>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                run(() => (canDelete ? deleteFamily(family.id) : dropFamily(family.id)))
+              }
+              className="rounded-full border border-danger px-4 py-1.5 text-sm font-bold text-danger transition active:scale-95 disabled:opacity-50"
+            >
+              {busy ? 'רגע…' : canDelete ? 'כן, למחוק' : 'כן, להסיר'}
+            </button>
+            <button type="button" onClick={() => setConfirming(false)} className="text-sm text-muted">
+              ביטול
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="inline-flex items-center gap-2 self-start text-sm font-semibold text-danger"
+        >
+          <CrossIcon />
+          {canDelete ? 'מחיקת המשפחה' : 'הסרה מהרשימה שלנו'}
+        </button>
+      )}
     </div>
   );
 }
