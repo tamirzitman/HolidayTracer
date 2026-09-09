@@ -19,6 +19,7 @@ import { WhatsAppMark } from './WhatsApp';
 import {
   BackButton,
   Busy,
+  ChevronIcon,
   CrossIcon,
   ErrorNote,
   IconButton,
@@ -135,22 +136,7 @@ export function Circles({
                     ? 'רק אתם'
                     : `${circle.members.length} משפחות`}
                 </span>
-                <svg
-                  viewBox="0 0 24 24"
-                  className={`h-4 w-4 shrink-0 text-muted transition ${
-                    open === circle.id ? 'rotate-180' : ''
-                  }`}
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M6 9l6 6 6-6"
-                    stroke="currentColor"
-                    strokeWidth="2.4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ChevronIcon open={open === circle.id} />
               </button>
 
               {/* Inviting the circle is the errand people come here for most, so

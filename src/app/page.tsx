@@ -14,7 +14,6 @@ import {
   getLatestAnswer,
   getUpcomingHolidays,
   guestsComingTo,
-  inviteFor,
   membersByHousehold,
   todayInIsrael,
   unansweredUpcoming,
@@ -94,7 +93,7 @@ export default async function Page({
   const at = Math.max(0, upcoming.findIndex((h) => h.key === requested));
   const holiday = upcoming[at];
 
-  const [households, circle, current, guests, conflict, members, inviteToken, base] =
+  const [households, circle, current, guests, conflict, members, base] =
     await Promise.all([
       getHouseholds(),
       circleOf(person.householdId),
@@ -102,10 +101,8 @@ export default async function Page({
       guestsComingTo(holiday.key, person.householdId),
       findConflict(holiday.key, person.householdId),
       membersByHousehold(),
-      inviteFor(person.householdId),
       origin(),
     ]);
-  const inviteUrl = `${base}/join/${inviteToken}`;
   const whoIsIn = (id: string) => members.get(id) ?? [];
 
   // Knowing where everyone else is, is the reward for saying where you are.
@@ -153,7 +150,6 @@ export default async function Page({
       daysAway={daysUntil(holiday.date)}
       answeredBy={answeredBy}
       impliedByGuest={impliedByGuest}
-      inviteUrl={inviteUrl}
       guests={guests.map((g) => ({ id: g.id, name: g.name, members: whoIsIn(g.id) }))}
       circleStatus={byCircle(
         circleStatus.map((c) => ({

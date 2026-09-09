@@ -1,12 +1,10 @@
 import { redirect } from 'next/navigation';
 import { FamiliesManager } from '@/components/FamiliesManager';
-import { headers } from 'next/headers';
 import { NextStep } from '@/components/NextStep';
 import {
   circleOf,
   findPerson,
   getHousehold,
-  inviteFor,
   membersByHousehold,
   circlesFor,
   circleTags,
@@ -25,12 +23,10 @@ export default async function FamiliesPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [circle, members, token, head, unanswered, own, circles, tags, standing] =
+  const [circle, members, unanswered, own, circles, tags, standing] =
     await Promise.all([
       circleOf(person.householdId),
       membersByHousehold(),
-      inviteFor(person.householdId),
-      headers(),
       unansweredUpcoming(person.householdId),
       getHousehold(person.householdId),
       circlesFor(person.householdId),
@@ -38,7 +34,6 @@ export default async function FamiliesPage() {
       standings(person.householdId),
     ]);
 
-  const base = `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
   const tagged = Object.fromEntries(tags);
   // One order for the whole list, wherever it is shown: several circles first,
   // then gathered by which circles they are in.
@@ -63,7 +58,6 @@ export default async function FamiliesPage() {
         circles={circles}
         tags={tagged}
         standing={Object.fromEntries(standing)}
-        inviteUrl={`${base}/join/${token}`}
         ownName={own?.name ?? 'הבית שלנו'}
       />
       <NextStep step={step} />

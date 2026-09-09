@@ -20,7 +20,7 @@ import {
   BackButton,
   Busy,
   CheckIcon,
-  CopyIcon,
+  ChevronIcon,
   CrossIcon,
   ErrorNote,
   IconButton,
@@ -30,9 +30,7 @@ import {
   card,
   chipButton,
   field,
-  primaryButton,
   quietButton,
-  secondaryButton,
   sectionHeading,
 } from './ui';
 
@@ -41,7 +39,6 @@ type Family = { id: string; name: string; members: Member[] };
 export function FamiliesManager({
   families,
   ownMembers,
-  inviteUrl,
   ownName,
   circles,
   tags,
@@ -51,7 +48,6 @@ export function FamiliesManager({
   /** The people in our own household, for a link that lets one of them in elsewhere. */
   ownMembers: Member[];
   /** This family's standing join link, for the families nobody has joined yet. */
-  inviteUrl: string;
   /** What our own household is called. */
   ownName: string;
   /** The circles we are in, as we named and coloured them. */
@@ -61,81 +57,9 @@ export function FamiliesManager({
   /** What can still be done to each family: renamed, deleted, or only dropped. */
   standing: Record<string, { addedByUs: boolean; joined: boolean; answeredFor: boolean }>;
 }) {
-  const [link, setLink] = useState('');
-  const [copied, setCopied] = useState(false);
-  const [busy, setBusy] = useState<'family' | 'household' | null>(null);
-  const [linkError, setLinkError] = useState('');
-  const { busy: sharing, start: startShare, stop: stopShare, go: goShare } = useHandoff();
   const [addingFamily, setAddingFamily] = useState(false);
   const [openFamily, setOpenFamily] = useState<string | null>(null);
   const router = useRouter();
-
-  async function makeLink(kind: 'family' | 'household') {
-    setBusy(kind);
-    setLinkError('');
-    try {
-      const made = await newInviteLink(kind);
-      if (made.token) {
-        setLink(`${window.location.origin}/join/${made.token}`);
-        setCopied(false);
-      } else {
-        setLinkError(made.error ?? 'משהו השתבש, נסו שוב');
-      }
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  // Mint and leave in one tap. The window has to be navigated rather than
-  // opened, since a pop-up after the wait is blocked.
-  async function shareLink() {
-    startShare();
-    const made = await newInviteLink('family');
-    if (!made.token) {
-      stopShare();
-      setLinkError(made.error ?? 'משהו השתבש, נסו שוב');
-      return;
-    }
-    goShare(inviteVia(`${window.location.origin}/join/${made.token}`));
-  }
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  }
-
-  /**
-   * Copying the invitation, and nothing else. It used to mint the link and then
-   * show a second layout with a full-width copy button — two taps and a change
-   * of scenery for one small errand.
-   */
-  async function copyLink() {
-    setBusy('family');
-    setLinkError('');
-    try {
-      const made = await newInviteLink('family');
-      if (!made.token) {
-        setLinkError(made.error ?? 'משהו השתבש, נסו שוב');
-        return;
-      }
-      const url = `${window.location.origin}/join/${made.token}`;
-      try {
-        await navigator.clipboard.writeText(url);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 2500);
-      } catch {
-        // Some browsers will not write to the clipboard after an await. Show
-        // the link rather than losing it.
-        setLink(url);
-      }
-    } finally {
-      setBusy(null);
-    }
-  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -144,19 +68,29 @@ export function FamiliesManager({
         <p className="text-muted">רק המשפחות שכאן מופיעות כשאתם עונים על חג.</p>
       </header>
 
+      {/* The circles come first. They are what the screen is called, and what
+          decides who is on the list underneath — a list of families above the
+          thing that fills it read as the point, with the circles as a footnote
+          about it. */}
+      <Circles circles={circles} families={families.map((f) => ({ id: f.id, name: f.name }))} />
+
       <section id="families" className={`${card} flex flex-col gap-1 p-0`}>
         <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
           <h2 className={sectionHeading}>המשפחות שלנו</h2>
           {/* Adding one from the top of the list it goes into, rather than from
               the panel at the foot of a long screen. */}
-          <IconButton label="הוספת משפחה" onClick={() => setAddingFamily(true)}>
-            <PlusIcon />
+          {/* The same ＋ as the one on a circle's field, at the size of a mark
+              that is the only way in rather than one errand among several. It
+              was a small grey outline, and people looked past it for a sentence
+              to tap — which is why there used to be one at the foot of the
+              screen as well, saying the same thing twice. */}
+          <IconButton label="הוספת משפחה" big filled onClick={() => setAddingFamily(true)}>
+            <PlusIcon className="h-5 w-5" />
           </IconButton>
         </div>
         {addingFamily && (
           <div className="flex flex-col gap-3 px-5 pb-3">
             <AddFamilyInline
-              inviteUrl={inviteUrl}
               circles={circles}
               startOpen
               onClose={() => setAddingFamily(false)}
@@ -204,6 +138,18 @@ export function FamiliesManager({
                       and nothing else — no list to find themselves in, and no
                       family name to invent. */}
                   <RowInvite householdId={family.id} members={family.members} />
+                  {/* The mark that says there is something under this row. A row
+                      that only reveals itself once tapped has told nobody it can
+                      be tapped. */}
+                  <button
+                    type="button"
+                    onClick={() => setOpenFamily(openFamily === family.id ? null : family.id)}
+                    aria-expanded={openFamily === family.id}
+                    aria-label={`מה אפשר לעשות עם ${family.name}`}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full transition active:scale-95"
+                  >
+                    <ChevronIcon open={openFamily === family.id} />
+                  </button>
                 </div>
 
                 {openFamily === family.id && (
@@ -221,90 +167,30 @@ export function FamiliesManager({
           </ul>
         )}
       </section>
-      <Circles circles={circles} families={families.map((f) => ({ id: f.id, name: f.name }))} />
 
-      {/* Our own house, for the same reason: the person to invite into it is a
-          row, not a kind of invitation to pick out of a list. */}
+      {/* Our own house, last: it is the one row on this screen that is not
+          about somebody else. */}
       <section className={`${card} flex flex-col gap-1 p-0`}>
         <h2 className={`px-5 pt-4 pb-1 ${sectionHeading}`}>הבית שלנו</h2>
         <OwnHouse name={ownName} members={ownMembers} />
       </section>
-
-      <div id="invite" className={`${card} flex flex-col gap-3`}>
-        <h2 className={sectionHeading}>הזמנה</h2>
-
-        {link ? (
-          <>
-            {/* The clipboard refused — a browser that will not write outside a
-                tap it recognises. The link itself, then, to copy by hand. */}
-            <input
-              readOnly
-              dir="ltr"
-              value={link}
-              onFocus={(e) => e.currentTarget.select()}
-              aria-label="קישור ההזמנה"
-              className={`${field} text-sm`}
-            />
-            <button type="button" onClick={copy} className={secondaryButton}>
-              {copied ? 'הקישור הועתק ✓' : 'העתקת הקישור'}
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={shareLink}
-                disabled={busy !== null || sharing}
-                className={`${primaryButton} inline-flex grow items-center justify-center gap-2`}
-              >
-                <WhatsAppMark />
-                <Busy busy={sharing}>הזמנה בוואטסאפ</Busy>
-              </button>
-              {/* The same link, for pasting anywhere else — a mark beside the
-                  button rather than a second line of words under it. */}
-              <IconButton
-                label={copied ? 'הקישור הועתק' : 'העתקת קישור הזמנה'}
-                busy={busy === 'family' && !copied}
-                disabled={sharing}
-                onClick={copyLink}
-              >
-                {copied ? <CheckIcon /> : <CopyIcon />}
-              </IconButton>
-            </div>
-            <p className="-mt-1 text-center text-xs text-muted">
-              לקבוצת המשפחה, או למי שעוד לא ברשימה למעלה.
-            </p>
-            <ErrorNote>{linkError}</ErrorNote>
-
-            {/* Adding a family by name, on the screen that is about families.
-                Until now this lived only beside the holiday question, and the
-                contact picker beneath it is Chrome-on-Android only — so half
-                the family had no way to add anybody from here at all. */}
-            <div className="mt-1 flex flex-col gap-3 border-t border-line pt-3">
-              <AddFamilyInline
-                inviteUrl={inviteUrl}
-                circles={circles}
-                onAdded={() => router.refresh()}
-              />
-            </div>
-          </>
-        )}
-      </div>
 
     </div>
   );
 }
 
 /**
- * Our own family's row, and the one thing about it that is ours to change.
+ * Our own family's row, and what is ours to do about it.
  *
  * The name is often not ours to begin with — somebody added us from a name in
  * their phone before we ever opened the app — so correcting it is a common
- * errand, not a settings-screen rarity. It belongs on the row that shows the
- * name, rather than three taps deep behind the menu under our own name.
+ * errand, not a settings-screen rarity. It and the way to let a partner or a
+ * grown child in both live under the row, which opens like every other row on
+ * this screen; on the row itself they made a line about one household read as a
+ * row of controls.
  */
 function OwnHouse({ name, members }: { name: string; members: Member[] }) {
+  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   // Inviting a partner or a grown child. It lived under the menu at the top of
   // every screen, which is not where anybody looks for it — this row is what it
@@ -346,33 +232,64 @@ function OwnHouse({ name, members }: { name: string; members: Member[] }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3.5">
-      <div className="min-w-0 grow basis-40">
-        <p className="font-semibold break-words text-ink">{name}</p>
-        <span className="text-sm text-muted">
-          {members.length === 0 ? 'רק אתם' : members.map((m) => m.name).join(', ')}
-        </span>
+    <div className="flex flex-col gap-2 px-5 py-3.5">
+      {/* The row opens what can be done about our own house, the same way a
+          family's row and a circle's row do. Two errands live under it —
+          correcting the name, and letting a partner or a grown child in — and
+          both sat on the row itself, which made a row about one household look
+          like a row of controls. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          className="flex min-w-0 grow basis-40 flex-col text-start"
+        >
+          <span className="font-semibold break-words text-ink">{name}</span>
+          <span className="text-sm text-muted">
+            {members.length === 0 ? 'רק אתם' : members.map((m) => m.name).join(', ')}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          aria-label="מה אפשר לעשות עם הבית שלנו"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full transition active:scale-95"
+        >
+          <ChevronIcon open={open} />
+        </button>
       </div>
-      <IconButton label="שינוי שם המשפחה שלנו" onClick={() => setEditing(true)}>
-        <PencilIcon />
-      </IconButton>
-      <button
-        type="button"
-        disabled={adding}
-        onClick={async () => {
-          start();
-          const made = await newInviteLink('household', '');
-          if (!made.token) {
-            stop();
-            return;
-          }
-          go(inviteVia(`${window.location.origin}/join/${made.token}`));
-        }}
-        className={`${chipButton} inline-flex items-center gap-2`}
-      >
-        <WhatsAppMark />
-        <Busy busy={adding}>הוספת בן בית</Busy>
-      </button>
+
+      {open && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-brand-wash p-3">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-brand"
+          >
+            <PencilIcon />
+            שינוי שם המשפחה
+          </button>
+          <button
+            type="button"
+            disabled={adding}
+            onClick={async () => {
+              start();
+              const made = await newInviteLink('household', '');
+              if (!made.token) {
+                stop();
+                return;
+              }
+              go(inviteVia(`${window.location.origin}/join/${made.token}`));
+            }}
+            className={`${chipButton} inline-flex items-center gap-2`}
+          >
+            <WhatsAppMark />
+            <Busy busy={adding}>הוספת בן בית</Busy>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

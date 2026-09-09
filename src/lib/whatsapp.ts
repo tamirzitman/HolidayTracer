@@ -34,9 +34,10 @@ export const inviteVia = (url: string, phone?: string): string =>
   message(inviteText(url), phone);
 
 /**
- * Telling somebody the app exists, without introducing them to anybody. An
+ * Telling a friend the app exists, without introducing them to anybody. An
  * invitation carries a token and joins two families; this is only the address,
- * for the friend who likes the idea but has no business in your circle.
+ * which is why it lives in the menu rather than among the invitations — beside
+ * them it read as one of them.
  */
 export const shareApp = (url: string): string =>
   message(`יש אפליקציה קטנה שאנחנו עוקבים בה אחרי מי מארח בכל חג. אולי תתאים גם לכם:\n${url}`);

@@ -33,12 +33,10 @@ type Entry = {
 export function HistoryList({
   entries,
   families,
-  inviteUrl,
 }: {
   entries: Entry[];
   families: { id: string; name: string }[];
   /** Our standing join link, for a family added here that is not in the app. */
-  inviteUrl: string;
 }) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(editHistory, {});
   const [editing, setEditing] = useState<string | null>(null);
@@ -169,7 +167,6 @@ export function HistoryList({
             {open && asGuest && (
               <div className="pt-1">
                 <AddFamilyInline
-                  inviteUrl={inviteUrl}
                   onAdded={(householdId) => {
                     const select = hostSelect.current;
                     if (select) select.value = householdId;

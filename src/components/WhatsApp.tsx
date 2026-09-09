@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { newInviteLink } from '@/app/actions';
+import { useHandoff } from '@/lib/handoff';
 import { chatWith, inviteVia } from '@/lib/whatsapp';
 
 export type Member = { name: string; phone: string };
@@ -41,17 +43,18 @@ const touch =
  * which of them you meant.
  */
 export function FamilyWhatsApp({
+  householdId,
   familyName,
   members,
-  inviteUrl,
 }: {
+  /** Which family, so an invitation can be made out to them rather than to nobody. */
+  householdId: string;
   familyName: string;
   members: Member[];
-  /** The inviter's standing join link, for families nobody has joined. */
-  inviteUrl: string;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const { busy, start, stop, go } = useHandoff();
 
   useEffect(() => {
     if (!open) return;
@@ -62,18 +65,30 @@ export function FamilyWhatsApp({
     return () => document.removeEventListener('mousedown', away);
   }, [open]);
 
+  // Nobody to write to yet, so this invites them — and the link is made out to
+  // this family. It used to be the sender's own standing link, which says
+  // nothing about who is being invited: opening it beside a family already on
+  // the list would open a second household with the same people in it.
   if (members.length === 0) {
     return (
-      <a
-        href={inviteVia(inviteUrl)}
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          start();
+          const made = await newInviteLink('family', '', householdId);
+          if (!made.token) {
+            stop();
+            return;
+          }
+          go(inviteVia(`${window.location.origin}/join/${made.token}`));
+        }}
         aria-label={`הזמנת ${familyName} לאפליקציה בוואטסאפ`}
         title={`הזמנת ${familyName}`}
-        className={touch}
+        className={`${touch} disabled:opacity-50`}
       >
         <WhatsAppMark />
-      </a>
+      </button>
     );
   }
 

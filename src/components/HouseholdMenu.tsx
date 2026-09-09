@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useCallback, useState } from 'react';
 import { useCloseOnAway } from '@/lib/dismiss';
 import { signOut } from '@/app/actions';
+import { shareApp } from '@/lib/whatsapp';
+import { WhatsAppMark } from './WhatsApp';
 import { OccasionIcon } from './ui';
 
 /**
@@ -13,12 +15,20 @@ import { OccasionIcon } from './ui';
  * Occasions live here rather than behind a ＋ on the holiday screen: adding one
  * is not the only reason to open that page, and editing one through an "add"
  * button reads wrong.
+ *
+ * So does telling a friend the app exists. It used to sit at the foot of every
+ * screen beside the things that put families on each other's lists, where it
+ * read as one of them — and it is not: it carries no token and introduces
+ * nobody. It says "friends" now, and it is somewhere you go looking for it.
  */
 export function HouseholdMenu({
   householdName,
   personName,
+  appUrl,
 }: {
   householdName: string;
+  /** This app's own address, for telling a friend it exists. */
+  appUrl: string;
   /** Which of us is signed in. The household name alone leaves that unsaid on a
    *  phone two people share, and it is the first thing worth knowing. */
   personName: string;
@@ -56,6 +66,20 @@ export function HouseholdMenu({
             <OccasionIcon className="h-4 w-4" />
             המועדים שלנו
           </Link>
+
+          <a
+            href={shareApp(appUrl)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setOpen(false)}
+            className={`${item} border-t border-line`}
+            role="menuitem"
+          >
+            <span className="text-whatsapp">
+              <WhatsAppMark />
+            </span>
+            שיתוף עם חברים
+          </a>
 
           <form action={signOut} className="border-t border-line">
             <button type="submit" className={`${item} text-muted`} role="menuitem">

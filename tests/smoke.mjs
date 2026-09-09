@@ -112,6 +112,8 @@ const addToOurHouse = async (page) => {
   await page.goto(`${BASE}/families`);
   await page.waitForSelector('text=הבית שלנו');
   const before = rows('Invites').length;
+  // Behind the row, like everything else about a household on this screen.
+  await page.click('[aria-label="מה אפשר לעשות עם הבית שלנו"]');
   await page.click('text=הוספת בן בית');
   for (let i = 0; i < 40 && rows('Invites').length === before; i += 1) {
     await page.waitForTimeout(250);
@@ -158,7 +160,8 @@ await stranger.click('text=הוספת המשפחות שלנו');
 await stranger.waitForURL('**/families');
 check('and it leads to adding them, not to a paragraph about it',
   stranger.url().endsWith('/families'));
-await stranger.click('text=לא מוצאים? הוסיפו משפחה');
+// The ＋ on the list it goes into, which is the only way in on this screen now.
+await stranger.click('[aria-label="הוספת משפחה"]');
 await stranger.waitForSelector('input[name=familyPhone]');
 check('a number can be typed, not only picked from contacts',
   await stranger.isVisible('input[name=familyPhone]'));
@@ -168,14 +171,15 @@ const beforeCold = rows('Households').length;
 await stranger.fill('input[name=familyName]', 'אבא ואמא');
 await stranger.fill('input[name=familyPhone]', DAD);
 await stranger.click('form:has(input[name=familyName]) button[type=submit]');
-await stranger.waitForSelector('text=נוספו, וכבר נבחרו');
+// Added from the ＋, the answer is the list: the panel folds away and the family
+// is on it. The card that says "added, and already selected" belongs to the
+// holiday screen, where being selected is the point.
+await stranger.waitForSelector('#families li:has-text("אבא ואמא")');
 await stranger.waitForTimeout(1500);
 check('a typed number that is known makes no second household',
   rows('Households').length === beforeCold);
-// A number somebody has already signed in with needs no invitation, so the
-// card that appears says nothing about sending them one.
-check('a number somebody already signed in with needs no invite',
-  !(await stranger.isVisible('text=הם עוד לא באפליקציה')));
+check('and adding from the ＋ folds it away again',
+  (await stranger.$$('input[name=familyName]')).length === 0);
 
 await stranger.goto(BASE);
 await stranger.click('text=מתארחים אצל…');
@@ -215,6 +219,10 @@ await stranger.waitForSelector('text=נוספו, וכבר נבחרו');
 await stranger.waitForTimeout(1500);
 check('a number the app knows joins that family rather than copying it',
   rows('Households').length === beforeKnown);
+// Somebody has already signed in with that number, so there is nobody to
+// invite and the card says nothing about sending them a link.
+check('a number somebody already signed in with needs no invite',
+  !(await stranger.isVisible('text=הם עוד לא באפליקציה')));
 check('a family added while answering is already chosen',
   (await stranger.$eval('select[name=hostHouseholdId]', (el) =>
     el.selectedOptions[0].textContent.trim())) === 'דנה ויוסי');
@@ -229,20 +237,20 @@ const afterAdding = await stranger.$$eval('#families li', (els) =>
 check(`adding one family brings one family (${afterAdding.length})`,
   afterAdding.length === 2 && afterAdding.some((n) => n.includes('דנה ויוסי')));
 
-// Somebody has to vouch for the suite's own protagonist. The stranger just
-// connected to dad's household by typing its number, so the stranger can —
-// and the person is picked by name, not looked up.
-// The panel is one general link now — no number field, no kind to choose.
-check('the invite panel offers one link and no pickers',
-  (await stranger.$$('#invite input[type=tel]')).length === 0 &&
-    (await stranger.$$('#invite select')).length === 0);
-// One tap out to WhatsApp, with the link itself a tap behind for pasting
-// anywhere else — minting it first and only then choosing where to send it was
-// two taps for the thing almost everybody does with it.
-check('and goes straight out in one tap',
-  await stranger.isVisible('#invite button:has-text("הזמנה בוואטסאפ")'));
-check('with the link itself a mark beside it, not a second line of words',
-  await stranger.isVisible('#invite [aria-label="העתקת קישור הזמנה"]'));
+// One way in, offered once. There used to be a panel at the foot of this screen
+// with a second form for adding a family and a link that connected the opener
+// to us and to nobody else — the same errand as the ＋ at the top, and a kind of
+// invitation that says nothing about who is being invited.
+check('adding a family is offered once on this screen, not twice',
+  (await stranger.$$('main input[name=familyName]')).length === 0);
+check('and the way to do it is the ＋ on the list it goes into',
+  await stranger.isVisible('[aria-label="הוספת משפחה"]'));
+// The circles come first: they are what the screen is called, and what decides
+// who is on the list underneath.
+const order = await stranger.$$eval('main h2', (els) => els.map((e) => e.textContent.trim()));
+check(`the circles are above the families (${order.join(' → ')})`,
+  order.indexOf('המעגלים שלנו') < order.indexOf('המשפחות שלנו') &&
+    order.indexOf('המשפחות שלנו') < order.indexOf('הבית שלנו'));
 
 // ── a family we added: correcting it, and taking it back ────────────────────
 // A name we typed is our note about them, so it is ours to fix — until somebody
@@ -306,7 +314,14 @@ check('and the tab only grew — switched off, never erased',
 const beforeRename = rows('Households').length;
 await stranger.goto(`${BASE}/families`);
 await stranger.waitForSelector('text=הבית שלנו');
-await stranger.click('[aria-label="שינוי שם המשפחה שלנו"]');
+// Behind the row, which opens like a family's does. On the row itself, a line
+// about one household read as a row of controls.
+check('our own house says it has something under it',
+  await stranger.isVisible('[aria-label="מה אפשר לעשות עם הבית שלנו"]'));
+check('and keeps it there until asked',
+  !(await stranger.isVisible('text=שינוי שם המשפחה')));
+await stranger.click('[aria-label="מה אפשר לעשות עם הבית שלנו"]');
+await stranger.click('text=שינוי שם המשפחה');
 await stranger.fill('input[name=householdName]', 'רן ומיכל ברק-שגיא');
 await stranger.click('text=/^שמירה/');
 await stranger.waitForTimeout(2000);
@@ -427,14 +442,24 @@ check('and the form itself is not duplicated here',
 await dad.click('nav >> text=המעגלים');
 await dad.waitForURL('**/families');
 check('the tab bar reaches the circles screen', await dad.isVisible('text=המעגלים שלי'));
-const beforeInvite = rows('Invites').length;
-await dad.click('[aria-label="העתקת קישור הזמנה"]');
-for (let i = 0; i < 40 && rows('Invites').length === beforeInvite; i += 1) {
-  await dad.waitForTimeout(250);
-}
-check('an invite link is created', rows('Invites').length === beforeInvite + 1);
-check('the invite is a family invite', inv(rows('Invites').at(-1), 'kind') === 'family');
-const token = inv(rows('Invites').at(-1), 'token');
+// Put them on the list by name, then send the link made on their row. Every
+// invitation in the app now says who it is for — this one names a family, a
+// circle's names a circle — so nobody opens a link and lands as a second copy
+// of a household that is already there.
+const beforeNewcomer = rows('Households').length;
+await dad.click('[aria-label="הוספת משפחה"]');
+await dad.waitForSelector('input[name=familyName]');
+await dad.fill('input[name=familyName]', 'דנה ויוסי לוי');
+await dad.click('form:has(input[name=familyName]) button[type=submit]');
+await dad.waitForSelector('text=נוספו, וכבר נבחרו');
+await dad.waitForTimeout(1500);
+check('a family added by name is one new household',
+  rows('Households').length === beforeNewcomer + 1);
+const madeFor = await linkFromRow(dad, 'דנה ויוסי לוי');
+check('the invite is a family invite', inv(madeFor, 'kind').trim() === 'family');
+check('and it names the family it was made for',
+  inv(madeFor, 'for_household_id') !== '');
+const token = inv(madeFor, 'token');
 
 const newcomer = await open();
 await newcomer.goto(`${BASE}/join/${token}`);
@@ -454,24 +479,20 @@ const asked = await newcomer.$$eval('input:not([type=hidden]), select', (els) =>
   els.map((e) => e.name || e.type),
 );
 check(`joining asks three things and no more (${asked.join(', ')})`, asked.length === 3);
-check('the family name is not guessed from your own',
-  (await newcomer.inputValue('input[name=householdName]')) === '');
+// The link says which family they are, so the name is already written and open
+// to correction — no list of strangers to find themselves in, and no family
+// name to invent.
+check('the family they were invited as is already filled in',
+  (await newcomer.inputValue('input[name=householdName]')) === 'דנה ויוסי לוי');
+check('and there is nobody else to pick out of a list',
+  !(await newcomer.isVisible('select[name=claimHouseholdId]')));
 check('a way out exists for a number typed wrong',
   await newcomer.isVisible('text=זה לא המספר שלי — יציאה'));
 check('and judges nobody else on the way in',
   (await newcomer.$$('input[name=share]')).length === 0);
 
-// The families the inviter knows are offered, so somebody added by name can
-// say "that one is us" rather than opening a second household beside it. It
-// waits behind a line of text: most people arriving on a link are new.
-check('the families on the inviter\'s list can be claimed',
-  await newcomer.isVisible('text=המשפחה שלנו כבר ברשימה'));
-check('but a new family is what the form asks for first',
-  !(await newcomer.isVisible('select[name=claimHouseholdId]')));
-
 await newcomer.fill('input[name=firstName]', 'דנה');
 await newcomer.fill('input[name=surname]', 'לוי');
-await newcomer.fill('input[name=householdName]', 'דנה ויוסי לוי');
 const joinButtons = await newcomer.$$eval('form button[type=submit]', (els) =>
   els.map((e) => e.textContent.trim()),
 );
@@ -486,8 +507,8 @@ check('the newcomer is in', rows('Households').some((r) => r[1] === 'דנה וי
 // inside somebody else's circle.
 check(`and takes a fresh id, not the deleted family's (${typoId})`,
   rows('Households').find((r) => r[1] === 'דנה ויוסי לוי')[0] !== typoId);
-check('the family name is the two fields joined',
-  rows('Households').some((r) => r[1] === 'דנה ויוסי לוי'));
+check(`and opens no second household beside the one they were invited as (${rows('Households').length - beforeNewcomer})`,
+  rows('Households').length === beforeNewcomer + 1);
 
 // ── they arrive with the families they ticked, and only those ────────────────
 await newcomer.click('text=מתארחים אצל…');
@@ -1033,25 +1054,29 @@ await forwarded.close();
 // The general link is untouched by any of that.
 await dad.goto(`${BASE}/families`);
 await dad.waitForSelector('text=המעגלים שלי');
+await dad.click('[aria-label="מה אפשר לעשות עם הבית שלנו"]');
 check('our own house is invited from its own row, not from the menu',
   await dad.isVisible('text=הוספת בן בית'));
 check('and the menu keeps only what belongs to nobody\'s row',
   !(await dad.isVisible('[role=menu]')));
-if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
-const beforeReusable = rows('Invites').length;
-await dad.click('[aria-label="העתקת קישור הזמנה"]');
-for (let i = 0; i < 40 && rows('Invites').length === beforeReusable; i += 1) {
-  await dad.waitForTimeout(250);
-}
-// What "reusable" actually means, rather than a sentence saying so: aimed at
-// nobody, so there is nothing for spendInvite to close.
-const reusable = rows('Invites').at(-1);
-check('a link with no number stays reusable',
-  !inv(reusable, 'for_phone') && !inv(reusable, 'for_household_id') && !inv(reusable, 'used_at'));
+// Nothing hands out a link that names nobody any more. Every invitation the app
+// makes is for a family or for a circle, so a link opened by the wrong person
+// cannot quietly put them on somebody's list as a household of their own.
+const anonymous = rows('Invites').filter(
+  (r) =>
+    inv(r, 'kind').trim() === 'family' &&
+    !inv(r, 'for_phone') &&
+    !inv(r, 'for_household_id') &&
+    !inv(r, 'for_circle_id'),
+);
+check(`no invitation is made out to nobody (${anonymous.length})`, anonymous.length === 0);
 
 // ── an invite link cannot quietly put somebody on your list ──────────────────
+// The circle's link, which is the widest one the app makes: it is meant for a
+// group chat, so it is the one a stranger is most likely to be handed. Even
+// that one joins nobody to anybody unless the opener says so.
 const friend = await open();
-await friend.goto(`${BASE}/join/${token}`);
+await friend.goto(`${BASE}/join/${inv(circleInvite, 'token')}`);
 await friend.fill('input[name=phone]', '058-111-2222');
 await friend.click('button[type=submit]');
 await friend.waitForSelector('input[name=firstName]');
@@ -1084,21 +1109,22 @@ check('a stranger has no row for a family they are not connected to, so no link'
   !(await friend.isVisible('text=אבא ואמא')));
 await friend.close();
 
-// A link opened by somebody already signed in as that household is not a way in
-// for a stranger — it simply takes them where they were going.
+// A link opened by somebody who is already where it leads is not a way in for a
+// stranger — it simply takes them where they were going.
 const withGroupLink = await open();
-await withGroupLink.goto(`${BASE}/join/${token}`);
+await withGroupLink.goto(`${BASE}/join/${inv(circleInvite, 'token')}`);
 await withGroupLink.fill('input[name=phone]', DAD);
 await withGroupLink.click('button[type=submit]');
 await withGroupLink.waitForSelector('nav');
-check('a general link signs a known number in as itself', await withGroupLink.isVisible('nav'));
+check('a circle link signs a number already in that circle in as itself',
+  await withGroupLink.isVisible('nav'));
 await withGroupLink.close();
 
 // A link that has gone stale is a way in, not a wall.
 const aged = sheet();
 const agedCols = colsOf('Invites');
 aged.Invites = aged.Invites.map((r, i) => {
-  if (!i || r[agedCols.indexOf('token')] !== token) return r;
+  if (!i || r[agedCols.indexOf('token')] !== inv(circleInvite, 'token')) return r;
   const copy = [...r];
   copy[agedCols.indexOf('created_at')] = '2020-01-01T00:00:00.000Z';
   return copy;
@@ -1106,7 +1132,7 @@ aged.Invites = aged.Invites.map((r, i) => {
 writeFileSync(SHEET, `${JSON.stringify(aged, null, 2)}\n`, 'utf8');
 await dad.waitForTimeout(SHEET_TTL_MS);
 const late = await open();
-await late.goto(`${BASE}/join/${token}`);
+await late.goto(`${BASE}/join/${inv(circleInvite, 'token')}`);
 await late.waitForSelector('input[name=phone]');
 check('an expired link falls back to signing in, not to a dead end',
   await late.isVisible('text=כבר לא בתוקף'));
@@ -1145,9 +1171,31 @@ check(`the families list carries no per-family marks (${marks})`, marks === 0);
 // The contact picker is Chrome-on-Android only, so without this the families
 // screen offers an iPhone no way to add anybody at all.
 check('and a family can be added by name from the families screen',
-  await dad.isVisible('text=לא מוצאים? הוסיפו משפחה'));
+  await dad.isVisible('[aria-label="הוספת משפחה"]'));
 check('the household name is not repeated under the header',
   (await dad.$$('main [aria-hidden="true"]:text("🏡")')).length === 0);
+
+// Telling a friend the app exists is not an invitation: it carries no token and
+// introduces nobody. At the foot of every screen it sat among the things that
+// do introduce people and read as one of them.
+check('the app is not shared from the foot of every screen',
+  !(await dad.isVisible('main >> text=/שיתוף/')));
+await dad.click('[aria-haspopup=menu]');
+check('and telling a friend is in the menu, and says friends',
+  await dad.isVisible('[role=menu] >> text=שיתוף עם חברים'));
+const friendly = await dad.getAttribute('[role=menu] a[href*="wa.me"]', 'href');
+check('carrying the app itself and nobody\'s token',
+  Boolean(friendly) && !decodeURIComponent(friendly).includes('/join/'));
+await dad.click('[aria-haspopup=menu]');
+
+// The holiday screen used to carry the sender's own general link beside a
+// family nobody had joined — a mark that said "invite them" and handed over an
+// invitation to nobody in particular. Whoever opened it arrived as a household
+// of their own, beside the one the mark was about.
+await dad.goto(BASE);
+await dad.waitForSelector('nav');
+check('no ready-made link is sitting on the holiday screen',
+  (await dad.$$('main a[href*="/join/"]')).length === 0);
 
 await dad.goto(`${BASE}/history`);
 check('history says who answered', /ענו: אבא/.test(await dad.innerText('main')));
@@ -1171,28 +1219,9 @@ check('a family added by name is one new household',
   rows('Households').length === beforeJoin + 1);
 const theirHousehold = rows('Households').find((r) => r[1] === 'רות ואורי לוי')[0];
 
-// A general link offers the same claim: whoever opens it can say which family
-// on the inviter's list is theirs, which is what keeps one family from
-// becoming two.
-await dad.goto(`${BASE}/families`);
-if (await dad.isVisible('#invite [aria-label="חזרה"]')) await dad.click('#invite [aria-label="חזרה"]');
-const beforeShared = rows('Invites').length;
-await dad.click('[aria-label="העתקת קישור הזמנה"]');
-for (let i = 0; i < 40 && rows('Invites').length === beforeShared; i += 1) {
-  await dad.waitForTimeout(250);
-}
-check('copying the invitation makes one, without changing the screen',
-  rows('Invites').length === beforeShared + 1 &&
-    (await dad.isVisible('#invite button:has-text("הזמנה בוואטסאפ")')));
-const shared = inv(rows('Invites').at(-1), 'token');
-const viaGroup = await open();
-await viaGroup.goto(`${BASE}/join/${shared}`);
-await viaGroup.fill('input[name=phone]', FIRST_NUMBER);
-await viaGroup.click('button[type=submit]');
-await viaGroup.waitForSelector('input[name=firstName]');
-check('a general link offers the listed families to claim',
-  await viaGroup.isVisible('text=המשפחה שלנו כבר ברשימה'));
-await viaGroup.close();
+// Saying "that one is us" is the circle link's job now — it is the one
+// invitation aimed at a group rather than at a person, and it is checked where
+// it is made.
 
 // Made from their own row, it says which family they are.
 const forFirst = inv(await linkFromRow(dad, 'רות ואורי לוי'), 'token');

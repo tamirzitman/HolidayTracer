@@ -40,7 +40,6 @@ type Props = {
   /** True when it was written because a guest said they were coming here. */
   impliedByGuest: boolean;
   /** Our family's standing join link, for writing to families nobody has joined. */
-  inviteUrl: string;
   /** Households that said they are coming to us. Only meaningful when hosting. */
   guests: { id: string; name: string; members: Member[] }[];
   /** Where everyone in the circle is. Empty until we have answered ourselves. */
@@ -104,7 +103,6 @@ export function AnswerForm({
   daysAway,
   answeredBy,
   impliedByGuest,
-  inviteUrl,
   guests,
   circleStatus,
   circleSize,
@@ -331,9 +329,9 @@ export function AnswerForm({
                          dropping underneath it. */
                       <span className="ms-1.5 inline-block align-middle">
                         <FamilyWhatsApp
+                          householdId={host.id}
                           familyName={host.name}
                           members={host.members}
-                          inviteUrl={inviteUrl}
                         />
                       </span>
                     )}
@@ -363,7 +361,7 @@ export function AnswerForm({
                 שינוי תשובה
               </button>
 
-              {shown.kind === 'hosting' && <Guests guests={guests} inviteUrl={inviteUrl} />}
+              {shown.kind === 'hosting' && <Guests guests={guests} />}
             </div>
           ) : (
             <form
@@ -506,7 +504,6 @@ export function AnswerForm({
 
       {!answered && choosingHost && (
         <AddFamilyInline
-          inviteUrl={inviteUrl}
           circles={circles}
           onAdded={(householdId) => {
             // Straight into the dropdown they were looking in: adding a family
@@ -789,10 +786,8 @@ type AnswerKindLike = 'hosting' | 'guest' | 'away' | undefined;
 /** Who said they are coming to us — the whole reward for answering "we're hosting". */
 function Guests({
   guests,
-  inviteUrl,
 }: {
   guests: { id: string; name: string; members: Member[] }[];
-  inviteUrl: string;
 }) {
   return (
     <div className="mt-2 w-full border-t border-line pt-4">
@@ -805,7 +800,7 @@ function Guests({
             {guests.map((g) => (
               <li key={g.id} className="flex items-center justify-between gap-2 text-ink">
                 <span className="truncate">{g.name}</span>
-                <FamilyWhatsApp familyName={g.name} members={g.members} inviteUrl={inviteUrl} />
+                <FamilyWhatsApp householdId={g.id} familyName={g.name} members={g.members} />
               </li>
             ))}
           </ul>

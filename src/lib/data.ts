@@ -895,26 +895,6 @@ export async function spendInvite(token: string): Promise<void> {
 const latestInvite = (sheet: Sheet, token: string): Invite | undefined =>
   sheet.invites.filter((i) => i.token === token).at(-1);
 
-/**
- * The family's standing invite link, made once and reused. Every unregistered
- * family on a screen carries an invite button, and minting a token per button
- * per page load would fill the tab with links nobody ever opens. Reuse is
- * already the semantics: a token names who is inviting, not who is invited.
- */
-export async function inviteFor(householdId: string): Promise<string> {
-  const existing = (await loadSheet()).invites
-    .filter(
-      (i) =>
-        i.createdBy === householdId &&
-        i.kind === 'family' &&
-        // Never a targeted one: those are spent by whoever they were sent to.
-        !i.forPhone &&
-        !i.forHouseholdId &&
-        !expired(i),
-    )
-    .at(-1);
-  return existing?.token ?? createInvite(householdId, 'family');
-}
 
 /**
  * How long an invite stays good for.

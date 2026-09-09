@@ -30,7 +30,6 @@ import {
 export function AddFamilyInline({
   onAdded,
   onClose,
-  inviteUrl,
   circles = [],
   startOpen = false,
 }: {
@@ -41,7 +40,6 @@ export function AddFamilyInline({
    * a way in that was not there before the ＋ was pressed.
    */
   onClose?: () => void;
-  inviteUrl: string;
   /** Our circles, so a new family can be placed in one while we are adding it. */
   circles?: { id: string; name: string; color: string }[];
   /** Opened by something else — a ＋ that has already said what it is for. */
@@ -101,13 +99,13 @@ export function AddFamilyInline({
         <p className="font-display text-xl font-bold text-ink">
           {state.name} נוספו, וכבר נבחרו
         </p>
-        {state.invitePhone ? (
+        {state.invitePhone && personal ? (
           <>
             <p className="text-sm text-muted">
               הם עוד לא באפליקציה. שלחו להם קישור ויוכלו לענות בעצמם.
             </p>
             <a
-              href={inviteVia(personal || inviteUrl, state.invitePhone)}
+              href={inviteVia(personal, state.invitePhone)}
               target="_blank"
               rel="noopener noreferrer"
               className={`${primaryButton} inline-flex items-center justify-center gap-2`}

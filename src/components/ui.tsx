@@ -117,6 +117,7 @@ export function IconButton({
   disabled,
   busy = false,
   filled = false,
+  big = false,
   children,
 }: {
   label: string;
@@ -134,6 +135,12 @@ export function IconButton({
    * press it for.
    */
   filled?: boolean;
+  /**
+   * Bigger, for a mark that is the only way into something rather than one of
+   * several errands on a row. A ＋ the size of a row's tidy-up mark reads as
+   * furniture, and people look past it for a sentence to tap.
+   */
+  big?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -144,11 +151,11 @@ export function IconButton({
       aria-label={label}
       aria-busy={busy || undefined}
       title={label}
-      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full transition active:scale-95 disabled:opacity-40 ${
-        filled ? 'bg-brand text-ground' : 'text-brand'
-      }`}
+      className={`grid shrink-0 place-items-center rounded-full transition active:scale-95 disabled:opacity-40 ${
+        big ? 'h-10 w-10' : 'h-8 w-8'
+      } ${filled ? 'bg-brand text-ground' : 'text-brand'}`}
     >
-      {busy ? <Spinner className="h-4 w-4" /> : children}
+      {busy ? <Spinner className={big ? 'h-5 w-5' : 'h-4 w-4'} /> : children}
     </button>
   );
 }
@@ -220,10 +227,34 @@ export function CheckIcon() {
   );
 }
 
-export function PlusIcon() {
+export function PlusIcon({ className = 'h-4 w-4' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
       <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/**
+ * The mark on anything that opens and shuts. It turns to point down when the
+ * thing is open, which is the whole of how a row says it has more under it —
+ * a row that only reveals its meaning once tapped has told nobody anything.
+ */
+export function ChevronIcon({ open = false, className = 'h-4 w-4' }: { open?: boolean; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={`${className} shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M6 9l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation';
 import { HistoryList } from '@/components/HistoryList';
 import { byCircle } from '@/lib/circle-order';
 import { Title } from '@/components/ui';
-import { headers } from 'next/headers';
 import { NextStep } from '@/components/NextStep';
 import {
   circleOf,
@@ -10,7 +9,6 @@ import {
   findPerson,
   getHouseholds,
   historyFor,
-  inviteFor,
   unansweredUpcoming,
 } from '@/lib/data';
 import { nextStep } from '@/lib/next-step';
@@ -25,12 +23,10 @@ export default async function HistoryPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [past, households, circle, token, head, unanswered, tags] = await Promise.all([
+  const [past, households, circle, unanswered, tags] = await Promise.all([
     historyFor(person.householdId),
     getHouseholds(),
     circleOf(person.householdId),
-    inviteFor(person.householdId),
-    headers(),
     unansweredUpcoming(person.householdId),
     circleTags(person.householdId),
   ]);
@@ -44,7 +40,6 @@ export default async function HistoryPage() {
     nextHolidayName: unanswered[0]?.nameHe,
     on: 'history',
   });
-  const base = `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
   const nameOf = (id: string) => households.find((h) => h.id === id)?.name ?? id;
 
   const answered = past.filter((entry) => entry.answer !== undefined);
@@ -82,7 +77,6 @@ export default async function HistoryPage() {
               circle.map((h) => ({ id: h.id, name: h.name })),
               Object.fromEntries(tags),
             )}
-            inviteUrl={`${base}/join/${token}`}
           />
         </>
       )}
