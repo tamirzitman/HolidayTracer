@@ -15,6 +15,7 @@
     "mark": "tsx scripts/mark-holidays.mts",
     "connect-all": "tsx scripts/connect-all.mts",
     "align": "tsx scripts/align-headers.mts",
+    "check-sheet": "tsx --env-file=.env.local scripts/check-sheet.mts",
     "reset": "tsx scripts/reset-playground.mts",
     "copy-sheet": "tsx --env-file=.env.local scripts/copy-sheet.mts",
     "clear-sheet": "tsx --env-file=.env.local scripts/clear-sheet.mts"
