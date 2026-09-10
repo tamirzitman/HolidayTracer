@@ -13,6 +13,12 @@ export type SheetStore = {
   readMany(tabs: string[]): Promise<Record<string, string[][]>>;
   append(tab: string, row: string[]): Promise<void>;
   replace(tab: string, rows: string[][]): Promise<void>;
+  /**
+   * Makes a tab if the spreadsheet has not got one. True when it had to. The
+   * local file grows tabs as they are written to; Google refuses a range on a
+   * sheet that does not exist, so a new tab has to be asked for.
+   */
+  ensureTab(tab: string): Promise<boolean>;
 };
 
 const asStrings = (values: unknown[][] | undefined): string[][] =>
@@ -36,16 +42,39 @@ function googleStore(spreadsheetId: string): SheetStore {
       return asStrings(res.data.values ?? undefined);
     },
     async readMany(tabs) {
-      const res = await sheets.spreadsheets.values.batchGet({
-        spreadsheetId,
-        ranges: tabs.map((tab) => `${tab}!A:Z`),
-        valueRenderOption: 'UNFORMATTED_VALUE',
-      });
       const out: Record<string, string[][]> = {};
-      (res.data.valueRanges ?? []).forEach((range, i) => {
-        out[tabs[i]] = asStrings(range.values ?? undefined);
+      try {
+        const res = await sheets.spreadsheets.values.batchGet({
+          spreadsheetId,
+          ranges: tabs.map((tab) => `${tab}!A:Z`),
+          valueRenderOption: 'UNFORMATTED_VALUE',
+        });
+        (res.data.valueRanges ?? []).forEach((range, i) => {
+          out[tabs[i]] = asStrings(range.values ?? undefined);
+        });
+        return out;
+      } catch {
+        // One range Google cannot parse fails the whole batch, and a tab that
+        // does not exist is exactly that — so a spreadsheet missing a tab the
+        // code has learned about since would go dark rather than come up with
+        // that one tab empty. Ask for them one at a time instead.
+        await Promise.all(
+          tabs.map(async (tab) => {
+            out[tab] = await this.read(tab).catch(() => []);
+          }),
+        );
+        return out;
+      }
+    },
+    async ensureTab(tab) {
+      const meta = await sheets.spreadsheets.get({ spreadsheetId });
+      const has = (meta.data.sheets ?? []).some((s) => s.properties?.title === tab);
+      if (has) return false;
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests: [{ addSheet: { properties: { title: tab } } }] },
       });
-      return out;
+      return true;
     },
     async append(tab, row) {
       await sheets.spreadsheets.values.append({
@@ -102,6 +131,11 @@ function localStore(): SheetStore {
       const data = await load();
       data[tab] = rows;
       await save(data);
+    },
+    // The file grows a tab the moment something is written to it, so there is
+    // never one to make.
+    async ensureTab() {
+      return false;
     },
   };
 }

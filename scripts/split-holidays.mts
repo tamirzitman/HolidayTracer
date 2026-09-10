@@ -129,6 +129,9 @@ const backup = `.holidays-before-split-${Date.now()}.json`;
 writeFileSync(backup, `${JSON.stringify(rows, null, 2)}\n`, 'utf8');
 console.log(`\n✓ the tab as it was is in ${backup}`);
 
+// Google will not accept a range on a sheet that is not there.
+if (await store.ensureTab(TABS.dates)) console.log(`✓ made the ${TABS.dates} tab`);
+
 await store.replace(TABS.holidays, [[...HEADERS.holidays], ...catalogue.values()]);
 await store.replace(TABS.dates, [[...HEADERS.dates], ...dates]);
 console.log(`✓ Holidays: ${catalogue.size} rows`);
