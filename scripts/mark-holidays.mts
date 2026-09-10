@@ -1,13 +1,13 @@
 /**
- * Turns include on or off for whole kinds of holiday across every year at once,
- * so you don't tick two hundred checkboxes by hand.
+ * Turns a holiday on or off.
  *
  *   npm run mark -- --on erev_pesach,erev_shavuot
  *   npm run mark -- --off purim
  *   npm run mark -- --list          # what's currently on
  *
- * Names are matched against holiday_key with its trailing year removed, so
- * "erev_pesach" covers erev_pesach_5787, erev_pesach_5788 and so on.
+ * One row each, now that the catalogue says what a holiday is once rather than
+ * once per year — this used to walk every year of it and set the same cell
+ * fifteen times.
  */
 import { readFileSync } from 'node:fs';
 
@@ -15,10 +15,6 @@ loadEnv();
 const { sheetStore } = await import('../src/lib/sheet.ts');
 
 const TAB = 'Holidays';
-const KEY = 0;
-const NAME = 1;
-const DATE = 3;
-const INCLUDE = 6;
 
 function loadEnv(): void {
   for (const file of ['.env.local', '.env']) {
@@ -43,21 +39,23 @@ function arg(name: string): string | undefined {
   return i === -1 ? undefined : process.argv[i + 1];
 }
 
-const base = (key: string) => key.replace(/_\d{4}$/, '');
-
 const rows = await sheetStore().read(TAB);
 if (rows.length < 2) {
   console.error('The Holidays tab is empty. Run: npm run seed:holidays');
   process.exit(1);
 }
 const [headers, ...body] = rows;
+// By header name, like everything else that reads this spreadsheet: a person
+// edits it by hand, and a column moved must not silently mark the wrong cell.
+const at = (name: string) => headers.map((h) => String(h).trim().toLowerCase()).indexOf(name);
+const ID = at('holiday_id');
+const NAME = at('name_he');
+const INCLUDE = at('include');
 
 if (process.argv.includes('--list')) {
   const on = body.filter((r) => String(r[INCLUDE]).toUpperCase() === 'TRUE');
-  const kinds = new Map<string, number>();
-  for (const r of on) kinds.set(r[NAME], (kinds.get(r[NAME]) ?? 0) + 1);
-  console.log(`${on.length} rows marked include=TRUE:`);
-  for (const [name, count] of kinds) console.log(`  ${name} — ${count} year(s)`);
+  console.log(`${on.length} holiday(s) marked include=TRUE:`);
+  for (const r of on) console.log(`  ${String(r[ID]).padEnd(24)} ${r[NAME]}`);
   process.exit(0);
 }
 
@@ -71,7 +69,7 @@ if (on.length === 0 && off.length === 0) {
 let changed = 0;
 const touched = new Set<string>();
 for (const row of body) {
-  const kind = base(row[KEY] ?? '');
+  const kind = String(row[ID] ?? '');
   const want = on.includes(kind) ? 'TRUE' : off.includes(kind) ? 'FALSE' : undefined;
   if (want === undefined) continue;
   touched.add(kind);
@@ -83,14 +81,13 @@ for (const row of body) {
 
 const unknown = [...on, ...off].filter((k) => !touched.has(k));
 if (unknown.length > 0) {
-  console.error(`No holiday rows match: ${unknown.join(', ')}`);
-  console.error('Check the holiday_key column — names are the key without its year.');
+  console.error(`No holiday matches: ${unknown.join(', ')}`);
+  console.error('Check the holiday_id column — one row per holiday, whatever the year.');
   process.exit(1);
 }
 
 await sheetStore().replace(TAB, [headers, ...body]);
 
-const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
 const marked = body.filter((r) => String(r[INCLUDE]).toUpperCase() === 'TRUE');
-console.log(`${changed} row(s) changed`);
-console.log(`${marked.length} marked include=TRUE, ${marked.filter((r) => r[DATE] >= today).length} still upcoming`);
+console.log(`${changed} holiday(s) changed`);
+console.log(`${marked.length} of ${body.length} marked include=TRUE`);

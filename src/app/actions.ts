@@ -6,6 +6,8 @@ import { redirect } from 'next/navigation';
 import {
   addHousehold,
   addOccasion,
+  occasionsOf,
+  renameOccasion,
   addPerson,
   appendAnswer,
   circleOf,
@@ -460,6 +462,38 @@ export async function shareOccasionWith(
     String(formData.get('holidayKey') ?? '').trim(),
     await chosenFromCircle(me.householdId, formData),
   );
+  revalidatePath('/');
+  revalidatePath('/occasions');
+  revalidatePath('/history');
+  return { savedAt: new Date().toISOString() };
+}
+
+/**
+ * Correcting what an occasion is called, or the mark beside it.
+ *
+ * One row on the catalogue, and every year of the occasion changes with it —
+ * which is what the catalogue is for. The name and the mark used to be copied
+ * into a row per year, so putting either right meant editing all of them.
+ */
+export async function nameOccasion(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+
+  const key = String(formData.get('holidayKey') ?? '').trim();
+  const mine = (await occasionsOf(me.householdId)).some((o) => o.key === key);
+  if (!mine) return { error: 'המועד הזה לא שלכם' };
+
+  const name = String(formData.get('name') ?? '').trim();
+  if (!name) return { error: 'צריך שם למועד' };
+
+  // One mark, not a sentence: an emoji is one or two code points, and anything
+  // longer is somebody typing a label into the wrong box.
+  const emoji = [...String(formData.get('emoji') ?? '').trim()].slice(0, 2).join('');
+
+  await renameOccasion(key, name, emoji);
   revalidatePath('/');
   revalidatePath('/occasions');
   revalidatePath('/history');

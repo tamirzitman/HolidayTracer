@@ -117,21 +117,24 @@ export function Circles({
             <li key={circle.id} className="flex flex-col gap-2 px-5 py-3">
               {/* The row is the control. A pencil beside it asked people to aim
                   at a small target for the only thing the row does. */}
+              {/* Never wrapped: the chevron is the last thing on the line and
+                  stays on it, so every row's mark sits on the same edge — a
+                  long name used to push it onto a line of its own. */}
               <button
                 type="button"
                 onClick={() => setOpen(open === circle.id ? null : circle.id)}
                 aria-expanded={open === circle.id}
-                className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 text-start"
+                className="flex w-full items-center gap-3 text-start"
               >
                 <span
                   className="h-3.5 w-3.5 shrink-0 rounded-full ring-1 ring-black/10"
                   style={{ backgroundColor: colorOf(circle.color) }}
                   aria-hidden="true"
                 />
-                <span className="min-w-0 grow basis-32 font-semibold break-words text-ink">
+                <span className="min-w-0 grow font-semibold break-words text-ink">
                   {circle.name}
                 </span>
-                <span className="text-sm text-muted">
+                <span className="shrink-0 text-sm text-muted">
                   {circle.members.length === 0
                     ? 'רק אתם'
                     : `${circle.members.length} משפחות`}

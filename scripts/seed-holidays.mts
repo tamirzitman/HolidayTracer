@@ -113,32 +113,23 @@ const all = HebrewCalendar.calendar({ start, end, il: true, sedrot: false, candl
     const named = NAMES[kind];
     return {
       kind,
-      row: [
-        `${kind}_${year}`,
-        named?.name ?? stripYear(ev.render('he-x-NoNikud')),
-        named?.type ?? type,
-        date.toISOString().slice(0, 10),
-        year,
-        'TRUE',
-        '',
-        '',
-        // Written into the row rather than left to the code, so the column
-        // arrives filled in and editing a mark is editing a cell.
-        emojiForKind(kind),
-      ],
+      name: named?.name ?? stripYear(ev.render('he-x-NoNikud')),
+      type: named?.type ?? type,
+      year,
+      date: date.toISOString().slice(0, 10),
     };
   })
   .filter((x): x is { kind: string; row: string[] } => x !== null);
 
 if (process.argv.includes('--list-kinds')) {
   const kinds = new Map<string, string>();
-  for (const { kind, row } of all) if (!kinds.has(kind)) kinds.set(kind, row[1]);
+  for (const { kind, name } of all) if (!kinds.has(kind)) kinds.set(kind, name);
   for (const [kind, name] of [...kinds].sort()) console.log(`${kind.padEnd(26)} ${name}`);
   process.exit(0);
 }
 
 const wanted = new Set(arg('kinds', DEFAULT_KINDS.join(',')).split(',').filter(Boolean));
-const candidates = all.filter((x) => wanted.has(x.kind)).map((x) => x.row);
+const candidates = all.filter((x) => wanted.has(x.kind));
 
 const unknown = [...wanted].filter((k) => !all.some((x) => x.kind === k));
 if (unknown.length > 0) {
@@ -147,14 +138,22 @@ if (unknown.length > 0) {
   process.exit(1);
 }
 
-const existing = await sheetStore().read(TABS.holidays);
-const existingBody = existing.length > 1 ? existing.slice(1) : [];
+// Two tabs now, and the difference between them is the point: the catalogue
+// says what a holiday is, once, and the Dates tab says when it falls, once per
+// year. A rename or a new mark is one row either way — it used to be one row
+// per year, and putting a name right meant editing fifteen of them.
+const store = sheetStore();
+const catalogue = await store.read(TABS.holidays);
+const dates = await store.read(TABS.dates);
 
-// Columns by header name: this tab is edited by hand, and the schema has grown.
-const header = existing[0] ?? [];
-const at = (name: string) => header.indexOf(name);
-const [KEY, NAME, TYPE, EMOJI] = ['holiday_key', 'name_he', 'type', 'emoji'].map(at);
-const kindOf = (key: string) => key.replace(/_\d{4}$/, '');
+const at = (header: string[], name: string) => header.indexOf(name);
+const catHeader = catalogue[0] ?? [];
+const catBody = catalogue.length > 1 ? catalogue.slice(1) : [];
+const ID = at(catHeader, 'holiday_id');
+const NAME = at(catHeader, 'name_he');
+const TYPE = at(catHeader, 'type');
+const EMOJI = at(catHeader, 'emoji');
+
 const put = (row: string[], i: number, value: string) => {
   if (i === -1) return false;
   while (row.length <= i) row.push('');
@@ -163,45 +162,55 @@ const put = (row: string[], i: number, value: string) => {
   return true;
 };
 
-// Rows written before the emoji column existed have an empty cell there. Fill
-// in what the kind suggests, so the column reads as something to edit rather
-// than something to work out. A mark already typed is never overwritten.
+// What each kind is called and what it looks like, applied to the entry that
+// stands for every year of it.
+let renamed = 0;
 let filled = 0;
-if (EMOJI !== -1) {
-  for (const row of existingBody) {
-    while (row.length <= EMOJI) row.push('');
-    if (row[EMOJI].trim()) continue;
-    row[EMOJI] = emojiForKind(row[KEY === -1 ? 0 : KEY] ?? '');
+for (const row of catBody) {
+  const kind = row[ID === -1 ? 0 : ID] ?? '';
+  const named = NAMES[kind];
+  if (EMOJI !== -1 && !(row[EMOJI] ?? '').trim()) {
+    put(row, EMOJI, emojiForKind(kind));
     filled += 1;
   }
-}
-
-// The renames go across the board — every year already in the tab, not only the
-// ones still to come. The key never changes, so answers already given to these
-// holidays stay attached to them.
-let renamed = 0;
-for (const row of existingBody) {
-  const named = NAMES[kindOf(row[KEY === -1 ? 0 : KEY] ?? '')];
   if (!named) continue;
   let touched = put(row, NAME, named.name);
   if (named.type) touched = put(row, TYPE, named.type) || touched;
   if (touched) renamed += 1;
 }
 
-const known = new Set(existingBody.map((row) => row[0]));
-const added = candidates.filter((row) => !known.has(row[0]));
-const rows = [...existingBody, ...added].sort((a, b) => (a[3] ?? '').localeCompare(b[3] ?? ''));
+const known = new Set(catBody.map((row) => row[ID === -1 ? 0 : ID]));
+const newEntries: string[][] = [];
+for (const { kind, name, type } of candidates) {
+  if (known.has(kind) || newEntries.some((r) => r[0] === kind)) continue;
+  newEntries.push([kind, NAMES[kind]?.name ?? name, NAMES[kind]?.type ?? type, emojiForKind(kind), 'TRUE', '', '']);
+}
 
-console.log(`${wanted.size} kind(s) over ${years} years ahead and ${back} back → ${candidates.length} rows`);
-console.log(`${existingBody.length} already in the tab, ${added.length} new`);
-if (filled > 0) console.log(`${filled} row(s) given the mark their kind suggests`);
-if (renamed > 0) console.log(`${renamed} row(s) renamed to what this family calls them`);
+const dateHeader = dates[0] ?? [];
+const dateBody = dates.length > 1 ? dates.slice(1) : [];
+const D_ID = at(dateHeader, 'holiday_id');
+const D_YEAR = at(dateHeader, 'year');
+const haveDate = new Set(
+  dateBody.map((r) => `${r[D_ID === -1 ? 0 : D_ID]}\u0000${r[D_YEAR === -1 ? 1 : D_YEAR]}`),
+);
+const newDates = candidates
+  .filter((c) => !haveDate.has(`${c.kind}\u0000${c.year}`))
+  .map((c) => [c.kind, c.year, c.date]);
+
+console.log(`${wanted.size} kind(s) over ${years} years ahead and ${back} back`);
+console.log(`catalogue: ${catBody.length} entries, ${newEntries.length} new`);
+console.log(`dates:     ${dateBody.length} rows, ${newDates.length} new`);
+if (filled > 0) console.log(`${filled} entr(ies) given the mark their kind suggests`);
+if (renamed > 0) console.log(`${renamed} entr(ies) renamed to what this family calls them`);
 
 if (process.argv.includes('--dry')) {
-  for (const row of added.slice(0, 15)) console.log(row.join('\t'));
-  if (added.length > 15) console.log(`… and ${added.length - 15} more`);
+  for (const row of [...newEntries, ...newDates].slice(0, 15)) console.log(row.join('\t'));
   console.log('\n--dry: nothing written');
 } else {
-  await sheetStore().replace(TABS.holidays, [[...HEADERS.holidays], ...rows]);
-  console.log(`wrote ${rows.length} rows to ${TABS.holidays}`);
+  await store.replace(TABS.holidays, [[...HEADERS.holidays], ...catBody, ...newEntries]);
+  await store.replace(TABS.dates, [
+    [...HEADERS.dates],
+    ...[...dateBody, ...newDates].sort((a, b) => (a[2] ?? '').localeCompare(b[2] ?? '')),
+  ]);
+  console.log(`wrote ${catBody.length + newEntries.length} entries and ${dateBody.length + newDates.length} dates`);
 }

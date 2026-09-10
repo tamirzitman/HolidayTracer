@@ -84,7 +84,7 @@ const linkFromRow = async (page, familyName) => {
   // Scoped to the families list: a suggestion row names the families that
   // vouch for it, so an unscoped search matches those too.
   const row = page.locator('#families li').filter({ hasText: familyName }).last();
-  if ((await row.getByRole('button', { name: /הזמנה בוואטסאפ/ }).count()) === 0) {
+  if ((await row.getByRole('button', { name: /הזמנה למשפחה/ }).count()) === 0) {
     const seen = await page.$$eval('#families li', (els) =>
       els.map((e) => e.innerText.replace(/\n/g, ' | ')),
     );
@@ -99,7 +99,7 @@ const linkFromRow = async (page, familyName) => {
         `hh_parents connections: ${conn}`,
     );
   }
-  await row.getByRole('button', { name: /הזמנה בוואטסאפ/ }).click();
+  await row.getByRole('button', { name: /הזמנה למשפחה/ }).click();
   // The tap leaves for WhatsApp, so the link's arrival is read from the sheet.
   for (let i = 0; i < 40 && rows('Invites').length === before; i += 1) {
     await page.waitForTimeout(250);
@@ -346,7 +346,7 @@ check(`and every family is listed once (${listed.length})`,
 // to, and no way back in to hand them, because getting in is a number.
 const dadRow = stranger.locator('#families li').filter({ hasText: 'אבא ואמא' }).last();
 check('a family already in the app is offered no link at all',
-  (await dadRow.getByRole('button', { name: /הזמנה בוואטסאפ/ }).count()) === 0 &&
+  (await dadRow.getByRole('button', { name: /הזמנה למשפחה/ }).count()) === 0 &&
     (await dadRow.getByRole('button', { name: 'עוד' }).count()) === 0);
 await stranger.close();
 
@@ -426,15 +426,9 @@ check('adding is a link inside the list it is about, not a second form',
   await circleCard.locator('a[href="/families"]').isVisible());
 check('and it is a ＋ with two words, not a sentence',
   (await circleCard.locator('a[href="/families"]').innerText()).trim() === 'הוספת משפחה');
-check('and the nudge is a mark on that list, not a button the width of the screen',
-  await circleCard.locator('a[href^="https://wa.me/?text="]').isVisible());
-// No counts: "ענו 3 מתוך 10" was true of the sender's list and of nobody
-// else's, so it read as a claim about a list the reader could not see.
-const nudge = decodeURIComponent(
-  (await circleCard.locator('a[href^="https://wa.me/?text="]').getAttribute('href')) ?? '',
-);
-check(`the reminder counts nobody's families (${nudge.split('\n')[0].slice(-40)})`,
-  !/\d+\s*מתוך\s*\d+/.test(nudge) && nudge.includes('מי מארח'));
+// A reminder goes to a circle's group chat, so with no circle there is nobody
+// to send one to and nothing is offered.
+check('no circle, no reminder to send', (await dad.$$('#reminders')).length === 0);
 check('and the form itself is not duplicated here',
   (await dad.$$('main input[name=familyName]')).length === 0);
 
@@ -758,6 +752,43 @@ const guestId = rows('Households').find((r) => r[1] === 'תמר ואיתי כה�
 check('and the circle has them back',
   rows('Connections').some((r) => r[0] === 'hh_sister' && r[1] === guestId && r[2] === 'add'));
 await guest.close();
+
+// ── the reminder on the holiday screen is one per circle ────────────────────
+// It used to be a single nudge carrying the app's plain address: it named no
+// circle, so it introduced nobody, and anybody not yet registered who followed
+// it arrived as a household of their own — out of a message about where the
+// family was eating.
+await dad.goto(BASE);
+await dad.waitForSelector('text=איפה כולם');
+const nudges = await dad.$$eval('#reminders button', (els) =>
+  els.map((e) => e.innerText.trim()).filter(Boolean),
+);
+check(`a reminder is offered per circle (${nudges.join(', ')})`,
+  nudges.includes('צד אבא') && nudges.includes('צד אמא'));
+check('each in its own colour, so they are told apart at a glance',
+  (await dad.$$eval('#reminders button span[style*="background"]', (els) =>
+    new Set(els.map((e) => e.getAttribute('style'))).size)) === 2);
+
+// What it sends: the holiday, and the circle's own link — not the app's.
+const beforeNudge = rows('Invites').length;
+let nudgeText = '';
+dad.on('request', (r) => {
+  if (r.url().includes('wa.me')) nudgeText = decodeURIComponent(r.url());
+});
+await dad.click('#reminders button:has-text("צד אבא")');
+for (let i = 0; i < 40 && rows('Invites').length === beforeNudge; i += 1) {
+  await dad.waitForTimeout(250);
+}
+const nudgeInvite = rows('Invites').at(-1);
+check('and sending one makes that circle a link of its own',
+  inv(nudgeInvite, 'kind').trim() === 'circle' && inv(nudgeInvite, 'for_circle_id') !== '');
+check(`the message invites to the holiday (${nudgeText.split('\n')[0].slice(-46)})`,
+  nudgeText.includes('מי מארח') && nudgeText.includes('צד אבא'));
+// No counts: "ענו 3 מתוך 10" was true of the sender's list and of nobody
+// else's, so it read as a claim about a list the reader could not see.
+check('and counts nobody\'s families', !/\d+\s*מתוך\s*\d+/.test(nudgeText));
+check('and carries the circle link, never the app on its own',
+  nudgeText.includes(`/join/${inv(nudgeInvite, 'token')}`));
 // Back to the question, where the dropdown has to be opened again.
 await newcomer.goto(BASE);
 await newcomer.waitForSelector('nav');
@@ -943,10 +974,12 @@ await dad.goto(`${BASE}?h=rosh_hashana_2026`);
 check('a holiday carries the mark its kind suggests',
   (await dad.innerText('main')).includes('🍯'));
 
+// One cell, on the entry that stands for every year of it — not one cell per
+// year, which is what this tab used to be.
 const marked = sheet();
 const emojiCol = marked.Holidays[0].indexOf('emoji');
 marked.Holidays = marked.Holidays.map((r, i) =>
-  i && r[0] === 'rosh_hashana_2026' ? Object.assign([...r], { [emojiCol]: '🐟' }) : r,
+  i && r[0] === 'rosh_hashana' ? Object.assign([...r], { [emojiCol]: '🐟' }) : r,
 );
 writeFileSync(SHEET, `${JSON.stringify(marked, null, 2)}\n`, 'utf8');
 await dad.waitForTimeout(SHEET_TTL_MS);
@@ -1285,7 +1318,7 @@ check(`the panel that moves holds the holiday itself (${travels})`,
 // The soonest day no seeded holiday already occupies. A fixed "three days from
 // now" eventually lands on one of them — it landed on ערב ראש השנה — and then
 // two holidays share a date and which one the front page opens on is a toss-up.
-const taken = new Set(rows('Holidays').map((r) => r[3]));
+const taken = new Set(rows('Dates').map((r) => r[2]));
 let free = new Date(Date.now() + 86_400_000);
 while (taken.has(free.toISOString().slice(0, 10))) {
   free = new Date(free.getTime() + 86_400_000);
@@ -1309,13 +1342,22 @@ await dad.click('form button[type=submit]');
 await dad.waitForSelector('text=יום הולדת לסבתא');
 await dad.waitForTimeout(1200);
 check('a family can add an occasion of its own', await dad.isVisible('text=יום הולדת לסבתא'));
+// Two rows, because they are two facts: what the occasion is, and when it falls
+// this year. The key every answer is written against is the two joined.
 const added = rows('Holidays').at(-1);
-check('and it is written with the family as its owner', added[6] === 'hh_parents');
-check(`and with who it goes out to (${added[7]})`,
-  added[7].includes('hh_a') && !added[7].includes('hh_sister'));
-const occasionKey = added[0];
+const whenAdded = rows('Dates').at(-1);
+check('and it is written with the family as its owner', added[5] === 'hh_parents');
+check(`and with who it goes out to (${added[6]})`,
+  added[6].includes('hh_a') && !added[6].includes('hh_sister'));
+check(`and its date is a row of its own (${whenAdded.join(' | ')})`,
+  whenAdded[0] === added[0] && whenAdded[2] === SOON);
+const occasionKey = `${added[0]}_${SOON.slice(0, 4)}`;
 
-await dad.goto(BASE);
+// Opened by its own key rather than by being the nearest thing on the calendar:
+// which occasion the front page lands on depends on the day the suite runs, and
+// this is about an occasion being a holiday like any other, not about the date.
+await dad.goto(`${BASE}/?h=${occasionKey}`);
+await dad.waitForSelector('nav');
 check('the occasion is asked about like any holiday',
   (await dad.innerText('.font-display')).includes('יום הולדת לסבתא'));
 
@@ -1359,6 +1401,35 @@ await newcomer.waitForSelector('nav');
 check('and then nobody else sees it',
   !(await newcomer.innerText('header')).includes('יום הולדת לסבתא'));
 
+// ── the name and the mark are said once, for every year ─────────────────────
+// The whole point of the split: an occasion is one row on the catalogue, so
+// correcting what it is called changes it in every year at once. It used to be
+// one row per year with the name copied into each, and putting it right meant
+// editing all of them.
+const beforeName = rows('Holidays').length;
+await dad.goto(`${BASE}/occasions`);
+await dad.waitForSelector('text=יום הולדת לסבתא');
+await dad.click('[aria-label="שינוי השם והסימן של יום הולדת לסבתא"]');
+await dad.waitForSelector('input[name=emoji]');
+await dad.fill('input[name=name]', 'יום הולדת לסבתא רבתא');
+await dad.fill('input[name=emoji]', '🎂');
+await dad.click('form:has(input[name=emoji]) button[type=submit]');
+await dad.waitForSelector('text=יום הולדת לסבתא רבתא');
+await dad.waitForTimeout(1500);
+const renamedRow = rows('Holidays').at(-1);
+check(`the name and the mark are one row, not one per year (${renamedRow.slice(0, 4).join(' | ')})`,
+  rows('Holidays').length === beforeName + 1 &&
+    renamedRow[0] === occasionKey.replace(/_\d{4}$/, '') &&
+    renamedRow[1] === 'יום הולדת לסבתא רבתא' &&
+    renamedRow[3] === '🎂');
+check('and no date moved for a change of name',
+  rows('Dates').at(-1)[2] === SOON);
+await dad.goto(`${BASE}/?h=${occasionKey}`);
+check('which is what the holiday screen then shows',
+  (await dad.innerText('main')).includes('🎂'));
+await dad.goto(`${BASE}/occasions`);
+await dad.waitForSelector('text=יום הולדת לסבתא רבתא');
+
 const beforeRemove = rows('Holidays').length;
 // Asked first, like every other thing that takes something away.
 await dad.click('text=הסרה');
@@ -1376,8 +1447,8 @@ const afterRemove = rows('Holidays');
 check(`and erases nothing — the tab only grew (${beforeRemove} → ${afterRemove.length})`,
   afterRemove.length > beforeRemove);
 const gone = afterRemove.at(-1);
-check(`removal is a row, not a deletion (include=${gone[5]})`,
-  gone[0] === occasionKey && gone[5] === 'FALSE');
+check(`removal is a row, not a deletion (include=${gone[4]})`,
+  gone[0] === occasionKey.replace(/_\d{4}$/, '') && gone[4] === 'FALSE');
 
 // ── the log stays keys-only ──────────────────────────────────────────────────
 // Counted against the header rather than a fixed number: the point is that the

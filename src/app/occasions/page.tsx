@@ -22,7 +22,13 @@ export default async function OccasionsPage() {
       circle={circle.map((h) => ({ id: h.id, name: h.name }))}
       occasions={mine
         .filter((o) => o.include)
-        .map((o) => ({ key: o.key, name: o.nameHe, date: o.date, sharedWith: o.sharedWith }))}
+        .map((o) => ({
+          key: o.key,
+          name: o.nameHe,
+          emoji: o.emoji,
+          date: o.date,
+          sharedWith: o.sharedWith,
+        }))}
     />
   );
 }

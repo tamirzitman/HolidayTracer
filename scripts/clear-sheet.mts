@@ -1,9 +1,9 @@
 /**
  * Empties a spreadsheet back to its header rows, for starting over.
  *
- * The holidays are left alone: they are the calendar rather than anybody's
- * record, and seeding them again is a separate errand nobody wants after every
- * reset. Pass --holidays to clear those too.
+ * The holidays and their dates are left alone: they are the calendar rather
+ * than anybody's record, and seeding them again is a separate errand nobody
+ * wants after every reset. Pass --holidays to clear those too.
  *
  *   npm run clear-sheet                 # what it would clear, and where
  *   npm run clear-sheet -- --apply      # do it
@@ -50,8 +50,11 @@ const sheets = google.sheets({ version: 'v4', auth });
 const meta = await sheets.spreadsheets.get({ spreadsheetId: to });
 console.log(`clearing  ${meta.data.properties?.title}  (${to})\n`);
 
+// The calendar is both tabs: what the holidays are, and when they fall. Wiping
+// one and keeping the other leaves dates belonging to nothing.
+const calendar: string[] = [TABS.holidays, TABS.dates];
 const keys = (Object.keys(TABS) as (keyof typeof TABS)[]).filter(
-  (key) => alsoHolidays || TABS[key] !== TABS.holidays,
+  (key) => alsoHolidays || !calendar.includes(TABS[key]),
 );
 
 const backup: Record<string, string[][]> = {};

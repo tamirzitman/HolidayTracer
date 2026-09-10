@@ -13,6 +13,8 @@ import {
   type Connection,
   type Invite,
   type CircleRow,
+  type Occasion,
+  type OccasionDate,
 } from './types';
 
 /**
@@ -61,6 +63,7 @@ export type Sheet = {
 
 const TAB_LIST = [
   TABS.holidays,
+  TABS.dates,
   TABS.households,
   TABS.people,
   TABS.answers,
@@ -86,10 +89,40 @@ export function invalidateSheet(): void {
   memo = undefined;
 }
 
+/**
+ * The catalogue and the calendar, put back together into the occurrences every
+ * screen reads.
+ *
+ * The key is `<id>_<year>`, which is exactly what the Answers tab has held
+ * since before the split — so nothing written against the old one-row-per-year
+ * shape had to be rewritten to move to this one.
+ */
+function joinDates(catalogue: Occasion[], dates: OccasionDate[]): Holiday[] {
+  const known = new Map(catalogue.map((o) => [o.id, o]));
+  return dates
+    .map((when) => {
+      const what = known.get(when.occasionId);
+      if (!what) return undefined;
+      return {
+        key: `${what.id}_${when.year}`,
+        nameHe: what.nameHe,
+        type: what.type,
+        date: when.date,
+        year: when.year,
+        include: what.include,
+        emoji: what.emoji,
+        ownerHouseholdId: what.ownerHouseholdId,
+        sharedWith: what.sharedWith,
+      };
+    })
+    .filter((h): h is Holiday => h !== undefined);
+}
+
 async function fetchSheet(): Promise<Sheet> {
   const raw = await sheetStore().readMany(TAB_LIST);
 
   const holidaysTab = indexRows(raw[TABS.holidays] ?? []);
+  const datesTab = indexRows(raw[TABS.dates] ?? []);
   const householdsTab = indexRows(raw[TABS.households] ?? []);
   const peopleTab = indexRows(raw[TABS.people] ?? []);
   const answersTab = indexRows(raw[TABS.answers] ?? []);
@@ -104,6 +137,61 @@ async function fetchSheet(): Promise<Sheet> {
       cell(row, peopleTab.headers, 'household_id'),
     ]),
   );
+
+  // A sheet still in the one-row-per-year shape reads as if it had been split.
+  // The app and the spreadsheet are deployed by different hands and never at
+  // the same moment, and either of them arriving first without this shows a
+  // calendar with nothing in it.
+  const old = holidaysTab.headers.has('holiday_key');
+  const oldRows = old
+    ? holidaysTab.body.map((row) => ({
+        id: cell(row, holidaysTab.headers, 'holiday_key').replace(/_\d{4}$/, ''),
+        nameHe: cell(row, holidaysTab.headers, 'name_he'),
+        type: cell(row, holidaysTab.headers, 'type'),
+        emoji: cell(row, holidaysTab.headers, 'emoji'),
+        include: isTrue(cell(row, holidaysTab.headers, 'include')),
+        ownerHouseholdId: cell(row, holidaysTab.headers, 'owner_household_id'),
+        sharedWith: splitIds(cell(row, holidaysTab.headers, 'shared_with')),
+        year: cell(row, holidaysTab.headers, 'year'),
+        date: cell(row, holidaysTab.headers, 'date'),
+      }))
+    : [];
+
+  const catalogue = old
+    ? [...new Map(oldRows.filter((o) => o.id && o.nameHe).map((o) => [o.id, o] as const)).values()]
+    : [
+    ...new Map(
+      holidaysTab.body
+        .map((row) => ({
+          id: cell(row, holidaysTab.headers, 'holiday_id'),
+          nameHe: cell(row, holidaysTab.headers, 'name_he'),
+          type: cell(row, holidaysTab.headers, 'type'),
+          emoji: cell(row, holidaysTab.headers, 'emoji'),
+          include: isTrue(cell(row, holidaysTab.headers, 'include')),
+          ownerHouseholdId: cell(row, holidaysTab.headers, 'owner_household_id'),
+          sharedWith: splitIds(cell(row, holidaysTab.headers, 'shared_with')),
+        }))
+        .filter((o) => o.id && o.nameHe)
+        .map((o) => [o.id, o] as const),
+    ).values(),
+  ];
+
+  const occasionDates = old
+    ? oldRows
+        .filter((o) => o.id && o.date)
+        .map((o) => ({ occasionId: o.id, year: o.year || o.date.slice(0, 4), date: o.date }))
+    : [
+    ...new Map(
+      datesTab.body
+        .map((row) => ({
+          occasionId: cell(row, datesTab.headers, 'holiday_id'),
+          year: cell(row, datesTab.headers, 'year'),
+          date: cell(row, datesTab.headers, 'date'),
+        }))
+        .filter((d) => d.occasionId && d.date)
+        .map((d) => [`${d.occasionId}\u0000${d.year || d.date.slice(0, 4)}`, d] as const),
+    ).values(),
+  ];
 
   // Collapsed by id, newest row winning, exactly as the holidays below are.
   // Every tab here only ever grows: correcting a family's name appends a row
@@ -126,26 +214,15 @@ async function fetchSheet(): Promise<Sheet> {
   ];
 
   return {
-    // Append-only like everything else: the last row for a key is the one that counts,
-    // so switching an occasion off is another row rather than a rewrite.
-    holidays: [
-      ...new Map(
-        holidaysTab.body
-          .map((row) => ({
-            key: cell(row, holidaysTab.headers, 'holiday_key'),
-            nameHe: cell(row, holidaysTab.headers, 'name_he'),
-            type: cell(row, holidaysTab.headers, 'type'),
-            date: cell(row, holidaysTab.headers, 'date'),
-            year: cell(row, holidaysTab.headers, 'year'),
-            include: isTrue(cell(row, holidaysTab.headers, 'include')),
-            ownerHouseholdId: cell(row, holidaysTab.headers, 'owner_household_id'),
-            sharedWith: splitIds(cell(row, holidaysTab.headers, 'shared_with')),
-            emoji: cell(row, holidaysTab.headers, 'emoji'),
-          }))
-          .filter((h) => h.key && h.date)
-          .map((h) => [h.key, h] as const),
-      ).values(),
-    ],
+    // One holiday in one year, put back together: the catalogue says what it is
+    // called and what it looks like, the Dates tab says when it falls, and the
+    // key every answer has always been written against is the two joined.
+    //
+    // Append-only like everything else, on both tabs: the last row for a
+    // holiday, and the last row for a holiday in a year, are the ones that
+    // count — so correcting a name or switching an occasion off is another row
+    // rather than a rewrite.
+    holidays: joinDates(catalogue, occasionDates),
 
     households: allHouseholds.filter((h) => h.active),
     retired: allHouseholds.filter((h) => !h.active).map((h) => h.id),
@@ -457,24 +534,59 @@ export async function occasionsOf(householdId: string): Promise<Holiday[]> {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/**
+ * A family's own occasion: what it is, and when it falls this year. Two rows,
+ * because they are two different facts — and because next year's date can be
+ * added later without saying what the occasion is all over again.
+ */
 export async function addOccasion(
   householdId: string,
   name: string,
   date: string,
   sharedWith: string[],
 ): Promise<void> {
-  const key = `own_${householdId}_${date.replace(/-/g, '')}_${Date.now().toString(36)}`;
+  const id = `own_${householdId}_${date.replace(/-/g, '')}_${Date.now().toString(36)}`;
   await appendRow(TABS.holidays, HEADERS.holidays, [
-    key,
+    id,
     name,
     'מועד',
-    date,
-    date.slice(0, 4),
+    // No mark chosen: the kind decides, until somebody picks one.
+    '',
     'TRUE',
     householdId,
     joinIds(sharedWith),
-    // No mark chosen: the kind decides, until somebody types one in the sheet.
-    '',
+  ]);
+  await appendRow(TABS.dates, HEADERS.dates, [id, date.slice(0, 4), date]);
+}
+
+/** The catalogue entry behind a key, for the writers that change one field of it. */
+async function occasionBehind(key: string): Promise<Holiday | undefined> {
+  return (await loadSheet()).holidays.find((h) => h.key === key);
+}
+
+/**
+ * The id the key was built from. `<id>_<year>`, and the year is the last four
+ * digits — so this is the key with its year taken off again.
+ */
+const occasionId = (key: string): string => key.replace(/_\d{4}$/, '');
+
+/**
+ * Correcting what an occasion is called, or the mark beside it. One row on the
+ * catalogue, and every year of it changes at once — which is the whole reason
+ * the catalogue exists: the name used to be copied into a row per year, and
+ * putting it right meant editing all of them.
+ */
+export async function renameOccasion(key: string, name: string, emoji: string): Promise<void> {
+  const holiday = await occasionBehind(key);
+  if (!holiday) return;
+  await appendRow(TABS.holidays, HEADERS.holidays, [
+    occasionId(key),
+    name.trim() || holiday.nameHe,
+    holiday.type,
+    emoji,
+    'TRUE',
+    holiday.ownerHouseholdId,
+    joinIds(holiday.sharedWith),
   ]);
 }
 
@@ -493,17 +605,15 @@ export async function shareOccasion(
   );
   if (!holiday) return;
   await appendRow(TABS.holidays, HEADERS.holidays, [
-    holiday.key,
+    occasionId(key),
     holiday.nameHe,
     holiday.type,
-    holiday.date,
-    holiday.year,
+    // Carried, not dropped: a mark somebody chose must survive a change of
+    // audience, or editing one thing would quietly undo the other.
+    holiday.emoji,
     'TRUE',
     householdId,
     joinIds(sharedWith),
-    // Carried, not dropped: an emoji typed into the sheet must survive a change
-    // of audience, or editing one thing would quietly undo the other.
-    holiday.emoji,
   ]);
 }
 
@@ -514,15 +624,13 @@ export async function removeOccasion(householdId: string, key: string): Promise<
   );
   if (!holiday) return;
   await appendRow(TABS.holidays, HEADERS.holidays, [
-    holiday.key,
+    occasionId(key),
     holiday.nameHe,
     holiday.type,
-    holiday.date,
-    holiday.year,
+    holiday.emoji,
     'FALSE',
     householdId,
     joinIds(holiday.sharedWith),
-    holiday.emoji,
   ]);
 }
 

@@ -111,14 +111,18 @@ export function FamiliesManager({
           <ul className="divide-y divide-line">
             {families.map((family) => (
               <li key={family.id} className="flex flex-col gap-2 px-5 py-3.5">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                {/* Name and chevron on one line, the chevron last and never
+                    wrapped: every row's mark then sits on the same edge, and the
+                    eye can run down them. Anything else the row carries goes
+                    underneath, where it cannot push the mark around. */}
+                <div className="flex items-center gap-3">
                   {/* The row opens what can be done about the family, the same
                       way a circle's row does. */}
                   <button
                     type="button"
                     onClick={() => setOpenFamily(openFamily === family.id ? null : family.id)}
                     aria-expanded={openFamily === family.id}
-                    className="flex min-w-0 grow basis-40 flex-col text-start"
+                    className="flex min-w-0 grow flex-col text-start"
                   >
                     <span className="flex flex-wrap items-center gap-2 font-semibold break-words text-ink">
                       {family.name}
@@ -133,11 +137,6 @@ export function FamiliesManager({
                         : family.members.map((m) => m.name).join(', ')}
                     </span>
                   </button>
-                  {/* The invitation belongs on the row of the family it is for.
-                      The link carries who they are, so opening it asks their name
-                      and nothing else — no list to find themselves in, and no
-                      family name to invent. */}
-                  <RowInvite householdId={family.id} members={family.members} />
                   {/* The mark that says there is something under this row. A row
                       that only reveals itself once tapped has told nobody it can
                       be tapped. */}
@@ -151,6 +150,12 @@ export function FamiliesManager({
                     <ChevronIcon open={openFamily === family.id} />
                   </button>
                 </div>
+
+                {/* The invitation belongs on the row of the family it is for.
+                    The link carries who they are, so opening it asks their name
+                    and nothing else — no list to find themselves in, and no
+                    family name to invent. */}
+                <RowInvite householdId={family.id} members={family.members} />
 
                 {openFamily === family.id && (
                   <FamilyRow
@@ -238,12 +243,12 @@ function OwnHouse({ name, members }: { name: string; members: Member[] }) {
           correcting the name, and letting a partner or a grown child in — and
           both sat on the row itself, which made a row about one household look
           like a row of controls. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={() => setOpen(!open)}
           aria-expanded={open}
-          className="flex min-w-0 grow basis-40 flex-col text-start"
+          className="flex min-w-0 grow flex-col text-start"
         >
           <span className="font-semibold break-words text-ink">{name}</span>
           <span className="text-sm text-muted">
@@ -431,16 +436,19 @@ function RowInvite({ householdId, members }: { householdId: string; members: Mem
     go(inviteVia(`${window.location.origin}/join/${made.token}`, ''));
   }
 
+  // The same shape as a circle's invitation, and named the same way: what the
+  // link carries. A pill the width of the row said the same errand was a bigger
+  // one here than there, and the two sit a thumb apart.
   return (
     <div className="flex flex-col items-start gap-1">
       <button
         type="button"
         disabled={busy}
         onClick={invite}
-        className={`${chipButton} inline-flex items-center gap-2`}
+        className="inline-flex items-center gap-2 self-start text-sm font-bold text-whatsapp disabled:opacity-50"
       >
         <WhatsAppMark />
-        <Busy busy={busy}>הזמנה בוואטסאפ</Busy>
+        <Busy busy={busy}>הזמנה למשפחה</Busy>
       </button>
       <ErrorNote>{error}</ErrorNote>
     </div>

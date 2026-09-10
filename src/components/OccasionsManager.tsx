@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from 'react';
 import {
   createOccasion,
   deleteOccasion,
+  nameOccasion,
   shareOccasionWith,
   type ActionResult,
 } from '@/app/actions';
@@ -13,6 +14,8 @@ import {
   BackButton,
   Busy,
   ErrorNote,
+  IconButton,
+  PencilIcon,
   Title,
   card,
   chipButton,
@@ -22,7 +25,14 @@ import {
 } from './ui';
 
 type Family = { id: string; name: string };
-type Occasion = { key: string; name: string; date: string; sharedWith: string[] };
+type Occasion = {
+  key: string;
+  name: string;
+  /** The mark beside it. Empty falls back to the one the code knows for its kind. */
+  emoji: string;
+  date: string;
+  sharedWith: string[];
+};
 
 /**
  * Dates one family adds for itself — most often simply another holiday, or the
@@ -122,7 +132,9 @@ function Row({
   removeAction: (formData: FormData) => void;
 }) {
   const [state, shareAction, saving] = useActionState<ActionResult, FormData>(shareOccasionWith, {});
+  const [named, nameAction, naming] = useActionState<ActionResult, FormData>(nameOccasion, {});
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [chosen, setChosen] = useState<string[]>(occasion.sharedWith);
 
@@ -130,16 +142,29 @@ function Row({
   useEffect(() => {
     if (state.savedAt) setOpen(false);
   }, [state.savedAt]);
+  useEffect(() => {
+    if (named.savedAt) setEditing(false);
+  }, [named.savedAt]);
 
   return (
     <li className="flex flex-col gap-3 px-5 py-3.5">
       <div className="flex items-center gap-3">
         <div className="min-w-0 grow">
-          <p className="truncate font-semibold text-ink">{occasion.name}</p>
+          <p className="truncate font-semibold text-ink">
+            {occasion.emoji && <span className="me-1.5">{occasion.emoji}</span>}
+            {occasion.name}
+          </p>
           <p className="text-sm text-muted">{formatDayAndDate(occasion.date)}</p>
           <p className="text-xs text-muted">{audience}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {/* The name and the mark are one row on the catalogue now, so changing
+              either is one write and every year of the occasion follows. */}
+          {!editing && (
+            <IconButton label={`שינוי השם והסימן של ${occasion.name}`} onClick={() => setEditing(true)}>
+              <PencilIcon />
+            </IconButton>
+          )}
           {circle.length > 0 &&
             (open ? (
               <BackButton onClick={() => setOpen(false)} />
@@ -168,6 +193,38 @@ function Row({
           )}
         </div>
       </div>
+
+      {editing && (
+        <form action={nameAction} className="flex flex-col gap-3 border-t border-line pt-3">
+          <input type="hidden" name="holidayKey" value={occasion.key} />
+          <div className="flex items-end gap-2">
+            <label className="flex w-16 shrink-0 flex-col gap-2">
+              <span className="text-sm font-semibold text-muted">סימן</span>
+              <input
+                name="emoji"
+                type="text"
+                defaultValue={occasion.emoji}
+                maxLength={4}
+                placeholder="🎂"
+                className={`${field} text-center`}
+              />
+            </label>
+            <label className="flex grow flex-col gap-2">
+              <span className="text-sm font-semibold text-muted">שם</span>
+              <input name="name" type="text" required defaultValue={occasion.name} className={field} />
+            </label>
+          </div>
+          <ErrorNote>{named.error}</ErrorNote>
+          <div className="flex items-center gap-4">
+            <button type="submit" disabled={naming} className={chipButton}>
+              <Busy busy={naming}>שמירה</Busy>
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className={quietButton}>
+              ביטול
+            </button>
+          </div>
+        </form>
+      )}
 
       {open && (
         <form action={shareAction} className="flex flex-col gap-3 border-t border-line pt-3">

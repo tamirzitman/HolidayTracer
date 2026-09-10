@@ -8,7 +8,10 @@ import { AddFamilyInline } from './AddFamilyInline';
 import { CircleDots } from './Circles';
 import { NextStep } from './NextStep';
 import { FamilyWhatsApp, WhatsAppMark, type Member } from './WhatsApp';
-import { remindAbout } from '@/lib/whatsapp';
+import { remindCircle } from '@/lib/whatsapp';
+import { circleInviteLink } from '@/app/actions';
+import { colorOf } from '@/lib/circle-colors';
+import { useHandoff } from '@/lib/handoff';
 import type { NextStep as Step } from '@/lib/next-step';
 import type { Answer, Holiday, Household } from '@/lib/types';
 import { formatDayAndDate } from '@/lib/dates';
@@ -66,8 +69,6 @@ type Props = {
    * could not say it.
    */
   us: { id: string; name: string };
-  /** The app's own address, for a reminder that carries a way in. */
-  appUrl: string;
   /** The one thing worth doing next, or nothing when there is nothing. */
   nextStep: Step;
   /** Set when our host answered that they are not hosting. */
@@ -109,7 +110,6 @@ export function AnswerForm({
   tags,
   circles,
   us,
-  appUrl,
   nextStep,
   hostDisagrees,
   earlierKey,
@@ -518,7 +518,9 @@ export function AnswerForm({
       {answered && circleStatus.length > 0 && (
         <Circle
           families={circleStatus}
-          reminder={remindAbout(holiday.nameHe, formatDayAndDate(holiday.date), appUrl)}
+          circles={circles}
+          holidayName={holiday.nameHe}
+          when={formatDayAndDate(holiday.date)}
           holidayKey={holiday.key}
           hosts={[us, ...households]}
           tags={tags}
@@ -574,9 +576,81 @@ function Step({
 }
 
 /** Where the rest of the circle is — visible only once you have answered. */
+/**
+ * A nudge for one circle's group chat, in that circle's colour.
+ *
+ * One reminder used to go out with the app's plain address in it, which was the
+ * wrong link twice over: it named no circle, so it introduced nobody, and
+ * anybody not yet registered who followed it arrived as a household of their
+ * own — from a message about where the family was eating. Each of these carries
+ * the circle's own link, so the same tap reminds the people in it and lets the
+ * ones who are not in yet join all of them.
+ */
+function Reminders({
+  circles,
+  holidayName,
+  when,
+}: {
+  circles: { id: string; name: string; color: string }[];
+  holidayName: string;
+  when: string;
+}) {
+  const { busy, start, stop, go } = useHandoff();
+  const [sending, setSending] = useState('');
+  const [error, setError] = useState('');
+
+  // Nothing to remind: with no circle there is no group to send to, and the
+  // families screen is where that gets fixed.
+  if (circles.length === 0) return null;
+
+  async function send(circle: { id: string; name: string }) {
+    setSending(circle.id);
+    setError('');
+    start();
+    const made = await circleInviteLink(circle.id);
+    if (!made.token) {
+      setError(made.error ?? 'משהו השתבש');
+      setSending('');
+      stop();
+      return;
+    }
+    go(remindCircle(circle.name, holidayName, when, `${window.location.origin}/join/${made.token}`));
+  }
+
+  return (
+    <div id="reminders" className="flex flex-col gap-1 px-5 pb-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted">תזכורת ל־</span>
+        {circles.map((circle) => (
+          <button
+            key={circle.id}
+            type="button"
+            disabled={busy}
+            onClick={() => send(circle)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs font-bold text-ink transition active:scale-95 disabled:opacity-50"
+          >
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/10"
+              style={{ backgroundColor: colorOf(circle.color) }}
+              aria-hidden="true"
+            />
+            <span className="text-whatsapp">
+              <WhatsAppMark />
+            </span>
+            <Busy busy={sending === circle.id && busy}>{circle.name}</Busy>
+          </button>
+        ))}
+      </div>
+      <ErrorNote>{error}</ErrorNote>
+    </div>
+  );
+}
+
 function Circle({
   families,
-  reminder,
+  circles,
+  holidayName,
+  when,
   holidayKey,
   hosts,
   tags,
@@ -589,8 +663,10 @@ function Circle({
     byName: string;
     byProxy: boolean;
   }[];
-  /** Where the reminder for this holiday goes. */
-  reminder: string;
+  /** Our circles: a reminder goes to one of them, in its own colour. */
+  circles: { id: string; name: string; color: string }[];
+  holidayName: string;
+  when: string;
   holidayKey: string;
   /** Whom they might be at, for answering on their behalf. */
   hosts: { id: string; name: string }[];
@@ -607,20 +683,8 @@ function Circle({
     <section className={`${card} flex flex-col gap-1 p-0`}>
       <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
         <h2 className={sectionHeading}>איפה כולם</h2>
-        {/* The nudge belongs to this list, so it sits on it — small, and named,
-            rather than a button the width of the screen sitting underneath
-            attached to nothing. */}
-        <a
-          href={reminder}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="שיתוף תזכורת בוואטסאפ"
-          className="inline-flex shrink-0 items-center gap-1.5 text-xs font-bold text-brand"
-        >
-          <WhatsAppMark />
-          תזכורת
-        </a>
       </div>
+      <Reminders circles={circles} holidayName={holidayName} when={when} />
       <ul className="divide-y divide-line">
         {families.map((family) => (
           <li key={family.id} className="flex flex-col gap-2 px-5 py-3">

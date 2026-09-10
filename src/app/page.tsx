@@ -1,4 +1,3 @@
-import { headers } from 'next/headers';
 import Link from 'next/link';
 import { signOut } from '@/app/actions';
 import { AnswerForm } from '@/components/AnswerForm';
@@ -25,12 +24,6 @@ import { nextStep } from '@/lib/next-step';
 import { getSessionPhone } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
-
-/** The app's own address, for the join links that go out over WhatsApp. */
-async function origin(): Promise<string> {
-  const head = await headers();
-  return `${head.get('x-forwarded-proto') ?? 'http'}://${head.get('host') ?? 'localhost'}`;
-}
 
 function daysUntil(date: string): number {
   const from = Date.parse(`${todayInIsrael()}T00:00:00Z`);
@@ -93,7 +86,7 @@ export default async function Page({
   const at = Math.max(0, upcoming.findIndex((h) => h.key === requested));
   const holiday = upcoming[at];
 
-  const [households, circle, current, guests, conflict, members, base] =
+  const [households, circle, current, guests, conflict, members] =
     await Promise.all([
       getHouseholds(),
       circleOf(person.householdId),
@@ -101,7 +94,6 @@ export default async function Page({
       guestsComingTo(holiday.key, person.householdId),
       findConflict(holiday.key, person.householdId),
       membersByHousehold(),
-      origin(),
     ]);
   const whoIsIn = (id: string) => members.get(id) ?? [];
 
@@ -170,7 +162,6 @@ export default async function Page({
         id: person.householdId,
         name: households.find((h) => h.id === person.householdId)?.name ?? 'אנחנו',
       }}
-      appUrl={base}
       hostDisagrees={Boolean(conflict)}
       earlierKey={at > 0 ? upcoming[at - 1].key : undefined}
       laterKey={at < upcoming.length - 1 ? upcoming[at + 1].key : undefined}

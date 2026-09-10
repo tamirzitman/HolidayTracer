@@ -33,34 +33,69 @@ sheet.People = [
   ['+972504445555', 'יוסי', 'hh_a'],
 ];
 
-// One holiday already in the past, with an answer, so the history screen has
-// something to show without waiting a year.
+// What a holiday is, said once — and when it falls, said once per year. Two
+// tabs, because the second is the only thing a year changes.
 const HOLIDAY_HEADER = [
-  'holiday_key', 'name_he', 'type', 'date', 'year', 'include',
-  'owner_household_id', 'shared_with', 'emoji',
+  'holiday_id', 'name_he', 'type', 'emoji', 'include', 'owner_household_id', 'shared_with',
 ];
+const DATE_HEADER = ['holiday_id', 'year', 'date'];
 // owner_household_id is empty: a seeded holiday belongs to everybody, and only a
 // family's own occasion carries an owner. emoji is empty too, so these exercise
 // the fallback to the mark the code knows for the kind.
-const PAST = ['erev_pesach_2026', 'ערב פסח', 'ערב חג', '2026-04-01', '2026', 'TRUE', '', '', ''];
-// A second one, deliberately left unanswered, so the history screen has a gap to
-// mark as missing.
-const GAP = ['erev_shavuot_2026', 'ערב שבועות', 'ערב חג', '2026-05-21', '2026', 'TRUE', '', '', ''];
-sheet.Holidays ??= [HOLIDAY_HEADER];
-sheet.Holidays[0] = HOLIDAY_HEADER;
-// Occasions added by a previous run would otherwise pile up.
-sheet.Holidays = sheet.Holidays.filter((r, i) => i === 0 || !r[6]);
-// And a mark a previous run typed into a cell would still be there, so the
-// fallback to the code's own mark would never be what is on screen. Blank is
-// the known state; the seeder is what fills this column on a real sheet.
-const emojiAt = HOLIDAY_HEADER.indexOf('emoji');
-for (const row of sheet.Holidays.slice(1)) {
-  while (row.length <= emojiAt) row.push('');
-  row[emojiAt] = '';
+const CATALOGUE = [
+  ['erev_pesach', 'ערב פסח', 'ערב חג', '', 'TRUE', '', ''],
+  ['erev_shavuot', 'ערב שבועות', 'ערב חג', '', 'TRUE', '', ''],
+  ['erev_rosh_hashana', 'ערב ראש השנה', 'ערב חג', '', 'TRUE', '', ''],
+];
+// One holiday already in the past, with an answer, so the history screen has
+// something to show without waiting a year; a second left unanswered, so there
+// is a gap to mark as missing; and one still to come, to be asked about.
+const DATES = [
+  ['erev_pesach', '2026', '2026-04-01'],
+  ['erev_shavuot', '2026', '2026-05-21'],
+  ['erev_rosh_hashana', '2026', '2026-09-11'],
+];
+// A sheet written before the split has one row per holiday per year, with the
+// name and the mark copied into each. Take it apart rather than throwing the
+// seeded calendar away.
+if ((sheet.Holidays?.[0] ?? []).includes('holiday_key')) {
+  const old = sheet.Holidays.slice(1);
+  const seen = new Set();
+  const entries = [];
+  const dates = [];
+  for (const r of old) {
+    const id = String(r[0]).replace(/_\d{4}$/, '');
+    if (!seen.has(id)) {
+      seen.add(id);
+      entries.push([id, r[1], r[2], r[8] ?? '', r[5] ?? 'TRUE', r[6] ?? '', r[7] ?? '']);
+    }
+    dates.push([id, r[4] || String(r[3]).slice(0, 4), r[3]]);
+  }
+  sheet.Holidays = [HOLIDAY_HEADER, ...entries];
+  sheet.Dates = [DATE_HEADER, ...dates];
 }
-for (const row of [PAST, GAP]) {
-  if (!sheet.Holidays.some((r) => r[0] === row[0])) sheet.Holidays.push(row);
-}
+
+// Occasions a previous run added would otherwise pile up — and so would their
+// dates, which are keyed by the same id.
+const mine = new Set(
+  (sheet.Holidays ?? []).slice(1).filter((r) => r[5] || r[6]).map((r) => r[0]),
+);
+const keptEntries = (sheet.Holidays ?? []).slice(1).filter((r) => !mine.has(r[0]));
+const keptDates = (sheet.Dates ?? []).slice(1).filter((r) => !mine.has(r[0]));
+
+sheet.Holidays = [
+  HOLIDAY_HEADER,
+  ...keptEntries,
+  ...CATALOGUE.filter((c) => !keptEntries.some((r) => r[0] === c[0])),
+];
+sheet.Dates = [
+  DATE_HEADER,
+  ...keptDates,
+  ...DATES.filter((d) => !keptDates.some((r) => r[0] === d[0] && r[1] === d[1])),
+];
+// A mark a previous run typed in would still be there, so the fallback to the
+// code's own mark would never be what is on screen. Blank is the known state.
+for (const row of sheet.Holidays.slice(1)) row[3] = '';
 
 sheet.Answers = [
   ['timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone', 'for_household_id'],

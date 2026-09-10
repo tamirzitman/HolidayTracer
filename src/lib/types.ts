@@ -11,6 +11,50 @@ export type Person = {
   householdId: string;
 };
 
+/**
+ * A holiday as the sheet keeps it: what it is called and what it looks like,
+ * said once. The date it falls on is the only thing that changes from year to
+ * year, and that lives on the Dates tab.
+ *
+ * It used to be one row per holiday per year, with the name, the kind and the
+ * mark copied into every one of them: 8 holidays over 15 years was 108 rows,
+ * and correcting a name or a mark meant editing 15 of them by hand and hoping
+ * they still matched.
+ */
+export type Occasion = {
+  id: string;
+  nameHe: string;
+  type: string;
+  /**
+   * The mark shown beside it. Read from the sheet, so it can be changed without
+   * a deploy; empty falls back to the one the code knows for this kind, and an
+   * unknown kind falls back again to a plain ✨.
+   */
+  emoji: string;
+  include: boolean;
+  /** Empty for the holidays everyone shares; set for one family's own occasion. */
+  ownerHouseholdId: string;
+  /**
+   * Households the owner shares this occasion with, besides itself. An occasion
+   * nobody else can see is one nobody else can answer about, which makes it
+   * useless for the gatherings these mostly are — so this is normally the
+   * owner's whole circle, and empty only when they deliberately kept it theirs.
+   */
+  sharedWith: string[];
+};
+
+/** When one holiday falls in one year. The whole of what a year adds. */
+export type OccasionDate = {
+  occasionId: string;
+  year: string;
+  date: string; // YYYY-MM-DD
+};
+
+/**
+ * One holiday in one year, as every screen wants it: the catalogue entry joined
+ * to that year's date. `key` is `<id>_<year>`, which is what the Answers tab has
+ * always held.
+ */
 export type Holiday = {
   key: string;
   nameHe: string;
@@ -140,6 +184,7 @@ export type CircleRow = {
 
 export const TABS = {
   holidays: 'Holidays',
+  dates: 'Dates',
   households: 'Households',
   people: 'People',
   answers: 'Answers',
@@ -150,10 +195,13 @@ export const TABS = {
 } as const;
 
 export const HEADERS = {
+  // Said once per holiday. Everything here is true of it in every year.
   holidays: [
-    'holiday_key', 'name_he', 'type', 'date', 'year', 'include',
-    'owner_household_id', 'shared_with', 'emoji',
+    'holiday_id', 'name_he', 'type', 'emoji', 'include',
+    'owner_household_id', 'shared_with',
   ],
+  // And the one thing that is not: when it falls.
+  dates: ['holiday_id', 'year', 'date'],
   households: ['household_id', 'name', 'active'],
   people: ['phone', 'name', 'household_id'],
   answers: [

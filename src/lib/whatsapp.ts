@@ -55,12 +55,26 @@ export const inviteToCircle = (circleName: string, url: string): string =>
   );
 
 /**
- * A nudge for one holiday, for the family's group chat.
+ * A nudge for one holiday, sent to one circle's group chat.
+ *
+ * The link is that circle's, not the app's. A reminder used to carry the plain
+ * address: anybody who followed it and was not already registered arrived as a
+ * household of their own, connected to nobody, from a message that had just
+ * told them where the family was eating. Now the same tap that reminds them
+ * also brings them in — to this circle, and to everybody in it.
  *
  * No counts. "ענו 3 מתוך 10" was true of the sender's own list and of nobody
  * else's, so a family with four households on theirs read a number that could
- * not be squared with anything they could see. The holiday, the question, and
- * the way in — which is all a reminder has to carry.
+ * not be squared with anything they could see. The circle, the holiday, the
+ * question, and the way in.
  */
-export const remindAbout = (holidayName: string, when: string, url: string): string =>
-  message(`${holidayName} · ${when}\nמי מארח השנה? עונים בשתי נגיעות:\n${url}`);
+export const remindCircle = (
+  circleName: string,
+  holidayName: string,
+  when: string,
+  url: string,
+): string =>
+  message(
+    `«${circleName}» · ${holidayName} · ${when}\n` +
+      `מי מארח השנה? עונים בשתי נגיעות — ומי שעוד לא באפליקציה, נכנס מכאן:\n${url}`,
+  );

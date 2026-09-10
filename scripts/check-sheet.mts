@@ -41,7 +41,7 @@ const at = process.argv.indexOf('--to');
 if (at !== -1 && process.argv[at + 1]) process.env.SHEET_ID = process.argv[at + 1];
 
 const store = sheetStore();
-const tabs = ['Households', 'People', 'Answers', 'Connections', 'Invites', 'Circles', 'Holidays'];
+const tabs = ['Households', 'People', 'Answers', 'Connections', 'Invites', 'Circles', 'Holidays', 'Dates'];
 const raw: Record<string, string[][]> = Object.fromEntries(
   await Promise.all(tabs.map(async (t) => [t, await store.read(t)] as const)),
 );
@@ -132,14 +132,26 @@ for (const r of body('People')) {
   }
 }
 
+// ── the calendar: a date belongs to a holiday the catalogue has ─────────────
+const catalogue = new Set(body('Holidays').map((r) => cell(r, 'Holidays', 'holiday_id')));
+for (const r of body('Dates')) {
+  const id = cell(r, 'Dates', 'holiday_id');
+  if (id && !catalogue.has(id)) {
+    say(`the Dates tab has ${cell(r, 'Dates', 'date')} for "${id}", which is not a holiday on the Holidays tab`);
+  }
+}
+
 // ── answers said by somebody the sheet knows, about a holiday it has ────────
 const phones = new Set(body('People').map((r) => cell(r, 'People', 'phone')));
-const keys = new Set(body('Holidays').map((r) => cell(r, 'Holidays', 'holiday_key')));
+// A key is <holiday_id>_<year>, and that is what the Answers tab holds.
+const keys = new Set(
+  body('Dates').map((r) => `${cell(r, 'Dates', 'holiday_id')}_${cell(r, 'Dates', 'year')}`),
+);
 for (const r of body('Answers')) {
   const by = cell(r, 'Answers', 'by_phone');
   if (by && !phones.has(by)) say(`an answer is signed ${by}, who is not on People`);
   const key = cell(r, 'Answers', 'holiday_key');
-  if (key && !keys.has(key)) say(`an answer names holiday "${key}", which is not on Holidays`);
+  if (key && !keys.has(key)) say(`an answer names holiday "${key}", which the calendar does not have`);
 }
 
 // ── kinds the code knows ────────────────────────────────────────────────────
