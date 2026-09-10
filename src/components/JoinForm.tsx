@@ -9,8 +9,8 @@ import {
   Title,
   card,
   field,
+  mutedButton,
   primaryButton,
-  quietButton,
   secondaryButton,
 } from './ui';
 
@@ -100,11 +100,7 @@ export function JoinForm({
         <p className="text-muted">
           נרשמים עם המספר <span dir="ltr">{formatPhone(phone)}</span>
         </p>
-        <button
-          type="button"
-          onClick={() => onLeave()}
-          className="text-sm font-semibold text-muted underline underline-offset-4"
-        >
+        <button type="button" onClick={() => onLeave()} className={`${mutedButton} self-center`}>
           זה לא המספר שלי — יציאה
         </button>
       </div>

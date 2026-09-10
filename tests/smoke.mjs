@@ -145,7 +145,7 @@ check('registering with no invite works', rows('Households').some((r) => r[1] ==
 check('an empty list is told what to do about it',
   await stranger.isVisible('text=להוסיף את המשפחות שלנו'));
 check('and nothing is promised that cannot be shown yet',
-  !/כשתענו, תראו כאן איפה/.test(await stranger.innerText('main')));
+  !/כשתענו, תוכלו לראות כאן/.test(await stranger.innerText('main')));
 const cold = await stranger.$$eval('main a, main button', (els) =>
   els.map((e) => e.textContent.trim()),
 );
@@ -376,7 +376,7 @@ check('and it is the ＋, a thumb under the last answer',
 // But what answering buys is said before it is asked for — and only to somebody
 // with a circle to reveal, since it is a promise the next screen has to keep.
 check('answering is worth something, and says so before you do it',
-  /כשתענו, תראו כאן איפה/.test(await dad.innerText('main')));
+  /כשתענו, תוכלו לראות כאן/.test(await dad.innerText('main')));
 
 await dad.click('text=אנחנו מארחים');
 await dad.waitForSelector('text=איפה כולם');
@@ -897,6 +897,37 @@ await newcomer.reload();
 check('the warning is gone for the guest',
   !(await newcomer.isVisible('text=שימו לב — הם ענו שהם מתארחים')));
 
+// ── who else is at the meal you said you are going to ───────────────────────
+// Hosting always said who was coming. Being a guest said nothing, though the
+// same answers hold it: everyone who named the same host.
+await dad.click('text=שינוי תשובה');
+await dad.waitForSelector('text=מתארחים אצל…');
+await dad.click('text=מתארחים אצל…');
+await dad.waitForSelector('select[name=hostHouseholdId]');
+await dad.selectOption('select[name=hostHouseholdId]', { label: 'דנה ויוסי לוי' });
+await dad.click('button[type=submit]');
+await dad.waitForSelector('text=מתארחים אצל דנה ויוסי לוי');
+check('a guest with nobody alongside them is told so, not left guessing',
+  await dad.isVisible('text=עוד אף אחד לא אמר שהוא מגיע לשם'));
+
+// Say, for the family that will not open the app, that they are going there too.
+const alongside = dad.locator('section:has-text("איפה כולם") li', { hasText: 'אחות ובעלה' });
+await alongside.getByRole('button', { name: 'לתקן בשבילם' }).click();
+await alongside.getByRole('button', { name: 'אצל…' }).click();
+await alongside.locator('select[name=hostHouseholdId]').selectOption({ label: 'דנה ויוסי לוי' });
+await alongside.getByRole('button', { name: 'שמירה' }).click();
+await dad.waitForTimeout(1800);
+await dad.reload();
+check('and once somebody else names the same host, the guest sees them too',
+  await dad.isVisible('text=מגיעים לשם גם'));
+check('by name, the same list hosting has always had',
+  /אחות ובעלה/.test(await dad.locator('.celebrate-card').innerText()));
+
+await dad.click('text=שינוי תשובה');
+await dad.waitForSelector('text=אנחנו מארחים');
+await dad.click('text=אנחנו מארחים');
+await dad.waitForSelector('text=מגיעים אליכם');
+
 // ── adding a family from the question screen ─────────────────────────────────
 // The case this exists for: answering on the night, and the host is not listed.
 const beforeAdd = rows('Households').length;
@@ -1056,6 +1087,15 @@ const stats = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.textCo
 check(`three counts are shown (${stats.join(' / ')})`, stats.length === 3);
 check('holidays with no answer are marked as missing', await dad.isVisible('text=חסר'));
 check('a past date carries its weekday', /(יום \S+|שבת) · \d/.test(await dad.innerText('li')));
+
+// The holiday screen groups by circle and so names its colours in the headings.
+// This list is in date order and cannot, which left a coloured dot beside a host
+// meaning nothing at all — so the names are said once, above the list.
+const legend = await dad.innerText('main');
+check('the colours are named here too, since the order cannot name them',
+  /המעגלים שלכם/.test(legend) && /צד אבא/.test(legend) && /צד אמא/.test(legend));
+check('and a holiday spent at a family carries that family\'s circles',
+  (await dad.$$eval('li [aria-label^="מעגלים:"]', (e) => e.length)) > 0);
 
 // A blank row is blank because that family was never added, so adding one has
 // to be reachable from here — not on another screen, with this row to find again.

@@ -13,7 +13,29 @@ export const field =
   'w-full rounded-2xl border border-line bg-ground px-4 py-3.5 text-lg text-ink ' +
   'placeholder:text-muted focus:border-brand';
 
-export const quietButton = 'text-sm font-semibold text-brand underline underline-offset-4';
+/**
+ * The second choice on a screen — cancel, correct, "no thanks", the option
+ * under the two obvious ones. It used to be underlined text, which on a phone
+ * is a small target with nothing around it and reads as a link out of the app
+ * rather than as something that happens here. Same weight in the hierarchy, an
+ * actual button to press.
+ *
+ * `w-fit` so it does not stretch to the width of a column it sits in; add
+ * `self-center` where the column wants it under something full-width.
+ */
+export const quietButton =
+  'inline-flex w-fit items-center justify-center gap-1.5 rounded-full border border-line bg-surface ' +
+  'px-4 py-2 text-sm font-semibold text-brand transition active:scale-95 disabled:opacity-50';
+
+/** The same shape for a way out that is not the thing to do: grey, not brand. */
+export const mutedButton =
+  'inline-flex w-fit items-center justify-center gap-1.5 rounded-full border border-line bg-surface ' +
+  'px-4 py-2 text-sm font-semibold text-muted transition active:scale-95 disabled:opacity-50';
+
+/** The smallest of the three, for a control that sits inside a row of text. */
+export const miniButton =
+  'inline-flex w-fit shrink-0 items-center justify-center rounded-full border border-line bg-surface ' +
+  'px-2.5 py-1 text-xs font-bold text-brand transition active:scale-95 disabled:opacity-50';
 
 /** A small call to action that sits inside a row, rather than filling it. */
 export const chipButton =

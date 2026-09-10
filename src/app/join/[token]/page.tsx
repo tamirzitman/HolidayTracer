@@ -2,7 +2,7 @@ import { JoinForm } from '@/components/JoinForm';
 import { SignInForm } from '@/components/SignInForm';
 import { ConnectPrompt } from '@/components/ConnectPrompt';
 import Link from 'next/link';
-import { Title, card, primaryButton } from '@/components/ui';
+import { Title, card, mutedButton, primaryButton } from '@/components/ui';
 import { formatPhone } from '@/lib/phone';
 import { claimableIn, findPerson, isConnected, readInvite } from '@/lib/data';
 import { signOut, switchAccount } from '@/app/actions';
@@ -85,7 +85,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
               יציאה וכניסה עם המספר הזה
             </button>
           </form>
-          <Link href="/" className="text-sm font-semibold text-muted underline underline-offset-4">
+          <Link href="/" className={`${mutedButton} self-center`}>
             להישאר בתור {person.name}
           </Link>
         </div>

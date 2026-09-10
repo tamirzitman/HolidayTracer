@@ -6,6 +6,7 @@ import { NextStep } from '@/components/NextStep';
 import {
   circleOf,
   circleTags,
+  circlesFor,
   findPerson,
   getHouseholds,
   historyFor,
@@ -23,12 +24,13 @@ export default async function HistoryPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [past, households, circle, unanswered, tags] = await Promise.all([
+  const [past, households, circle, unanswered, tags, circles] = await Promise.all([
     historyFor(person.householdId),
     getHouseholds(),
     circleOf(person.householdId),
     unansweredUpcoming(person.householdId),
     circleTags(person.householdId),
+    circlesFor(person.householdId),
   ]);
   // Never a prompt to fill the history in: a year of past holidays is not
   // something anybody sits down and completes, and asking on every visit would
@@ -77,6 +79,8 @@ export default async function HistoryPage() {
               circle.map((h) => ({ id: h.id, name: h.name })),
               Object.fromEntries(tags),
             )}
+            circles={circles}
+            tags={Object.fromEntries(tags)}
           />
         </>
       )}

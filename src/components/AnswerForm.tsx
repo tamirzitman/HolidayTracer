@@ -26,6 +26,7 @@ import {
   card,
   chipButton,
   field,
+  miniButton,
   primaryButton,
   quietButton,
   secondaryButton,
@@ -46,6 +47,12 @@ type Props = {
   /** Our family's standing join link, for writing to families nobody has joined. */
   /** Households that said they are coming to us. Only meaningful when hosting. */
   guests: { id: string; name: string; members: Member[] }[];
+  /**
+   * The other families on our list who named the same host as us. Only
+   * meaningful when we are a guest, and only ever families we can already see:
+   * who else is at a meal is the host's circle to know, not ours.
+   */
+  alsoComing: { id: string; name: string; members: Member[] }[];
   /** Where everyone in the circle is. Empty until we have answered ourselves. */
   circleStatus: {
     id: string;
@@ -108,6 +115,7 @@ export function AnswerForm({
   answeredBy,
   impliedByGuest,
   guests,
+  alsoComing,
   circleStatus,
   circleSize,
   tags,
@@ -366,6 +374,17 @@ export function AnswerForm({
               </button>
 
               {shown.kind === 'hosting' && <Guests guests={guests} />}
+
+              {/* The same list, read from the other side of the table. Hosting
+                  told you who was coming; being a guest told you nothing, though
+                  the app knew — everyone else who named the same host. */}
+              {shown.kind === 'guest' && (
+                <Guests
+                  guests={alsoComing}
+                  title="מגיעים לשם גם"
+                  empty="עוד אף אחד לא אמר שהוא מגיע לשם"
+                />
+              )}
             </div>
           ) : (
             <form
@@ -417,7 +436,7 @@ export function AnswerForm({
                     name="kind"
                     value="away"
                     disabled={pending}
-                    className={quietButton}
+                    className={`${quietButton} self-center`}
                   >
                     לא מגיעים בכלל
                   </button>
@@ -497,10 +516,17 @@ export function AnswerForm({
           among the holidays rather than behind our own name. */}
       {/* Before answering, say what answering is *for*. Only with a circle to
           reveal: promising to show where everybody is, to somebody who has
-          nobody on their list yet, is a promise the next screen cannot keep. */}
+          nobody on their list yet, is a promise the next screen cannot keep.
+
+          Nor can it keep "you will see where everyone is" — that was the whole
+          list of families, and what actually appears is only whoever has
+          answered so far, which on the day a holiday opens is nobody. So it
+          says what is really behind it: who has already answered. */}
       {!answered && !choosingHost && circleSize > 0 && (
         <p className="text-center text-sm text-muted">
-          כשתענו, תראו כאן איפה {circleSize === 1 ? 'המשפחה השנייה' : `${circleSize} המשפחות`} שלכם בחג הזה.
+          {circleSize === 1
+            ? 'כשתענו, תוכלו לראות כאן אם המשפחה השנייה שלכם כבר ענתה על החג הזה.'
+            : `כשתענו, תוכלו לראות כאן מי מ־${circleSize} המשפחות שלכם כבר ענה על החג הזה.`}
         </p>
       )}
 
@@ -613,9 +639,12 @@ function Reminders({
   }
 
   return (
-    <div id="reminders" className="flex flex-col gap-1 px-5 pb-2">
+    <div id="reminders" className="flex flex-col gap-2 px-5 pb-2">
+      {/* On its own line, not inline with the first chip: sharing the wrapping
+          row meant the first chip started after the label and every chip that
+          wrapped started at the edge, so no two lines of them lined up. */}
+      <span className="text-xs text-muted">תזכורת ל־</span>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted">תזכורת ל־</span>
         {circles.map((circle) => (
           <button
             key={circle.id}
@@ -802,7 +831,7 @@ function AnswerForThem({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="self-start text-xs font-bold text-brand underline underline-offset-4"
+        className={`${miniButton} self-start`}
       >
         {family.kind === 'none' ? 'לענות בשבילם' : 'לתקן בשבילם'}
       </button>
@@ -881,16 +910,20 @@ type AnswerKindLike = 'hosting' | 'guest' | 'away' | undefined;
 /** Who said they are coming to us — the whole reward for answering "we're hosting". */
 function Guests({
   guests,
+  title = 'מגיעים אליכם',
+  empty = 'עדיין אף אחד לא אמר שהוא מגיע',
 }: {
   guests: { id: string; name: string; members: Member[] }[];
+  title?: string;
+  empty?: string;
 }) {
   return (
     <div className="mt-2 w-full border-t border-line pt-4">
       {guests.length === 0 ? (
-        <p className="text-sm text-muted">עדיין אף אחד לא אמר שהוא מגיע</p>
+        <p className="text-sm text-muted">{empty}</p>
       ) : (
         <>
-          <p className="mb-2 text-sm font-semibold text-muted">מגיעים אליכם</p>
+          <p className="mb-2 text-sm font-semibold text-muted">{title}</p>
           <ul className="flex flex-col gap-1">
             {guests.map((g) => (
               <li key={g.id} className="flex items-center justify-between gap-2 text-ink">

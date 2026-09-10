@@ -45,7 +45,13 @@ export function ConnectPrompt({
           {circleName ? `להצטרף ל«${circleName}»` : `להצטרף ל${invitedBy}`}
         </Busy>
       </button>
-      <button type="submit" name="connect" value="no" disabled={pending} className={quietButton}>
+      <button
+        type="submit"
+        name="connect"
+        value="no"
+        disabled={pending}
+        className={`${quietButton} self-center`}
+      >
         לא, רק רציתי את האפליקציה
       </button>
     </form>

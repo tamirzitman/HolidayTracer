@@ -1,5 +1,7 @@
 'use client';
 
+import { miniButton } from './ui';
+
 /**
  * A grid of families to tick, all ticked to begin with.
  *
@@ -32,7 +34,7 @@ export function CirclePicker({
         <button
           type="button"
           onClick={() => onChange(chosen.length === 0 ? all : [])}
-          className="shrink-0 text-xs font-bold text-brand underline underline-offset-4"
+          className={miniButton}
         >
           {chosen.length === 0 ? 'סמנו הכל' : 'בטלו הכל'}
         </button>

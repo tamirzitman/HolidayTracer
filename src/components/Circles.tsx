@@ -67,6 +67,38 @@ export function CircleDots({
 }
 
 /**
+ * What the colours on this screen mean, said once at the top.
+ *
+ * On the holiday screen the names come free: the list is grouped by circle, so
+ * every run of rows is under a heading that names it. A list ordered by
+ * anything else — dates, say — cannot do that, and the dots on its rows are
+ * decoration until something says which circle is which. This is that
+ * something, and it is the same dot in the same colour.
+ */
+export function CircleLegend({
+  circles,
+}: {
+  circles: { id: string; name: string; color: string }[];
+}) {
+  if (circles.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-1">
+      <span className="text-xs text-muted">המעגלים שלכם</span>
+      {circles.map((circle) => (
+        <span key={circle.id} className="inline-flex items-center gap-1.5">
+          <span
+            className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/10"
+            style={{ backgroundColor: colorOf(circle.color) }}
+            aria-hidden="true"
+          />
+          <span className="text-xs font-bold text-ink">{circle.name}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
  * The circles we are in, and what is in them.
  *
  * A circle is how families find each other here, and now the only way: everyone

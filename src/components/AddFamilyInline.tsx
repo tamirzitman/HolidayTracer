@@ -137,7 +137,7 @@ export function AddFamilyInline({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`${quietButton} text-center`}
+        className={`${quietButton} mx-auto`}
       >
         לא מוצאים? הוסיפו משפחה
       </button>

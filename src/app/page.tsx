@@ -100,6 +100,17 @@ export default async function Page({
   // Knowing where everyone else is, is the reward for saying where you are.
   const circleStatus = current ? await circleAnswers(holiday.key, person.householdId) : [];
 
+  // Hosting showed who was coming; being a guest showed nothing, though the
+  // same rows say it — everyone who named the same host. Narrowed to families
+  // already on our list: the rest of a host's table is theirs to know, not ours.
+  const onOurList = new Set(circle.map((h) => h.id));
+  const alsoComing =
+    current?.kind === 'guest' && current.hostHouseholdId
+      ? (await guestsComingTo(holiday.key, current.hostHouseholdId)).filter(
+          (h) => h.id !== person.householdId && onOurList.has(h.id),
+        )
+      : [];
+
   const [unanswered, tags, circles] = await Promise.all([
     unansweredUpcoming(person.householdId),
     circleTags(person.householdId),
@@ -146,6 +157,7 @@ export default async function Page({
       answeredBy={answeredBy}
       impliedByGuest={impliedByGuest}
       guests={guests.map((g) => ({ id: g.id, name: g.name, members: whoIsIn(g.id) }))}
+      alsoComing={alsoComing.map((g) => ({ id: g.id, name: g.name, members: whoIsIn(g.id) }))}
       circleStatus={byCircle(
         circleStatus.map((c) => ({
           id: c.household.id,
