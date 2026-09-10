@@ -73,21 +73,31 @@ for (const h of sheet.households) {
   circleMates.set(h.id, new Set(mine.flatMap((c) => c.members)));
 }
 
-const pairs = new Map<string, { a: string; b: string; at: string }>();
+// Newest row per direction wins, exactly as the app reads it — otherwise a
+// pair an earlier run already severed would be reported as needing it again,
+// since its original 'add' row from the bulk batch is still sitting there.
+const latestDirection = new Map<string, 'add' | 'remove'>();
+for (const c of sheet.connections) {
+  latestDirection.set(`${c.householdId} ${c.connectedTo}`, c.action as 'add' | 'remove');
+}
+const stillAdded = (a: string, b: string): boolean => latestDirection.get(`${a} ${b}`) === 'add';
+
+const bulkPairs = new Map<string, { a: string; b: string; at: string }>();
 for (const c of sheet.connections) {
   if (c.action !== 'add' || !bulkTimestamps.has(c.at)) continue;
   const key = [c.householdId, c.connectedTo].sort().join('|');
-  pairs.set(key, { a: c.householdId, b: c.connectedTo, at: c.at });
+  bulkPairs.set(key, { a: c.householdId, b: c.connectedTo, at: c.at });
 }
 
 const toSever: { a: string; b: string }[] = [];
-for (const { a, b } of pairs.values()) {
+for (const { a, b } of bulkPairs.values()) {
   if (!nameOf.has(a) || !nameOf.has(b)) continue; // one side is retired — leave it
   if (circleMates.get(a)?.has(b)) continue; // still share a circle today
+  if (!stillAdded(a, b) && !stillAdded(b, a)) continue; // an earlier run already severed it
   toSever.push({ a, b });
 }
 
-console.log(`${pairs.size} bulk-linked pair(s), ${toSever.length} share no circle today:\n`);
+console.log(`${bulkPairs.size} bulk-linked pair(s), ${toSever.length} still connected and sharing no circle:\n`);
 for (const { a, b } of toSever) {
   console.log(`  ${(nameOf.get(a) ?? a).padEnd(22)} ×  ${nameOf.get(b) ?? b}`);
 }
