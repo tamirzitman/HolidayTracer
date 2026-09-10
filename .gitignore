@@ -9,3 +9,7 @@ build/
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+
+# Dumps a script writes before it rewrites a tab. Somebody's real calendar,
+# kept beside the working copy for as long as it is useful and no longer.
+.holidays-before-split-*.json
