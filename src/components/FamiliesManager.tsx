@@ -43,6 +43,7 @@ export function FamiliesManager({
   circles,
   tags,
   standing,
+  startWith,
 }: {
   families: Family[];
   /** The people in our own household, for a link that lets one of them in elsewhere. */
@@ -56,6 +57,8 @@ export function FamiliesManager({
   tags: Record<string, { id: string; name: string; color: string }[]>;
   /** What can still be done to each family: renamed, deleted, or only dropped. */
   standing: Record<string, { addedByUs: boolean; joined: boolean; answeredFor: boolean }>;
+  /** A family to start a new circle with, when we arrived here to make one. */
+  startWith: string;
 }) {
   const [addingFamily, setAddingFamily] = useState(false);
   const [openFamily, setOpenFamily] = useState<string | null>(null);
@@ -72,7 +75,11 @@ export function FamiliesManager({
           decides who is on the list underneath — a list of families above the
           thing that fills it read as the point, with the circles as a footnote
           about it. */}
-      <Circles circles={circles} families={families.map((f) => ({ id: f.id, name: f.name }))} />
+      <Circles
+        circles={circles}
+        families={families.map((f) => ({ id: f.id, name: f.name }))}
+        startWith={startWith}
+      />
 
       <section id="families" className={`${card} flex flex-col gap-1 p-0`}>
         <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
@@ -90,14 +97,15 @@ export function FamiliesManager({
         </div>
         {addingFamily && (
           <div className="flex flex-col gap-3 px-5 pb-3">
+            {/* Left open on purpose, exactly as the ＋ on the holiday screen
+                leaves it: the card that comes back is where a family added with
+                a number is invited, and folding the panel away the moment they
+                were added took that with it. */}
             <AddFamilyInline
               circles={circles}
               startOpen
               onClose={() => setAddingFamily(false)}
-              onAdded={() => {
-                setAddingFamily(false);
-                router.refresh();
-              }}
+              onAdded={() => router.refresh()}
             />
             {/* Beside typing a name rather than at the foot of the screen, and
                 the only way into contacts now: this one takes several at a

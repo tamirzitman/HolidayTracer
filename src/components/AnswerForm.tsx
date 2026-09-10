@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useOptimistic, useRef, useState } from 'react';
 import { answer, answerFor, type ActionResult } from '@/app/actions';
-import { AddFamilyInline } from './AddFamilyInline';
+import { AddFamilyRow } from './AddFamilyInline';
 import { CircleDots } from './Circles';
 import { NextStep } from './NextStep';
 import { FamilyWhatsApp, WhatsAppMark, type Member } from './WhatsApp';
@@ -62,6 +62,8 @@ type Props = {
   tags: Record<string, { id: string; name: string; color: string }[]>;
   /** Our circles, so a family added from here can be placed in one at once. */
   circles: { id: string; name: string; color: string }[];
+  /** Families on our list that are in no circle — shown with the next step. */
+  uncircled: { id: string; name: string }[];
   /**
    * Our own family. Answering on somebody's behalf has to be able to say they
    * are coming to us — which is the commonest thing there is to say for the
@@ -109,6 +111,7 @@ export function AnswerForm({
   circleSize,
   tags,
   circles,
+  uncircled,
   us,
   nextStep,
   hostDisagrees,
@@ -395,16 +398,11 @@ export function AnswerForm({
                   >
                     אנחנו מארחים
                   </button>
-                  {/* With nobody on the list there is nothing to be a guest at.
-                      This used to open the picker anyway and explain, in a
-                      paragraph, that families are added elsewhere — a control
-                      that promises adding and delivers prose. It goes where the
-                      adding is instead. */}
-                  {households.length === 0 ? (
-                    <Link href="/families" className={`${primaryButton} text-center`}>
-                      הוספת המשפחות שלנו
-                    </Link>
-                  ) : (
+                  {/* With nobody on the list there is nothing to be a guest at,
+                      so the picker is simply not offered. Adding is the ＋ under
+                      these options either way — one control, in one place, on a
+                      screen where it used to be a link to somewhere else. */}
+                  {households.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setChoosingHost(true)}
@@ -456,6 +454,23 @@ export function AnswerForm({
       </div>
       </div>
 
+      {/* Directly under "לא מגיעים בכלל", which is where a family turns out to
+          be missing: while reading the options and finding nobody to pick. The
+          form cannot live inside the card — the card is a form itself — so it
+          opens here, a thumb's width below the last option. */}
+      {!answered && (
+        <AddFamilyRow
+          circles={circles}
+          onAdded={(householdId) => {
+            // Straight into the dropdown they were looking in: adding a family
+            // and then having to find it again is the friction this removes.
+            const select = hostSelect.current;
+            if (select) select.value = householdId;
+            router.refresh();
+          }}
+        />
+      )}
+
       {/* Under the panel, where a pager belongs: without it the year looks like
           one holiday and nothing says the page moves at all. */}
       {position.total > 1 && (
@@ -488,31 +503,10 @@ export function AnswerForm({
         </p>
       )}
 
-      {/* A way to add, on every state where the list itself is not on screen to
-          hang it off: before answering — which is exactly when a missing family
-          is noticed, and when the circle card does not exist yet — and after
-          answering with nobody to show. Choosing a host has the form itself
-          right there, so it needs no link. */}
-      {((!answered && !choosingHost) || (answered && circleStatus.length === 0)) && (
-        <Link
-          href="/families"
-          className="text-center text-sm font-bold text-brand underline underline-offset-4"
-        >
-          {circleSize === 0 ? 'להוסיף משפחות למעגל →' : 'חסרה משפחה? להוסיף →'}
-        </Link>
-      )}
-
-      {!answered && choosingHost && (
-        <AddFamilyInline
-          circles={circles}
-          onAdded={(householdId) => {
-            // Straight into the dropdown they were looking in: adding a family
-            // and then having to find it again is the friction this removes.
-            const select = hostSelect.current;
-            if (select) select.value = householdId;
-            router.refresh();
-          }}
-        />
+      {/* Answered, with nobody to show for it: the same ＋, since the list this
+          would otherwise hang off is not on screen. */}
+      {answered && circleStatus.length === 0 && (
+        <AddFamilyRow circles={circles} onAdded={() => router.refresh()} />
       )}
 
       {answered && circleStatus.length > 0 && (
@@ -527,7 +521,7 @@ export function AnswerForm({
         />
       )}
 
-      <NextStep step={nextStep} />
+      <NextStep step={nextStep} uncircled={uncircled} circles={circles} />
 
     </div>
   );

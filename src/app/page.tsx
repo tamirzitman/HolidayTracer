@@ -106,6 +106,9 @@ export default async function Page({
     circlesFor(person.householdId),
   ]);
   const tagged = Object.fromEntries(tags);
+  // On nobody's list of circles: no colour anywhere, no reminder, and no circle
+  // link that carries them.
+  const uncircled = circle.filter((h) => (tags.get(h.id) ?? []).length === 0);
 
   const step = nextStep({
     circleSize: circle.length,
@@ -167,6 +170,7 @@ export default async function Page({
       laterKey={at < upcoming.length - 1 ? upcoming[at + 1].key : undefined}
       position={{ index: at, total: upcoming.length }}
       nextStep={step}
+      uncircled={uncircled.map((h) => ({ id: h.id, name: h.name }))}
     />
   );
 }

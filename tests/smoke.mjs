@@ -150,19 +150,17 @@ const cold = await stranger.$$eval('main a, main button', (els) =>
   els.map((e) => e.textContent.trim()),
 );
 check(`an empty circle points at filling it (${cold.join(', ')})`,
-  cold.includes('הוספת המשפחות שלנו'));
+  cold.includes('הוספת משפחה'));
+// With nobody on the list there is nothing to be a guest at, so the picker is
+// not offered at all — and adding is the same ＋ as everywhere else, opening
+// where you are rather than on another screen.
+check('and is not asked who it is a guest at, since there is nobody',
+  !cold.includes('מתארחים אצל…'));
 
-// With nobody on the list there is nothing to be a guest at, so this goes where
-// families are added. It used to open the picker anyway and explain in a
-// paragraph that adding happens elsewhere — a control promising one thing and
-// delivering prose.
-await stranger.click('text=הוספת המשפחות שלנו');
-await stranger.waitForURL('**/families');
-check('and it leads to adding them, not to a paragraph about it',
-  stranger.url().endsWith('/families'));
-// The ＋ on the list it goes into, which is the only way in on this screen now.
-await stranger.click('[aria-label="הוספת משפחה"]');
+await stranger.click('text=הוספת משפחה');
 await stranger.waitForSelector('input[name=familyPhone]');
+check('the ＋ opens the form here, without leaving the question',
+  (await stranger.isVisible('input[name=familyPhone]')) && stranger.url() === `${BASE}/`);
 check('a number can be typed, not only picked from contacts',
   await stranger.isVisible('input[name=familyPhone]'));
 
@@ -171,15 +169,14 @@ const beforeCold = rows('Households').length;
 await stranger.fill('input[name=familyName]', 'אבא ואמא');
 await stranger.fill('input[name=familyPhone]', DAD);
 await stranger.click('form:has(input[name=familyName]) button[type=submit]');
-// Added from the ＋, the answer is the list: the panel folds away and the family
-// is on it. The card that says "added, and already selected" belongs to the
-// holiday screen, where being selected is the point.
-await stranger.waitForSelector('#families li:has-text("אבא ואמא")');
+// Added from the holiday screen, so the family is chosen for the question that
+// was on screen when they turned out to be missing.
+await stranger.waitForSelector('text=נוספו, וכבר נבחרו');
 await stranger.waitForTimeout(1500);
 check('a typed number that is known makes no second household',
   rows('Households').length === beforeCold);
-check('and adding from the ＋ folds it away again',
-  (await stranger.$$('input[name=familyName]')).length === 0);
+check('and the question is still the one behind it',
+  await stranger.isVisible('text=איפה אתם בחג?'));
 
 await stranger.goto(BASE);
 await stranger.click('text=מתארחים אצל…');
@@ -209,7 +206,7 @@ check('and nothing is offered on anybody else\'s say-so',
 await stranger.goto(BASE);
 if (await stranger.isVisible('text=שינוי תשובה')) await stranger.click('text=שינוי תשובה');
 await stranger.click('text=מתארחים אצל…');
-await stranger.click('text=לא מוצאים? הוסיפו משפחה');
+await stranger.click('text=הוספת משפחה');
 await stranger.waitForSelector('input[name=familyPhone]');
 const beforeKnown = rows('Households').length;
 await stranger.fill('input[name=familyName]', 'דנה ויוסי');
@@ -370,9 +367,12 @@ check('and lands in that household',
 check('the holiday carries its weekday', /(יום \S+|שבת) · \d/.test(await dad.innerText('header')));
 check('nobody else is shown before you answer', !(await dad.isVisible('text=איפה כולם')));
 // Before answering is exactly when a missing family is noticed, and the circle
-// card that carries this link does not exist yet — so it has to stand alone here.
+// card that carries the other one does not exist yet — so it stands alone here,
+// as the same ＋ and not as a line of underlined text pointing somewhere else.
 check('adding is reachable before answering, not only after',
-  await dad.isVisible('text=חסרה משפחה? להוסיף'));
+  await dad.isVisible('text=הוספת משפחה'));
+check('and it is the ＋, a thumb under the last answer',
+  await dad.isVisible('main button:has-text("הוספת משפחה") svg'));
 // But what answering buys is said before it is asked for — and only to somebody
 // with a circle to reveal, since it is a promise the next screen has to keep.
 check('answering is worth something, and says so before you do it',
@@ -789,6 +789,54 @@ check(`the message invites to the holiday (${nudgeText.split('\n')[0].slice(-46)
 check('and counts nobody\'s families', !/\d+\s*מתוך\s*\d+/.test(nudgeText));
 check('and carries the circle link, never the app on its own',
   nudgeText.includes(`/join/${inv(nudgeInvite, 'token')}`));
+
+// ── the families in no circle, where the open things are ────────────────────
+// A family outside every circle is invisible in all the places a circle does
+// the work: no colour on any row, no reminder, and no circle link that carries
+// them. The only sign was a row without a dot, which reads as an absence rather
+// than as something to fix.
+await dad.goto(BASE);
+await dad.waitForSelector('nav');
+const loose = await dad.$$eval('section:has-text("עוד לא במעגל") li', (els) =>
+  els.map((e) => e.innerText.split('\n')[0].trim()),
+);
+check(`families in no circle are named beside the next thing (${loose.join(', ')})`,
+  loose.length > 0 && loose.some((n) => n.includes('רן ומיכל')));
+const looseRow = dad.locator('section:has-text("עוד לא במעגל") li', { hasText: 'רן ומיכל' });
+check('and the circles are there to drop them into',
+  await looseRow.locator('button:has-text("צד אבא")').isVisible());
+// Started with them in it, rather than making the circle and coming back to
+// find them again.
+const startsWith = await looseRow.locator('a[href*="/families?with="]').getAttribute('href');
+const looseId = decodeURIComponent((startsWith ?? '').split('with=')[1] ?? '');
+check(`a new circle can be started with them (${looseId})`, looseId !== '');
+
+const beforeDrop = rows('Circles').length;
+await looseRow.locator('button:has-text("צד אבא")').click();
+for (let i = 0; i < 40 && rows('Circles').length === beforeDrop; i += 1) {
+  await dad.waitForTimeout(250);
+}
+check('one tap puts them in a circle',
+  rows('Circles').some((r) => r[1] === looseId && r[2] === 'add' && r[3] === 'צד אבא'));
+await dad.reload();
+await dad.waitForSelector('nav');
+check('and they stop being one of the loose ones',
+  !(await dad.isVisible('section:has-text("עוד לא במעגל") li:has-text("רן ומיכל")')));
+
+// The other way out of it: the form opens with them already ticked.
+const stillLoose = await dad.$$eval('section:has-text("עוד לא במעגל") a[href*="/families?with="]', (els) =>
+  els.map((e) => e.getAttribute('href')),
+);
+if (stillLoose.length > 0) {
+  const id = decodeURIComponent(stillLoose[0].split('with=')[1] ?? '');
+  await dad.goto(`${BASE}${stillLoose[0]}`);
+  await dad.waitForSelector('input[name=name]');
+  check(`the new-circle form opens with that family ticked (${id})`,
+    await dad.isChecked(`input[name=member][value="${id}"]`));
+} else {
+  check('the new-circle form opens with that family ticked (none left loose)', true);
+}
+
 // Back to the question, where the dropdown has to be opened again.
 await newcomer.goto(BASE);
 await newcomer.waitForSelector('nav');
@@ -856,7 +904,7 @@ await dad.goto(BASE);
 await dad.click('text=שינוי תשובה');
 await dad.waitForSelector('text=מתארחים אצל…');
 await dad.click('text=מתארחים אצל…');
-await dad.click('text=לא מוצאים? הוסיפו משפחה');
+await dad.click('main button:has-text("הוספת משפחה")');
 await dad.fill('input[name=familyName]', 'כהן');
 await dad.click('text=הוספה');
 await dad.waitForTimeout(1500);
@@ -1244,7 +1292,7 @@ const beforeJoin = rows('Households').length;
 await dad.goto(BASE);
 if (await dad.isVisible('text=שינוי תשובה')) await dad.click('text=שינוי תשובה');
 await dad.click('text=מתארחים אצל…');
-await dad.click('text=לא מוצאים? הוסיפו משפחה');
+await dad.click('main button:has-text("הוספת משפחה")');
 await dad.fill('input[name=familyName]', 'רות ואורי לוי');
 await dad.click('form:has(input[name=familyName]) button[type=submit]');
 await dad.waitForTimeout(1500);

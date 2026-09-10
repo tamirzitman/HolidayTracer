@@ -8,6 +8,7 @@ import { inviteVia } from '@/lib/whatsapp';
 import { colorOf } from '@/lib/circle-colors';
 import {
   BackButton,
+  PlusIcon,
   Busy,
   ErrorNote,
   card,
@@ -211,5 +212,50 @@ export function AddFamilyInline({
       </button>
 
     </form>
+  );
+}
+
+/**
+ * The one way to add a family, wherever there is no list on screen to hang it
+ * off: the same filled ＋ as the one at the head of the families list, and the
+ * form opens where you are rather than on another screen.
+ *
+ * It used to be a line of underlined text with an arrow — "חסרה משפחה? להוסיף
+ * →" — which looked like nothing else that adds a family, and led away from
+ * the question it was asked beside.
+ */
+export function AddFamilyRow({
+  circles,
+  onAdded,
+  label = 'הוספת משפחה',
+}: {
+  circles?: { id: string; name: string; color: string }[];
+  onAdded?: (householdId: string) => void;
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (open) {
+    return (
+      <AddFamilyInline
+        circles={circles}
+        startOpen
+        onClose={() => setOpen(false)}
+        onAdded={onAdded}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      className="mx-auto inline-flex items-center gap-2 text-sm font-bold text-brand transition active:scale-95"
+    >
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand text-ground">
+        <PlusIcon className="h-5 w-5" />
+      </span>
+      {label}
+    </button>
   );
 }

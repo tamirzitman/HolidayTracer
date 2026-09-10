@@ -1,14 +1,38 @@
 import Link from 'next/link';
 import type { NextStep as Step } from '@/lib/next-step';
+import { Uncircled } from './Uncircled';
 
 /**
- * One line, at the bottom of a screen, naming the next useful thing. Quiet
- * enough to ignore and specific enough to act on — never a list of options,
- * because a list is the problem it exists to solve.
+ * The foot of a screen: the next useful thing, and anything left half-done.
+ *
+ * The line itself is one line on purpose — quiet enough to ignore and specific
+ * enough to act on, never a list of options, because a list is the problem it
+ * exists to solve. The families in no circle sit beside it because they are the
+ * other kind of thing left open, and because there is nowhere else they show as
+ * anything but a row without a dot.
  */
-export function NextStep({ step }: { step: Step }) {
-  if (!step) return null;
+export function NextStep({
+  step,
+  uncircled = [],
+  circles = [],
+}: {
+  step: Step;
+  /** Families on our list that are in no circle at all. */
+  uncircled?: { id: string; name: string }[];
+  /** Ours, to drop them into. */
+  circles?: { id: string; name: string; color: string }[];
+}) {
+  if (!step && uncircled.length === 0) return null;
 
+  return (
+    <div className="flex flex-col gap-3">
+      <Uncircled families={uncircled} circles={circles} />
+      {step && <StepLine step={step} />}
+    </div>
+  );
+}
+
+function StepLine({ step }: { step: NonNullable<Step> }) {
   return (
     <Link
       href={step.href}

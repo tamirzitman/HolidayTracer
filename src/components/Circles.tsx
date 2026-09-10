@@ -77,12 +77,20 @@ export function CircleDots({
 export function Circles({
   circles,
   families,
+  startWith = '',
 }: {
   circles: CircleView[];
   families: { id: string; name: string }[];
+  /**
+   * A family to open the new-circle form with, already ticked. Arrived here
+   * from "מעגל חדש" beside a family in no circle, so the circle it is asking
+   * for is a circle *with them in it* — making one and then coming back to find
+   * them again is the trip this saves.
+   */
+  startWith?: string;
 }) {
   const router = useRouter();
-  const [making, setMaking] = useState(false);
+  const [making, setMaking] = useState(Boolean(startWith));
   const [open, setOpen] = useState<string | null>(null);
   // Leaving is asked before it is done. It is held here rather than inside the
   // editor so that folding the row away puts the question back unanswered.
@@ -108,7 +116,7 @@ export function Circles({
       )}
 
       {making && (
-        <NewCircle families={families} onDone={() => setMaking(false)} />
+        <NewCircle families={families} startWith={startWith} onDone={() => setMaking(false)} />
       )}
 
       {circles.length > 0 && (
@@ -174,9 +182,12 @@ export function Circles({
 /** Naming a circle and ticking the families that belong to it, in one pass. */
 function NewCircle({
   families,
+  startWith = '',
   onDone,
 }: {
   families: { id: string; name: string }[];
+  /** Ticked from the start: the family this circle is being made for. */
+  startWith?: string;
   onDone: () => void;
 }) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(makeCircle, {});
@@ -189,7 +200,7 @@ function NewCircle({
   // because adding it here already said it belongs, and which of the two
   // arrivals renders first is a race an uncontrolled box would take its answer
   // from.
-  const [ticked, setTicked] = useState<string[]>([]);
+  const [ticked, setTicked] = useState<string[]>(startWith ? [startWith] : []);
   useEffect(() => {
     if (state.savedAt) onDone();
   }, [state.savedAt, onDone]);
