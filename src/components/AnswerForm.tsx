@@ -6,6 +6,7 @@ import { useActionState, useEffect, useOptimistic, useRef, useState } from 'reac
 import { answer, answerFor, type ActionResult } from '@/app/actions';
 import { AddFamilyRow } from './AddFamilyInline';
 import { CircleDots } from './Circles';
+import { groupKey } from '@/lib/circle-order';
 import { NextStep } from './NextStep';
 import { FamilyWhatsApp, WhatsAppMark, type Member } from './WhatsApp';
 import { remindCircle } from '@/lib/whatsapp';
@@ -679,50 +680,86 @@ function Circle({
         <h2 className={sectionHeading}>איפה כולם</h2>
       </div>
       <Reminders circles={circles} holidayName={holidayName} when={when} />
-      <ul className="divide-y divide-line">
-        {families.map((family) => (
-          <li key={family.id} className="flex flex-col gap-2 px-5 py-3">
-            {/* Two columns that hold, rather than a row that wraps. Wrapping
-                dropped a long answer — "אצל נעמה ויובל לייבוביץ'" — onto its own
-                line while short ones stayed put, so the answers ran down the
-                middle of the card instead of down one edge. Each column now
-                keeps its side and wraps inside it. */}
-            <div className="flex items-baseline justify-between gap-x-3">
-              <div className="min-w-0 grow">
-                <p className="flex flex-wrap items-center gap-2 font-semibold break-words text-ink">
-                  {family.name}
-                  <CircleDots tags={tags[family.id] ?? []} />
-                </p>
-                {family.byName && (
-                  <p className="text-xs text-muted">
-                    ענו: {family.byName}
-                    {family.byProxy && ' · בשבילם'}
-                  </p>
-                )}
+      <ul className="flex flex-col">
+        {families.map((family, i) => {
+          const myTags = tags[family.id] ?? [];
+          // The same boundary the sort already drew, surfaced as a heading: a
+          // list sorted by circle but shown as one undifferentiated column of
+          // small dots was information nobody could take in without reading it
+          // line by line. This is the same grouping, just named.
+          const key = groupKey(myTags);
+          const changed = i === 0 || key !== groupKey(tags[families[i - 1].id] ?? []);
+          // One colour reads as a strip; more than one is a family standing
+          // between circles, so the strip is striped rather than picking one.
+          const stripe =
+            myTags.length === 0
+              ? 'transparent'
+              : myTags.length === 1
+                ? colorOf(myTags[0].color)
+                : `linear-gradient(to bottom, ${myTags.map((t) => colorOf(t.color)).join(', ')})`;
+
+          return (
+            <li key={family.id}>
+              {changed && (
+                <div className="flex items-center gap-2 border-t border-line bg-ground px-5 py-1.5 first:border-t-0">
+                  <CircleDots tags={myTags} />
+                  <span className="text-xs font-bold text-muted">
+                    {myTags.length === 0 ? 'בלי מעגל משותף' : myTags.map((t) => t.name).join(' + ')}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-stretch gap-3 border-t border-line px-5 py-3 first:border-t-0">
+                {/* The strip a group's heading names in words. Scanning it down
+                    the edge finds a family's circle without reading its dots. */}
+                <span
+                  className="w-1 shrink-0 self-stretch rounded-full"
+                  style={{ background: stripe }}
+                  aria-hidden="true"
+                />
+                <div className="flex min-w-0 grow flex-col gap-2">
+                  {/* Two columns that hold, rather than a row that wraps. Wrapping
+                      dropped a long answer — "אצל נעמה ויובל לייבוביץ'" — onto its
+                      own line while short ones stayed put, so the answers ran down
+                      the middle of the card instead of down one edge. Each column
+                      now keeps its side and wraps inside it. */}
+                  <div className="flex items-baseline justify-between gap-x-3">
+                    <div className="min-w-0 grow">
+                      <p className="truncate font-semibold text-ink">{family.name}</p>
+                      {family.byName && (
+                        <p className="text-xs text-muted">
+                          ענו: {family.byName}
+                          {family.byProxy && ' · בשבילם'}
+                        </p>
+                      )}
+                    </div>
+                    {/* No WhatsApp mark here. One on every row of a ten-family
+                        list is noise, and the two places worth writing from — the
+                        host you are going to, and the families coming to you —
+                        carry one. */}
+                    <span
+                      className={`w-2/5 shrink-0 text-start text-sm ${
+                        family.kind === 'none' ? 'text-muted' : 'font-semibold text-brand'
+                      }`}
+                    >
+                      {said(family.kind, family.hostName)}
+                    </span>
+                  </div>
+                  {/* A gap, or an answer somebody gave for them, can be filled in
+                      by anyone here — the grandfather who will never open the
+                      app. An answer they gave themselves is theirs, and is not
+                      offered. */}
+                  {(family.kind === 'none' || family.byProxy) && (
+                    <AnswerForThem
+                      family={family}
+                      holidayKey={holidayKey}
+                      hosts={hosts.filter((h) => h.id !== family.id)}
+                    />
+                  )}
+                </div>
               </div>
-              {/* No WhatsApp mark here. One on every row of a ten-family list is
-                  noise, and the two places worth writing from — the host you are
-                  going to, and the families coming to you — carry one. */}
-              <span
-                className={`w-2/5 shrink-0 text-start text-sm ${
-                  family.kind === 'none' ? 'text-muted' : 'font-semibold text-brand'
-                }`}
-              >
-                {said(family.kind, family.hostName)}
-              </span>
-            </div>
-            {/* A gap, or an answer somebody gave for them, can be filled in by
-                anyone here — the grandfather who will never open the app. An
-                answer they gave themselves is theirs, and is not offered. */}
-            {(family.kind === 'none' || family.byProxy) && (
-              <AnswerForThem
-                family={family}
-                holidayKey={holidayKey}
-                hosts={hosts.filter((h) => h.id !== family.id)}
-              />
-            )}
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
 
       {/* Attached to the list it is about: a family missing from these rows is

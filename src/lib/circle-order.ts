@@ -22,8 +22,12 @@ const paletteIndex = (color: string): number => {
  * What a household's circles sort as: how many, then which — the colours in
  * palette order, so groups appear in the palette's order rather than in
  * whatever order the circles happen to have been made.
+ *
+ * Exported so a list can find the same boundaries the sort already put there —
+ * a heading between one run of dots and the next, say — without inventing a
+ * second definition of "group" that could drift from this one.
  */
-function groupKey(tags: { color: string }[]): string {
+export function groupKey(tags: { color: string }[]): string {
   return tags
     .map((t) => paletteIndex(t.color))
     .sort((a, b) => a - b)
