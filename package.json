@@ -19,6 +19,8 @@
     "connect-all": "tsx scripts/connect-all.mts",
     "align": "tsx scripts/align-headers.mts",
     "check-sheet": "tsx --env-file=.env.local scripts/check-sheet.mts",
+    "find-floating": "tsx --env-file=.env.local scripts/find-floating.mts",
+    "inspect-household": "tsx --env-file=.env.local scripts/inspect-household.mts",
     "sever-stale-mesh": "tsx --env-file=.env.local scripts/sever-stale-mesh.mts",
     "split-holidays": "tsx --env-file=.env.local scripts/split-holidays.mts",
     "reset": "tsx scripts/reset-playground.mts",
