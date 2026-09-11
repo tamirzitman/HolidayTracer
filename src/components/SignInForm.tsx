@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { signIn, type ActionResult } from '@/app/actions';
+import { Brand } from './Brand';
 import { Busy, ErrorNote, Title, card, field, primaryButton } from './ui';
 
 /**
@@ -21,50 +22,60 @@ export function SignInForm({
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(signIn, {});
 
   return (
-    <form action={formAction} className={`${card} flex flex-col gap-5`}>
-      {token && <input type="hidden" name="next" value={`/join/${token}`} />}
-      <div className="flex flex-col gap-2">
-        {invitedBy && (
-          <span className="text-4xl" aria-hidden="true">
-            👋
-          </span>
-        )}
-        <Title>
-          {!invitedBy
-            ? 'איפה אתם בחג?'
-            : circleName
-              ? `${invitedBy} הזמינו אתכם למעגל`
-              : `${invitedBy} הזמינו אתכם`}
-        </Title>
-        {circleName && <p className="text-lg font-bold text-brand">«{circleName}»</p>}
-        {invitedBy && (
-          <p className="text-muted">
-            כאן עוקבים אחרי מי מארח בכל חג: עונים בשתי נגיעות, ורואים מיד איפה כל השאר.
-            {circleName && ' כל מי שנכנס מהקישור הזה מצטרף לכל המעגל.'}
-          </p>
-        )}
-        <p className="text-muted">הזינו את מספר הטלפון שלכם. פעם אחת, ונזכור אתכם.</p>
-      </div>
+    <div className="flex flex-col gap-4">
+      {/* Above the form, not inside it. Somebody handed a link in a family group
+          has to decide whether to type their phone number in, and the only
+          things that answer that are what this is and who sent it — so both are
+          on screen before the field is. */}
+      <Brand />
 
-      <label className="flex flex-col gap-2">
-        <span className="text-sm font-semibold text-muted">מספר טלפון</span>
-        <input
-          name="phone"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          dir="ltr"
-          required
-          placeholder="050-123-4567"
-          className={`${field} text-center`}
-        />
-      </label>
+      <form action={formAction} className={`${card} flex flex-col gap-5`}>
+        {token && <input type="hidden" name="next" value={`/join/${token}`} />}
+        <div className="flex flex-col gap-2">
+          {invitedBy && (
+            <span className="text-4xl" aria-hidden="true">
+              👋
+            </span>
+          )}
+          {/* Only when there is something to say that the panel above has not.
+              Without an invitation it said the app's name, which is now written
+              in gold two centimetres higher — the same words twice, and the
+              second copy reading as a heading for the phone field. */}
+          {invitedBy && (
+            <Title>
+              {circleName ? `${invitedBy} הזמינו אתכם למעגל` : `${invitedBy} הזמינו אתכם`}
+            </Title>
+          )}
+          {circleName && <p className="text-lg font-bold text-brand">«{circleName}»</p>}
+          {invitedBy && (
+            <p className="text-muted">
+              כאן עוקבים אחרי מי מארח בכל חג: עונים בשתי נגיעות, ורואים מיד איפה כל השאר.
+              {circleName && ' כל מי שנכנס מהקישור הזה מצטרף לכל המעגל.'}
+            </p>
+          )}
+          <p className="text-muted">הזינו את מספר הטלפון שלכם. פעם אחת, ונזכור אתכם.</p>
+        </div>
 
-      <ErrorNote>{state.error}</ErrorNote>
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-semibold text-muted">מספר טלפון</span>
+          <input
+            name="phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            dir="ltr"
+            required
+            placeholder="050-123-4567"
+            className={`${field} text-center`}
+          />
+        </label>
 
-      <button type="submit" disabled={pending} className={primaryButton}>
-        <Busy busy={pending}>כניסה</Busy>
-      </button>
-    </form>
+        <ErrorNote>{state.error}</ErrorNote>
+
+        <button type="submit" disabled={pending} className={primaryButton}>
+          <Busy busy={pending}>כניסה</Busy>
+        </button>
+      </form>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 {
   "name": "holidaytracer",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -8,6 +8,8 @@
     "start": "next start",
     "start:test": "SHEET_ID= SESSION_SECRET=test next start --port 3111",
     "typecheck": "tsc --noEmit",
+    "version-check": "tsx scripts/version-check.mts",
+    "make-icons": "tsx scripts/make-icons.mts",
     "seed:holidays": "tsx scripts/seed-holidays.mts",
     "fixtures": "node scripts/dev-fixtures.mjs",
     "test:smoke": "node tests/smoke.mjs",

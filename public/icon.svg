@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  
+  <defs>
+    <radialGradient id="ground" cx="50%" cy="42%" r="78%">
+      <stop offset="0%" stop-color="#4d1f2c"/>
+      <stop offset="100%" stop-color="#1d0b10"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#ground)"/>
+  <g color="#e6c78c" transform="translate(-46.7 -37.3) scale(1.1733)"><g fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"><g><circle cx="150" cy="210" r="18"></circle><path d="M124 300 C 124 264, 136 248, 150 248 C 164 248, 176 264, 176 300"></path></g><g><circle cx="206" cy="210" r="18"></circle><path d="M180 300 C 180 264, 192 248, 206 248 C 220 248, 232 264, 232 300"></path></g><g><circle cx="306" cy="210" r="18"></circle><path d="M280 300 C 280 264, 292 248, 306 248 C 320 248, 332 264, 332 300"></path></g><g><circle cx="362" cy="210" r="18"></circle><path d="M336 300 C 336 264, 348 248, 362 248 C 376 248, 388 264, 388 300"></path></g><path d="M116 306 H396"></path><path d="M162 306 L152 374"></path><path d="M350 306 L360 374"></path><path d="M256 262 V300"></path></g><g fill="currentColor"><path d="M256 224 C 268 240, 268 252, 256 260 C 244 252, 244 240, 256 224 Z"></path><path d="M140 126 C 143 142, 150 149, 166 152 C 150 155, 143 162, 140 178 C 137 162, 130 155, 114 152 C 130 149, 137 142, 140 126 Z"></path></g></g>
+</svg>

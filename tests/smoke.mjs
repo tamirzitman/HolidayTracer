@@ -125,6 +125,43 @@ const addToOurHouse = async (page) => {
 // ── signing up needs nobody's permission ─────────────────────────────────────
 const stranger = await open();
 await stranger.goto(BASE);
+
+// ── the app has a face ──────────────────────────────────────────────────────
+// The front door is where somebody handed a link in a family group decides
+// whether to type their phone number in, so it is the one screen that says what
+// this is rather than getting straight to the question.
+check('the front door carries the mark',
+  await stranger.isVisible('main svg path[d^="M140 126"]'));
+const doorway = await stranger.innerText('main');
+check('and names the app exactly once, not twice',
+  doorway.split('איפה אתם בחג').length - 1 === 1);
+
+// Every one of these is something a phone or a chat app fetches by itself, long
+// after anybody would notice it was missing: a home-screen icon, the picture on
+// an invitation, the file that makes "add to home screen" work at all. A path
+// that stops resolving puts the app back to a blank square in silence.
+for (const asset of [
+  '/manifest.webmanifest',
+  '/icon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
+  '/favicon.png',
+  '/og.png',
+]) {
+  const res = await fetch(`${BASE}${asset}`);
+  check(`${asset} is there (${res.status})`, res.ok);
+}
+const head = await stranger.content();
+check('the page points a phone at the home-screen icon',
+  head.includes('apple-touch-icon.png') && head.includes('manifest.webmanifest'));
+// Every invitation this app sends is a WhatsApp link; without this each one
+// arrives as a bare address.
+check('and points a chat app at the picture for a link',
+  /property="og:image"/.test(head) && head.includes('/og.png'));
+check('the launch image is offered for the screens it was drawn for',
+  (await stranger.$$('link[rel="apple-touch-startup-image"]')).length === 7);
+
 await stranger.fill('input[name=phone]', '058-777-1234');
 await stranger.click('button[type=submit]');
 await stranger.waitForSelector('input[name=firstName]');
@@ -139,6 +176,35 @@ await stranger.fill('input[name=householdName]', 'רן ומיכל ברק');
 await stranger.click('form button[type=submit]');
 await stranger.waitForSelector('text=איפה אתם בחג?');
 check('registering with no invite works', rows('Households').some((r) => r[1] === 'רן ומיכל ברק'));
+
+// ── the footer ──────────────────────────────────────────────────────────────
+// The version on screen is a claim made to every person using the app, so it
+// has to be the version that was actually released — not a number typed into a
+// component and left behind by the next change.
+const declared = JSON.parse(readFileSync('package.json', 'utf8')).version;
+const footer = await stranger.innerText('footer');
+check(`the footer shows the released version (${declared})`,
+  footer.includes(`גרסה ${declared}`));
+// Outside <main>, which is what keeps it from reading as another card — and
+// what keeps every other assertion in this suite from tripping over it.
+check('and it sits outside the screen it ends',
+  (await stranger.$$('main footer')).length === 0 && (await stranger.$$('footer')).length === 1);
+check('the app says it was built with AI, where that can be read',
+  /בינה מלאכותית/.test(footer));
+// The footer once carried the app's name beside the version, which put the
+// title of the sign-in screen onto every screen — and every `text=איפה אתם בחג?`
+// in this suite started matching the footer and returning before the page it
+// was waiting for had arrived. Chrome that repeats a screen's title is a trap.
+check('and it does not repeat the app title onto every screen',
+  !footer.includes('איפה אתם בחג'));
+// A plain mailto arrives saying "לא עובד" and nothing else. This one carries
+// the version and the screen, which is most of a bug report.
+const reportTo = await stranger.getAttribute('footer a[href^="mailto:"]', 'href');
+check(`a problem can be reported in one tap (${reportTo?.slice(0, 30)}…)`,
+  reportTo?.startsWith('mailto:tamirzitman@gmail.com?'));
+check('and the report says which version and which screen it came from',
+  decodeURIComponent(reportTo ?? '').includes(declared) &&
+    decodeURIComponent(reportTo ?? '').includes('מסך החג'));
 
 // Nobody on the list yet: the guest button would open an empty dropdown, and
 // the app should say where to go rather than leave it to be worked out.
