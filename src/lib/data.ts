@@ -200,14 +200,34 @@ async function fetchSheet(): Promise<Sheet> {
   // Collapsing *before* the active check matters too: with it the other way
   // round, a household switched off would be resurrected by whichever older row
   // still said TRUE.
+  //
+  // Who made it and when are the exception to newest-wins: when a household was
+  // created cannot change, so the oldest row that says anything is the one that
+  // is true. Carried that way rather than newest-wins because every later row —
+  // a rename, a switch-off — would otherwise have to remember to copy them
+  // forward, and the one that forgot would erase the answer silently.
+  const madeBy = new Map<string, { createdBy: string; createdAt: string }>();
+  for (const row of householdsTab.body) {
+    const id = cell(row, householdsTab.headers, 'household_id');
+    if (!id || madeBy.has(id)) continue;
+    const createdBy = cell(row, householdsTab.headers, 'created_by');
+    const createdAt = cell(row, householdsTab.headers, 'created_at');
+    if (createdBy || createdAt) madeBy.set(id, { createdBy, createdAt });
+  }
+
   const allHouseholds = [
     ...new Map(
       householdsTab.body
-        .map((row) => ({
-          id: cell(row, householdsTab.headers, 'household_id'),
-          name: cell(row, householdsTab.headers, 'name'),
-          active: isTrue(cell(row, householdsTab.headers, 'active')),
-        }))
+        .map((row) => {
+          const id = cell(row, householdsTab.headers, 'household_id');
+          return {
+            id,
+            name: cell(row, householdsTab.headers, 'name'),
+            active: isTrue(cell(row, householdsTab.headers, 'active')),
+            createdBy: madeBy.get(id)?.createdBy ?? '',
+            createdAt: madeBy.get(id)?.createdAt ?? '',
+          };
+        })
         .filter((h) => h.id && h.name)
         .map((h) => [h.id, h] as const),
     ).values(),
@@ -986,6 +1006,39 @@ export async function labelCircle(
   ]);
 }
 
+/**
+ * For each family, which of `candidates` that family is actually connected to.
+ *
+ * Answering on somebody's behalf offered whoever *we* could be a guest at,
+ * which is not the same list at all: יפת ורבקה cannot say they are at רמי
+ * ורינת, because the two have never met here — but the form offered it, and
+ * the server then refused the answer. A question that lists impossible answers
+ * and rejects them afterwards is worse than one that never offered them.
+ *
+ * The candidates are our own list, so what comes back is the overlap of their
+ * circle and ours. Narrower than everything they could pick, deliberately: the
+ * rest of their list is theirs, and putting names on our screen that we have no
+ * other way of seeing is the leak this app has already had once.
+ */
+export async function hostsEachCouldPick(
+  families: string[],
+  candidates: { id: string; name: string }[],
+): Promise<Record<string, { id: string; name: string }[]>> {
+  const sheet = await loadSheet();
+  const linked = new Set<string>();
+  for (const c of sheet.connections) {
+    const key = `${c.householdId}\u0000${c.connectedTo}`;
+    if (c.action === 'add') linked.add(key);
+    else linked.delete(key);
+  }
+  return Object.fromEntries(
+    families.map((id) => [
+      id,
+      candidates.filter((c) => c.id !== id && linked.has(`${id}\u0000${c.id}`)),
+    ]),
+  );
+}
+
 export async function isConnected(a: string, b: string): Promise<boolean> {
   return connectionState((await loadSheet()).connections, a).get(b) === 'add';
 }
@@ -1178,6 +1231,8 @@ export async function renameHousehold(householdId: string, name: string): Promis
     householdId,
     name,
     household.active ? 'TRUE' : 'FALSE',
+    household.createdBy,
+    household.createdAt,
   ]);
 }
 
@@ -1258,10 +1313,25 @@ export async function deactivateHousehold(householdId: string): Promise<void> {
   );
   for (const row of inCircles) await removeFromCircle(row.circleId, householdId);
 
-  await appendRow(TABS.households, HEADERS.households, [householdId, household.name, 'FALSE']);
+  await appendRow(TABS.households, HEADERS.households, [
+    householdId,
+    household.name,
+    'FALSE',
+    household.createdBy,
+    household.createdAt,
+  ]);
 }
 
-export async function addHousehold(name: string): Promise<string> {
+/**
+ * A new household, and the number of whoever is opening it.
+ *
+ * Almost every family here is typed in by somebody else — from a circle being
+ * built, from an address book, from a name remembered at the moment of
+ * answering — so "who made this row" is not the same question as "whose
+ * household is it", and it is the one that matters when two rows turn out to
+ * be the same family.
+ */
+export async function addHousehold(name: string, createdBy = ''): Promise<string> {
   const sheet = await loadSheet();
   // Retired households count. Their rows are still on the tab, and so are the
   // connections, answers and circle memberships that named them — hand the id
@@ -1270,7 +1340,13 @@ export async function addHousehold(name: string): Promise<string> {
     .map(Number)
     .filter((n) => Number.isInteger(n));
   const id = String(Math.max(0, ...used) + 1);
-  await appendRow(TABS.households, HEADERS.households, [id, name, 'TRUE']);
+  await appendRow(TABS.households, HEADERS.households, [
+    id,
+    name,
+    'TRUE',
+    createdBy,
+    new Date().toISOString(),
+  ]);
   return id;
 }
 

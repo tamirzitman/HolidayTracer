@@ -16,8 +16,12 @@ try {
   // first run
 }
 
+// The seeded families carry no created_by/created_at on purpose: the real sheet
+// has thirty-odd households from before those columns existed, and the app has
+// to read them without either. Rows written by the app during a run do carry
+// them, which is what the suite checks.
 sheet.Households = [
-  ['household_id', 'name', 'active'],
+  ['household_id', 'name', 'active', 'created_by', 'created_at'],
   ['hh_parents', 'אבא ואמא', 'TRUE'],
   ['hh_a', 'דנה ויוסי', 'TRUE'],
   ['hh_brother', 'אח ואשתו', 'TRUE'],

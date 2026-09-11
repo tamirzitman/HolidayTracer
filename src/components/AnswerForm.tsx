@@ -69,19 +69,19 @@ type Props = {
   }[];
   /** How many families are on our list, for what to promise before answering. */
   circleSize: number;
+  /**
+   * Per family, the households *they* could say they are at — worked out from
+   * their own list, not ours. Answering for somebody used to offer everyone we
+   * know, including families they have never met, and the server then refused
+   * the answer.
+   */
+  hostsFor: Record<string, { id: string; name: string }[]>;
   /** Which of our circles each family is in — the same dots as on the circles screen. */
   tags: Record<string, { id: string; name: string; color: string }[]>;
   /** Our circles, so a family added from here can be placed in one at once. */
   circles: { id: string; name: string; color: string }[];
   /** Families on our list that are in no circle — shown with the next step. */
   uncircled: { id: string; name: string }[];
-  /**
-   * Our own family. Answering on somebody's behalf has to be able to say they
-   * are coming to us — which is the commonest thing there is to say for the
-   * grandfather who will never open the app — and a list of everyone but us
-   * could not say it.
-   */
-  us: { id: string; name: string };
   /** The one thing worth doing next, or nothing when there is nothing. */
   nextStep: Step;
   /** Set when our host answered that they are not hosting. */
@@ -120,11 +120,11 @@ export function AnswerForm({
   guests,
   alsoComing,
   circleStatus,
+  hostsFor,
   circleSize,
   tags,
   circles,
   uncircled,
-  us,
   nextStep,
   hostDisagrees,
   earlierKey,
@@ -559,7 +559,7 @@ export function AnswerForm({
           holidayName={holiday.nameHe}
           when={formatDayAndDate(holiday.date)}
           holidayKey={holiday.key}
-          hosts={[us, ...households]}
+          hostsFor={hostsFor}
           tags={tags}
         />
       )}
@@ -692,7 +692,7 @@ function Circle({
   holidayName,
   when,
   holidayKey,
-  hosts,
+  hostsFor,
   tags,
 }: {
   families: {
@@ -708,8 +708,8 @@ function Circle({
   holidayName: string;
   when: string;
   holidayKey: string;
-  /** Whom they might be at, for answering on their behalf. */
-  hosts: { id: string; name: string }[];
+  /** Per family, whom *they* might be at — see the note on the prop above. */
+  hostsFor: Record<string, { id: string; name: string }[]>;
   tags: Record<string, { id: string; name: string; color: string }[]>;
 }) {
   const said = (kind: string, hostName: string) => {
@@ -797,7 +797,7 @@ function Circle({
                     <AnswerForThem
                       family={family}
                       holidayKey={holidayKey}
-                      hosts={hosts.filter((h) => h.id !== family.id)}
+                      hosts={hostsFor[family.id] ?? []}
                     />
                   )}
                 </div>

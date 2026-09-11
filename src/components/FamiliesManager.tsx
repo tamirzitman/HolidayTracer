@@ -15,6 +15,8 @@ import {
 import { AddFamilyInline } from './AddFamilyInline';
 import { ContactPicker } from './ContactPicker';
 import { Circles, CircleDots, type CircleView } from './Circles';
+import { colorOf } from '@/lib/circle-colors';
+import { groupKey } from '@/lib/circle-order';
 import { WhatsAppMark, type Member } from './WhatsApp';
 import { inviteVia } from '@/lib/whatsapp';
 import {
@@ -118,9 +120,47 @@ export function FamiliesManager({
         {families.length === 0 ? (
           <p className="p-6 text-center text-muted">עדיין אין אף משפחה — אפשר להוסיף כאן למעלה.</p>
         ) : (
-          <ul className="divide-y divide-line">
-            {families.map((family) => (
-              <li key={family.id} className="flex flex-col gap-2 px-5 py-3.5">
+          <ul className="flex flex-col">
+            {families.map((family, i) => {
+              const myTags = tags[family.id] ?? [];
+              // The same grouping "איפה כולם" draws, from the same sort and the
+              // same boundary function — this list is already ordered by circle,
+              // and showed it only as a row of small dots nobody could take in
+              // without reading line by line.
+              const key = groupKey(myTags);
+              const changed = i === 0 || key !== groupKey(tags[families[i - 1].id] ?? []);
+              // One colour is a strip; more than one is a family standing
+              // between circles, so it is striped rather than picking one.
+              const stripe =
+                myTags.length === 0
+                  ? 'transparent'
+                  : myTags.length === 1
+                    ? colorOf(myTags[0].color)
+                    : `linear-gradient(to bottom, ${myTags.map((t) => colorOf(t.color)).join(', ')})`;
+
+              return (
+              <li key={family.id}>
+              {changed && (
+                <div
+                  data-circle-group
+                  className="flex items-center gap-2 border-t border-line bg-ground px-5 py-1.5 first:border-t-0"
+                >
+                  <CircleDots tags={myTags} />
+                  <span className="text-xs font-bold text-muted">
+                    {myTags.length === 0 ? 'עוד לא במעגל' : myTags.map((t) => t.name).join(' + ')}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-stretch gap-3 border-t border-line px-5 py-3.5 first:border-t-0">
+                {/* The strip the heading above names in words, so the list can
+                    be scanned down its edge without reading the dots. */}
+                <span
+                  data-circle-strip
+                  className="w-1 shrink-0 self-stretch rounded-full"
+                  style={{ background: stripe }}
+                  aria-hidden="true"
+                />
+                <div className="flex min-w-0 grow flex-col gap-2">
                 {/* Name and chevron on one line, the chevron last and never
                     wrapped: every row's mark then sits on the same edge, and the
                     eye can run down them. Anything else the row carries goes
@@ -134,10 +174,11 @@ export function FamiliesManager({
                     aria-expanded={openFamily === family.id}
                     className="flex min-w-0 grow flex-col text-start"
                   >
-                    <span className="flex flex-wrap items-center gap-2 font-semibold break-words text-ink">
-                      {family.name}
-                      <CircleDots tags={tags[family.id] ?? []} />
-                    </span>
+                    {/* No dots on the row any more: the heading above says
+                        which circle this run of families is in, and the strip
+                        repeats it down the edge. A third copy on every line was
+                        the noise the grouping exists to remove. */}
+                    <span className="font-semibold break-words text-ink">{family.name}</span>
                     {/* Say what the state actually is. "טרם הצטרפו" left people
                         guessing whether the family was missing something, when
                         all it means is that nobody from it has opened the app. */}
@@ -177,8 +218,11 @@ export function FamiliesManager({
                     }}
                   />
                 )}
+                </div>
+              </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>

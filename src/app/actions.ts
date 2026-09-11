@@ -143,14 +143,14 @@ export async function register(_prev: ActionResult, formData: FormData): Promise
         }
         householdId = same.id;
       } else if (String(formData.get('newFamily') ?? '') === 'yes') {
-        householdId = await addHousehold(named);
+        householdId = await addHousehold(named, phone);
       } else {
         // Only at the front door. Arriving on a link, the families worth
         // claiming were already offered by name on the previous screen, and
         // asking again about one they passed over is noise.
         const same = invite ? undefined : await unjoinedNamed(named);
         if (same) return { sameName: { id: same.id, name: same.name } };
-        householdId = await addHousehold(named);
+        householdId = await addHousehold(named, phone);
       }
     }
   }
@@ -265,7 +265,7 @@ export async function addContacts(
     if (!phone || !name) continue;
     if (await findPerson(phone)) continue;
 
-    const householdId = await addHousehold(name);
+    const householdId = await addHousehold(name, me.phone);
     await addPerson({ phone, name, householdId });
     await connect(me.householdId, householdId);
     added.push(name);
@@ -342,7 +342,7 @@ export async function addFamilyNow(
     householdId = known.householdId;
   } else {
     if (!name) return { error: 'צריך שם למשפחה' };
-    householdId = await addHousehold(name);
+    householdId = await addHousehold(name, me.phone);
     if (phone) await addPerson({ phone, name, householdId });
     await connect(me.householdId, householdId);
   }
@@ -666,7 +666,7 @@ export async function addFamilyByName(
   const wanted = name.trim().replace(/\s+/g, ' ');
   if (!wanted) return { error: 'צריך שם למשפחה' };
 
-  const householdId = await addHousehold(wanted);
+  const householdId = await addHousehold(wanted, me.phone);
   await connect(me.householdId, householdId);
   revalidatePath('/families');
   revalidatePath('/');
@@ -694,7 +694,7 @@ export async function addFamilyToCircle(
   const mine = (await circlesFor(me.householdId)).find((c) => c.id === circleId);
   if (!mine) return { error: 'המעגל הזה לא שלכם' };
 
-  const householdId = await addHousehold(wanted);
+  const householdId = await addHousehold(wanted, me.phone);
   await connect(me.householdId, householdId);
   await addToCircle(circleId, householdId, me.householdId, mine.name, mine.color);
 
@@ -811,12 +811,21 @@ export async function circleInviteLink(circleId: string): Promise<InviteLink> {
   return { token: await createInvite(me.householdId, 'circle', '', '', circleId) };
 }
 
-async function currentHousehold(): Promise<{ householdId: string } | ActionResult & { error: string }> {
+/**
+ * Who is asking: their household, and their own number.
+ *
+ * The number comes back too because a household typed in here is stamped with
+ * whoever typed it, and that person is very often not from the household being
+ * created — which is the whole reason the stamp is worth having.
+ */
+async function currentHousehold(): Promise<
+  { householdId: string; phone: string } | (ActionResult & { error: string })
+> {
   const phone = await getSessionPhone();
   if (!phone) return { error: 'הכניסה פגה, נסו שוב' };
   const person = await findPerson(phone);
   if (!person) return { error: 'עוד לא סיימתם להירשם' };
-  return { householdId: person.householdId };
+  return { householdId: person.householdId, phone: person.phone };
 }
 
 export async function answer(_prev: ActionResult, formData: FormData): Promise<ActionResult> {

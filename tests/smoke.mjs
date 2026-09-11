@@ -56,6 +56,30 @@ const rows = (tab) => (sheet()[tab] ?? []).slice(1);
 // column exactly as the real sheet does, and reading these by position is how
 // writes landing one column over went unnoticed.
 const colsOf = (tab) => (sheet()[tab]?.[0] ?? []).map((h) => String(h).trim().toLowerCase());
+
+/**
+ * Every family on the circles screen, with the circle group it sits under.
+ *
+ * That screen is grouped the way the holiday screen is — a named heading per
+ * circle, its colour down the edge of each row — so a row no longer carries its
+ * own dots, and which circles a family is in is read from the heading above it
+ * rather than counted on the line itself.
+ */
+const familiesByGroup = async (page) => {
+  const seen = await page.$$eval('#families li', (els) =>
+    els.map((e) => ({
+      name: e.querySelector('button > span.font-semibold')?.textContent.trim() ?? '',
+      heading: e.querySelector('[data-circle-group]')?.textContent.trim() ?? '',
+    })),
+  );
+  let group = '';
+  return seen
+    .map((row) => {
+      if (row.heading) group = row.heading;
+      return { name: row.name, group, circles: group.includes('במעגל') ? 0 : group.split('+').length };
+    })
+    .filter((row) => row.name);
+};
 const inv = (row, name) => (row ?? [])[colsOf('Invites').indexOf(name)] ?? '';
 
 let failures = 0;
@@ -266,9 +290,7 @@ check(`and they are on the list (${coldSees.join(', ')})`, coldSees.includes('א
 // not a guess the app made about who your family is.
 await stranger.goto(`${BASE}/families`);
 await stranger.waitForSelector('text=המעגלים שלי');
-const uninvited = await stranger.$$eval('#families li', (els) =>
-  els.map((e) => e.innerText.split('\n')[0].trim()),
-);
+const uninvited = (await familiesByGroup(stranger)).map((f) => f.name);
 check(`only what we added is on the list (${uninvited.join(', ')})`,
   uninvited.length === 1 && uninvited[0].includes('אבא ואמא'));
 check('and nothing is offered on anybody else\'s say-so',
@@ -609,9 +631,7 @@ check(`the newcomer starts with the family that invited them (${options.join(', 
 // dad says these people belong together, and it is the only way to say it.
 await newcomer.goto(`${BASE}/families`);
 await newcomer.waitForSelector('text=המעגלים שלי');
-const beforeCircle = await newcomer.$$eval('#families li', (els) =>
-  els.map((e) => e.innerText.split('\n')[0].trim()),
-);
+const beforeCircle = (await familiesByGroup(newcomer)).map((f) => f.name);
 check(`the inviter's families are not handed over with the invite (${beforeCircle.join(', ')})`,
   beforeCircle.length === 1 && beforeCircle[0].includes('אבא ואמא'));
 
@@ -640,8 +660,15 @@ check('and every row says who put them there',
 
 await dad.reload();
 await dad.waitForSelector('text=צד אבא');
-const circleDots = await dad.$$eval('#families li [aria-label^="מעגלים:"]', (e) => e.length);
-check(`the families in it are dotted on their rows (${circleDots})`, circleDots === 4);
+const inCircle = (await familiesByGroup(dad)).filter((f) => f.group.includes('צד אבא'));
+check(`the four families in it are gathered under its name (${inCircle.map((f) => f.name).join(', ')})`,
+  inCircle.length === 4);
+// And the colour runs down the edge of each of their rows, the same as on the
+// holiday screen — a strip left transparent is a family in no circle at all.
+const striped = await dad.$$eval('#families [data-circle-strip]', (els) =>
+  els.filter((e) => e.style.background && e.style.background !== 'transparent').length,
+);
+check(`and their rows carry its colour (${striped})`, striped === 4);
 // Inviting the circle is the errand people come for most, so it is on the row
 // rather than behind opening it.
 check('the circle carries its invitation on the row itself',
@@ -679,18 +706,13 @@ await dad.click('text=יצירת המעגל');
 await dad.waitForTimeout(2500);
 await dad.reload();
 await dad.waitForSelector('text=צד אמא');
-const ordered = await dad.$$eval('#families li', (els) =>
-  els.map((e) => ({
-    name: e.querySelector('button > span.font-semibold')?.textContent.trim() ?? '',
-    dots: e.querySelectorAll('[aria-label^="מעגלים:"] span').length,
-  })),
-);
-check(`families in more circles come first (${ordered.map((o) => `${o.name}:${o.dots}`).join(', ')})`,
-  ordered.every((row, i) => i === 0 || ordered[i - 1].dots >= row.dots));
+const ordered = await familiesByGroup(dad);
+check(`families in more circles come first (${ordered.map((o) => `${o.name}:${o.circles}`).join(', ')})`,
+  ordered.every((row, i) => i === 0 || ordered[i - 1].circles >= row.circles));
 // דנה ויוסי and אחות ובעלה are in both circles, so they head the list; אח ואשתו
 // is in one and follows them rather than sitting between.
 check('and two circles put those families at the head',
-  ordered[0].dots === 2 && ordered[1].dots === 2);
+  ordered[0].circles === 2 && ordered[1].circles === 2);
 
 // Adding a family says which circle it belongs to at the same time — whoever
 // adds them knows it then, not on a later screen.
@@ -1033,6 +1055,15 @@ await dad.fill('input[name=familyName]', 'כהן');
 await dad.click('text=הוספה');
 await dad.waitForTimeout(1500);
 check('a family can be added while answering', rows('Households').length === beforeAdd + 1);
+// Most families here are typed in by somebody else, so "who made this row" is
+// a different question from "whose household is it" — and it is the one worth
+// asking when two rows turn out to be the same family.
+const madeRow = rows('Households').at(-1);
+const madeCols = colsOf('Households');
+const madeBy = madeRow[madeCols.indexOf('created_by')];
+const madeAt = madeRow[madeCols.indexOf('created_at')];
+check(`a new family records who typed it in (${madeBy})`, madeBy === '+972501234567');
+check(`and when (${madeAt})`, !Number.isNaN(Date.parse(madeAt ?? '')));
 
 await dad.goto(BASE);
 await dad.click('text=שינוי תשובה');
@@ -1048,9 +1079,38 @@ await dad.click('button[type=submit]');
 await dad.waitForSelector('text=מתארחים אצל כהן');
 check('answering at them works', await dad.isVisible('text=מתארחים אצל כהן'));
 
+// ── answering for a family offers what *they* could say, not what we could ──
+// כהן was added by us a moment ago and is connected to nobody else, so אחות
+// ובעלה have never met them. Offering כהן when answering for אחות ובעלה was a
+// question with an impossible answer in it: the server refuses that answer, so
+// picking it got an error rather than a saved reply.
+const forSister = dad.locator('section:has-text("איפה כולם") li', { hasText: 'אחות ובעלה' });
+await forSister.getByRole('button', { name: /בשבילם/ }).click();
+await forSister.getByRole('button', { name: 'אצל…' }).click();
+const theirs = await forSister.locator('select[name=hostHouseholdId] option').allTextContents();
+check(`answering for them offers only families they know (${theirs.join(', ')})`,
+  !theirs.some((t) => t.trim() === 'כהן'));
+// And still offers the commonest answer there is for a family that will not
+// open the app: that they are coming to us.
+check('and still offers us, whom they do know',
+  theirs.some((t) => t.trim() === 'אבא ואמא'));
+check('and never themselves', !theirs.some((t) => t.trim() === 'אחות ובעלה'));
+await forSister.getByRole('button', { name: 'חזרה' }).click();
+await forSister.getByRole('button', { name: 'חזרה' }).click();
+
 await dad.goto(`${BASE}/families`);
 check('a family nobody has signed up from says so plainly',
   await dad.isVisible('text=עוד לא נרשמו לאפליקציה'));
+
+// The same grouping the holiday screen draws, from the same sort: this list was
+// already ordered by circle and showed it only as a row of small dots.
+const grouped = await dad.$$eval('#families [data-circle-group]', (els) =>
+  els.map((e) => e.textContent.trim()),
+);
+check(`the families list is grouped by circle, with the circle named (${grouped.join(' / ')})`,
+  grouped.some((t) => t.includes('צד אבא')));
+check('and families in none of them are said to be so',
+  (await dad.innerText('#families')).includes('עוד לא במעגל'));
 
 // nothing is inherited: the newcomer never sees them
 await newcomer.goto(BASE);

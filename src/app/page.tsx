@@ -13,6 +13,7 @@ import {
   getLatestAnswer,
   getUpcomingHolidays,
   guestsComingTo,
+  hostsEachCouldPick,
   membersByHousehold,
   todayInIsrael,
   unansweredUpcoming,
@@ -116,6 +117,19 @@ export default async function Page({
     circleTags(person.householdId),
     circlesFor(person.householdId),
   ]);
+
+  // Answering for a family has to offer the families *they* could be at, not
+  // the ones we could. Ours are the candidates, so this is the overlap of their
+  // list and ours — everything on it is somewhere they can really be, and
+  // nothing on it is a family we could not already see.
+  const us = {
+    id: person.householdId,
+    name: households.find((h) => h.id === person.householdId)?.name ?? 'אנחנו',
+  };
+  const hostsFor = await hostsEachCouldPick(
+    circleStatus.map((c) => c.household.id),
+    [us, ...households.filter((h) => circle.some((c) => c.id === h.id))],
+  );
   const tagged = Object.fromEntries(tags);
   // On nobody's list of circles: no colour anywhere, no reminder, and no circle
   // link that carries them.
@@ -170,13 +184,10 @@ export default async function Page({
         })),
         tagged,
       )}
+      hostsFor={hostsFor}
       circleSize={circle.length}
       tags={tagged}
       circles={circles}
-      us={{
-        id: person.householdId,
-        name: households.find((h) => h.id === person.householdId)?.name ?? 'אנחנו',
-      }}
       hostDisagrees={Boolean(conflict)}
       earlierKey={at > 0 ? upcoming[at - 1].key : undefined}
       laterKey={at < upcoming.length - 1 ? upcoming[at + 1].key : undefined}

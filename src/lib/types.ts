@@ -2,6 +2,15 @@ export type Household = {
   id: string;
   name: string;
   active: boolean;
+  /**
+   * The number of whoever typed this household in — not the household they
+   * belong to. Most families here were added by somebody else, and when two
+   * rows turn out to be the same family the only question worth asking is who
+   * made each one and when. Empty for every household created before the
+   * columns existed.
+   */
+  createdBy: string;
+  createdAt: string;
 };
 
 /** The phone number is the key. There is no second id. */
@@ -202,7 +211,7 @@ export const HEADERS = {
   ],
   // And the one thing that is not: when it falls.
   dates: ['holiday_id', 'year', 'date'],
-  households: ['household_id', 'name', 'active'],
+  households: ['household_id', 'name', 'active', 'created_by', 'created_at'],
   people: ['phone', 'name', 'household_id'],
   answers: [
     'timestamp', 'holiday_key', 'kind', 'host_household_id', 'by_phone', 'for_household_id',
