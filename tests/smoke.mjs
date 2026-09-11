@@ -223,7 +223,15 @@ check(`an empty circle points at filling it (${cold.join(', ')})`,
 check('and is not asked who it is a guest at, since there is nobody',
   !cold.includes('מתארחים אצל…'));
 
+// ── what "משפחה" means here ─────────────────────────────────────────────────
+// The word has meant three things to three people typing into the same box: a
+// household, one person in it, and a whole side of a family — and the last is a
+// circle, which arrives as a household nobody can ever be a guest at. Nothing in
+// the data can tell those apart afterwards, so it is said where it is typed.
 await stranger.click('text=הוספת משפחה');
+check('naming a family says it is a household, not a person',
+  /משק בית אחד/.test(await stranger.innerText('main')) &&
+    /לא שם של צד במשפחה — זה מעגל/.test(await stranger.innerText('main')));
 await stranger.waitForSelector('input[name=familyPhone]');
 check('the ＋ opens the form here, without leaving the question',
   (await stranger.isVisible('input[name=familyPhone]')) && stranger.url() === `${BASE}/`);
@@ -611,6 +619,9 @@ const newcomerId = rows('Households').find((r) => r[1] === 'דנה ויוסי ל
 await dad.goto(`${BASE}/families`);
 await dad.waitForSelector('text=המעגלים שלנו');
 await dad.click('[aria-label="מעגל חדש"]');
+// The other half of the same contrast, said where a circle is named.
+check('and naming a circle says it is a group of households',
+  /קבוצה של כמה משקי בית/.test(await dad.innerText('main')));
 await dad.fill('input[name=name]', 'צד אבא');
 // By household id rather than by name: two families here are called דנה ויוסי
 // and דנה ויוסי לוי, and a text match would take whichever came first.

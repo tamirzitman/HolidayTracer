@@ -636,14 +636,28 @@ export async function removeOccasion(householdId: string, key: string): Promise<
 
 // ── writing ───────────────────────────────────────────────────────────────────
 
-async function appendRow(tab: string, headers: readonly string[], row: string[]): Promise<void> {
+/**
+ * Several rows onto one tab, in one write.
+ *
+ * The tab's columns are resolved once and the whole block goes in a single
+ * request. Written a row at a time it was a read and a write each — and, worse,
+ * every write emptied the memo, so anything that checked the sheet between two
+ * rows fetched all of it again. Putting a family into a circle of eight cost
+ * around forty round trips to Google, one after another, which is what made it
+ * slow enough to look broken. It is four now, whatever the size of the circle.
+ */
+async function appendRows(
+  tab: string,
+  headers: readonly string[],
+  rows: string[][],
+): Promise<void> {
+  if (rows.length === 0) return;
   const store = sheetStore();
   const existing = await store.read(tab);
   // A tab whose first row is data would have that row read back as the header
   // and silently swallowed, so write headers when the tab is empty.
   if (existing.length === 0) {
-    await store.append(tab, [...headers]);
-    await store.append(tab, row);
+    await store.appendAll(tab, [[...headers], ...rows]);
     invalidateSheet();
     return;
   }
@@ -654,18 +668,25 @@ async function appendRow(tab: string, headers: readonly string[], row: string[])
   // column along, so an invite's number landed in the column beside the one
   // the gate reads and no link aimed at anybody could ever let them in.
   const sheetHeaders = (existing[0] ?? []).map((name) => String(name).trim().toLowerCase());
-  const placed: string[] = new Array(sheetHeaders.length).fill('');
-  const homeless: string[] = [];
-  headers.forEach((name, i) => {
-    const at = sheetHeaders.indexOf(name);
-    // A column the sheet has never heard of: keep the value rather than drop
-    // it silently, past the end where `npm run align-headers` will show it.
-    if (at === -1) homeless.push(row[i] ?? '');
-    else placed[at] = row[i] ?? '';
+  const laid = rows.map((row) => {
+    const placed: string[] = new Array(sheetHeaders.length).fill('');
+    const homeless: string[] = [];
+    headers.forEach((name, i) => {
+      const at = sheetHeaders.indexOf(name);
+      // A column the sheet has never heard of: keep the value rather than drop
+      // it silently, past the end where `npm run align-headers` will show it.
+      if (at === -1) homeless.push(row[i] ?? '');
+      else placed[at] = row[i] ?? '';
+    });
+    return [...placed, ...homeless];
   });
 
-  await store.append(tab, [...placed, ...homeless]);
+  await store.appendAll(tab, laid);
   invalidateSheet();
+}
+
+async function appendRow(tab: string, headers: readonly string[], row: string[]): Promise<void> {
+  await appendRows(tab, headers, [row]);
 }
 
 // ── circles ───────────────────────────────────────────────────────────────────
@@ -759,12 +780,50 @@ function circleState(rows: CircleRow[]): Map<string, CircleRow> {
   return state;
 }
 
-/** Everyone currently in a circle. */
-export async function circleMembers(circleId: string): Promise<string[]> {
-  const state = circleState((await loadSheet()).circles);
-  return [...state.values()]
+/** Everyone currently in a circle, from a snapshot already in hand. */
+function circleMembersIn(sheet: Sheet, circleId: string): string[] {
+  return [...circleState(sheet.circles).values()]
     .filter((r) => r.circleId === circleId && r.action === 'add')
     .map((r) => r.householdId);
+}
+
+/** Everyone currently in a circle. */
+export async function circleMembers(circleId: string): Promise<string[]> {
+  return circleMembersIn(await loadSheet(), circleId);
+}
+
+/**
+ * The connection rows that would introduce these pairs, leaving out any pair
+ * already connected — judged against one snapshot rather than by asking the
+ * sheet again between every write.
+ *
+ * Both directions, sharing a timestamp: a connection is mutual, and the two
+ * rows saying so are one act. A pair named twice in the same call is written
+ * once, so a member appearing in two pairs cannot produce a duplicate row.
+ */
+function pairsToConnect(sheet: Sheet, pairs: [string, string][], at: string): string[][] {
+  const linked = new Set<string>();
+  for (const c of sheet.connections) {
+    const key = `${c.householdId}\u0000${c.connectedTo}`;
+    if (c.action === 'add') linked.add(key);
+    else linked.delete(key);
+  }
+
+  const rows: string[][] = [];
+  const written = new Set<string>();
+  for (const [a, b] of pairs) {
+    if (a === b) continue;
+    for (const [from, to] of [
+      [a, b],
+      [b, a],
+    ]) {
+      const key = `${from}\u0000${to}`;
+      if (linked.has(key) || written.has(key)) continue;
+      written.add(key);
+      rows.push([from, to, 'add', at]);
+    }
+  }
+  return rows;
 }
 
 export type MyCircle = {
@@ -831,27 +890,27 @@ export async function createCircle(
   const id = randomUUID().replace(/-/g, '').slice(0, 12);
   const at = new Date().toISOString();
   const all = [householdId, ...members.filter((m) => m !== householdId)];
-  for (const member of all) {
-    await appendRow(TABS.circles, HEADERS.circles, [
-      id,
-      member,
-      'add',
-      name,
-      color,
-      householdId,
-      at,
-    ]);
-  }
+  const sheet = await loadSheet();
 
   // A circle is a claim that these families belong together, so they are
   // introduced to each other on the spot rather than suggested to each other
-  // one at a time.
+  // one at a time. Every pair of them, which is where this hurt most: a circle
+  // of ten is forty-five pairs, and each pair was four writes and a re-read of
+  // the whole spreadsheet between them.
+  const pairs: [string, string][] = [];
   for (const a of all) {
     for (const b of all) {
       if (a >= b) continue;
-      if (!(await isConnected(a, b))) await connect(a, b);
+      pairs.push([a, b]);
     }
   }
+
+  await appendRows(
+    TABS.circles,
+    HEADERS.circles,
+    all.map((member) => [id, member, 'add', name, color, householdId, at]),
+  );
+  await appendRows(TABS.connections, HEADERS.connections, pairsToConnect(sheet, pairs, at));
   return id;
 }
 
@@ -867,25 +926,23 @@ export async function addToCircle(
   name: string,
   color: string,
 ): Promise<void> {
-  const already = await circleMembers(circleId);
-  await appendRow(TABS.circles, HEADERS.circles, [
-    circleId,
-    householdId,
-    'add',
-    name,
-    color,
-    addedBy,
-    new Date().toISOString(),
-  ]);
+  // One snapshot for the whole job. Asked per member instead, each question
+  // arrived after a write had emptied the memo, so every one of them fetched
+  // the entire spreadsheet again before writing two more rows.
+  const sheet = await loadSheet();
+  const already = circleMembersIn(sheet, circleId);
+  const at = new Date().toISOString();
 
   // Joining a circle is joining the families in it. Offering them afterwards as
   // suggestions asked the newcomer to accept, one at a time, the very thing
   // being put in the circle already said — and left whoever added them looking
   // at a circle whose members could not see each other.
-  for (const other of already) {
-    if (other === householdId) continue;
-    if (!(await isConnected(householdId, other))) await connect(householdId, other);
-  }
+  const links = pairsToConnect(sheet, already.map((other) => [householdId, other]), at);
+
+  await appendRows(TABS.circles, HEADERS.circles, [
+    [circleId, householdId, 'add', name, color, addedBy, at],
+  ]);
+  await appendRows(TABS.connections, HEADERS.connections, links);
 }
 
 /** Who put this household in this circle, if they are in it at all. */
@@ -1298,9 +1355,9 @@ export async function recordConflicts(): Promise<void> {
     if (status === 'open' && !open.has(key)) rows.push([...key.split('|'), 'resolved', at]);
   }
 
-  for (const row of rows) {
-    await appendRow(TABS.conflicts, HEADERS.conflicts, row);
-  }
+  // One write, not one per contradiction. This runs after every single answer,
+  // so it sits between the tap and the screen coming back.
+  await appendRows(TABS.conflicts, HEADERS.conflicts, rows);
 }
 
 // ── writes ────────────────────────────────────────────────────────────────────

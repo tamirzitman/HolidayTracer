@@ -90,6 +90,11 @@ export const hostButton =
   'flex w-full items-center justify-center gap-2 rounded-2xl border border-host/60 bg-host-wash px-4 py-4 ' +
   'text-center text-lg font-bold text-host transition active:scale-[0.98] disabled:opacity-50';
 
+/** The line under a field that says what belongs in it. */
+export function FieldHint({ children }: { children: React.ReactNode }) {
+  return <span className="text-xs leading-relaxed text-muted">{children}</span>;
+}
+
 /** A small call to action that sits inside a row, rather than filling it. */
 export const chipButton =
   'shrink-0 rounded-full border border-brand bg-brand px-4 py-1.5 text-sm font-bold whitespace-nowrap text-ground';

@@ -12,6 +12,13 @@ export type SheetStore = {
   /** Every tab in one request. Five round trips to Google is the difference between fast and slow. */
   readMany(tabs: string[]): Promise<Record<string, string[][]>>;
   append(tab: string, row: string[]): Promise<void>;
+  /**
+   * Several rows in one call. Google takes a whole block per request, and the
+   * difference is not a nicety: putting a family into a circle writes one row
+   * per family already in it, and one request each turned a tap into a wait
+   * long enough that people thought the app had hung.
+   */
+  appendAll(tab: string, rows: string[][]): Promise<void>;
   replace(tab: string, rows: string[][]): Promise<void>;
   /**
    * Makes a tab if the spreadsheet has not got one. True when it had to. The
@@ -23,6 +30,35 @@ export type SheetStore = {
 
 const asStrings = (values: unknown[][] | undefined): string[][] =>
   (values ?? []).map((row) => row.map((cell) => String(cell ?? '')));
+
+/**
+ * How many times the store has been asked for something, by kind.
+ *
+ * Here because the cost of a screen is round trips to Google and nothing else,
+ * and that cost is invisible from the code: a loop that writes one row per
+ * family reads exactly like a loop that writes them all at once. Putting a
+ * family into a circle once cost about forty of these, one after another, and
+ * nothing said so until somebody sat waiting. `npm run perf-circle` reads these
+ * and fails if the count starts growing with the size of the circle again.
+ */
+const calls = { read: 0, readMany: 0, append: 0, appendAll: 0 };
+export const storeCalls = (): Readonly<typeof calls> => ({ ...calls });
+export const resetStoreCalls = (): void => {
+  for (const key of Object.keys(calls) as (keyof typeof calls)[]) calls[key] = 0;
+};
+
+/** The same store, keeping a tally. Wrapped once rather than counted inside
+ *  each method, so a store can never grow a method that forgets to count. */
+function counted(store: SheetStore): SheetStore {
+  return {
+    read: (tab) => ((calls.read += 1), store.read(tab)),
+    readMany: (tabs) => ((calls.readMany += 1), store.readMany(tabs)),
+    append: (tab, row) => ((calls.append += 1), store.append(tab, row)),
+    appendAll: (tab, rows) => ((calls.appendAll += 1), store.appendAll(tab, rows)),
+    replace: (tab, rows) => store.replace(tab, rows),
+    ensureTab: (tab) => store.ensureTab(tab),
+  };
+}
 
 function googleStore(spreadsheetId: string): SheetStore {
   const auth = new google.auth.JWT({
@@ -77,12 +113,16 @@ function googleStore(spreadsheetId: string): SheetStore {
       return true;
     },
     async append(tab, row) {
+      await this.appendAll(tab, [row]);
+    },
+    async appendAll(tab, rows) {
+      if (rows.length === 0) return;
       await sheets.spreadsheets.values.append({
         spreadsheetId,
         range: `${tab}!A:Z`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: [row] },
+        requestBody: { values: rows },
       });
     },
     async replace(tab, rows) {
@@ -123,8 +163,12 @@ function localStore(): SheetStore {
       return Object.fromEntries(tabs.map((tab) => [tab, data[tab] ?? []]));
     },
     async append(tab, row) {
+      await this.appendAll(tab, [row]);
+    },
+    async appendAll(tab, rows) {
+      if (rows.length === 0) return;
       const data = await load();
-      (data[tab] ??= []).push(row);
+      (data[tab] ??= []).push(...rows);
       await save(data);
     },
     async replace(tab, rows) {
@@ -155,7 +199,7 @@ export function sheetStore(): SheetStore {
           'environment — check that Preview has one of its own.',
       );
     }
-    store = id ? googleStore(id) : localStore();
+    store = counted(id ? googleStore(id) : localStore());
   }
   return store;
 }

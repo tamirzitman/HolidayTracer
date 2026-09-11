@@ -2,10 +2,12 @@
 
 import { useActionState, useState } from 'react';
 import { register, type ActionResult } from '@/app/actions';
+import { HOUSEHOLD_HINT } from '@/lib/naming';
 import { formatPhone } from '@/lib/phone';
 import {
   Busy,
   ErrorNote,
+  FieldHint,
   Title,
   card,
   field,
@@ -252,6 +254,7 @@ export function JoinForm({
                 onChange={(e) => setHouseholdName(e.target.value)}
                 className={field}
               />
+              <FieldHint>{HOUSEHOLD_HINT}</FieldHint>
             </label>
           )}
 

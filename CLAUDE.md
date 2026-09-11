@@ -27,8 +27,9 @@ change that shipped without one.
 ```
 npm run version-check   # the number still describes the code
 npm run typecheck
+npm run perf-circle     # joining a circle still costs the same at any size
 npm run build           # then restart the test server before the suite
-npm run test:smoke      # ~230 browser checks, ~14 min, needs the build above
+npm run test:smoke      # ~250 browser checks, ~14 min, needs the build above
 ```
 
 The smoke suite runs against a production build on port 3111 with local fixture
@@ -48,3 +49,12 @@ server is running swaps chunks underneath it — kill it, build, start it again.
   `npm run check-sheet` looks for ids named by rows that have no household.
 - **Circles are the only way families find each other.** Being in one puts you
   on everybody else's list; there is no other mechanism.
+- **Write rows in one call, never in a loop.** Every screen's cost is round
+  trips to Google and nothing else, and a write also empties the memo — so a
+  loop that writes a row per family re-reads the whole spreadsheet between each
+  one. `appendRows` takes them all at once. Putting a family into a circle of 24
+  was 122 round trips this way; it is 4. `npm run perf-circle` fails if that
+  starts scaling again.
+- **There are real families using this.** Nothing here is a scratch project:
+  changes go out to people mid-holiday, and the sheet holds their phone numbers
+  and where they are eating.

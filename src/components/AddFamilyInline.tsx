@@ -1,5 +1,6 @@
 'use client';
 
+import { HOUSEHOLD_HINT } from '@/lib/naming';
 import { useActionState, useCallback, useEffect, useState } from 'react';
 import { useCloseOnAway } from '@/lib/dismiss';
 import { addFamilyNow, newInviteLink, type AddedFamily } from '@/app/actions';
@@ -8,9 +9,10 @@ import { inviteVia } from '@/lib/whatsapp';
 import { colorOf } from '@/lib/circle-colors';
 import {
   BackButton,
-  PlusIcon,
   Busy,
   ErrorNote,
+  FieldHint,
+  PlusIcon,
   card,
   field,
   primaryButton,
@@ -162,6 +164,7 @@ export function AddFamilyInline({
           placeholder="עמוס וליאת כהן"
           className={field}
         />
+        <FieldHint>{HOUSEHOLD_HINT}</FieldHint>
       </label>
 
       {/* Which side of the family they are on, while we are here. Whoever is

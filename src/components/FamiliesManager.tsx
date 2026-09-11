@@ -1,5 +1,6 @@
 'use client';
 
+import { HOUSEHOLD_HINT } from '@/lib/naming';
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useState } from 'react';
 import { useHandoff } from '@/lib/handoff';
@@ -23,6 +24,7 @@ import {
   ChevronIcon,
   CrossIcon,
   ErrorNote,
+  FieldHint,
   IconButton,
   PencilIcon,
   PlusIcon,
@@ -230,6 +232,7 @@ function OwnHouse({ name, members }: { name: string; members: Member[] }) {
             autoFocus
             className={field}
           />
+          <FieldHint>{HOUSEHOLD_HINT}</FieldHint>
         </label>
         <ErrorNote>{state.error}</ErrorNote>
         <div className="flex items-center gap-4">

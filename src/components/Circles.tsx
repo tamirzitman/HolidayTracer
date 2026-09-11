@@ -1,5 +1,6 @@
 'use client';
 
+import { CIRCLE_HINT } from '@/lib/naming';
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -22,6 +23,7 @@ import {
   ChevronIcon,
   CrossIcon,
   ErrorNote,
+  FieldHint,
   IconButton,
   PlusIcon,
   card,
@@ -248,6 +250,7 @@ function NewCircle({
       <label className="flex flex-col gap-2">
         <span className="text-sm font-semibold text-muted">איך תקראו למעגל?</span>
         <input name="name" type="text" required placeholder="צד אבא" className={field} />
+        <FieldHint>{CIRCLE_HINT}</FieldHint>
       </label>
 
       <fieldset className="flex flex-col gap-1">

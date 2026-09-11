@@ -1,6 +1,6 @@
 {
   "name": "holidaytracer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "version-check": "tsx scripts/version-check.mts",
     "make-icons": "tsx scripts/make-icons.mts",
+    "perf-circle": "tsx scripts/perf-circle.mts",
     "seed:holidays": "tsx scripts/seed-holidays.mts",
     "fixtures": "node scripts/dev-fixtures.mjs",
     "test:smoke": "node tests/smoke.mjs",
