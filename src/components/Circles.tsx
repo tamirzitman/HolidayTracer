@@ -136,8 +136,12 @@ export function Circles({
       <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
         <h2 className={sectionHeading}>המעגלים שלנו</h2>
         {!making && (
-          <IconButton label="מעגל חדש" onClick={() => setMaking(true)}>
-            <PlusIcon />
+          // The same ＋ as the one that adds a family below it: both head a
+          // section, both are the only way into the thing they open, and a
+          // smaller grey one beside a bigger filled one reads as the lesser of
+          // the two rather than as the other of the same kind.
+          <IconButton label="מעגל חדש" big filled onClick={() => setMaking(true)}>
+            <PlusIcon className="h-5 w-5" />
           </IconButton>
         )}
       </div>
