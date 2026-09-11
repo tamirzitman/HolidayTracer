@@ -17,11 +17,9 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import sharp from 'sharp';
 import { Mark } from '../src/components/Mark.tsx';
+import { BRAND } from '../src/lib/brand.ts';
 
-/** The artwork's own palette: warmer and deeper than the app's interior. */
-const GOLD = '#e6c78c';
-const DEEP = '#1d0b10';
-const WARM = '#4d1f2c';
+const GOLD = BRAND.gold;
 
 const mark = renderToStaticMarkup(createElement(Mark));
 /** The mark's own markup, without its <svg> wrapper, to place on a ground. */
@@ -46,8 +44,8 @@ function place(w: number, h: number, fraction: number): string {
 const ground = (w: number, h: number) => `
   <defs>
     <radialGradient id="ground" cx="50%" cy="42%" r="78%">
-      <stop offset="0%" stop-color="${WARM}"/>
-      <stop offset="100%" stop-color="${DEEP}"/>
+      <stop offset="0%" stop-color="${BRAND.groundLit}"/>
+      <stop offset="100%" stop-color="${BRAND.groundEdge}"/>
     </radialGradient>
   </defs>
   <rect width="${w}" height="${h}" fill="url(#ground)"/>`;

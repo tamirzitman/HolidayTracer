@@ -37,6 +37,59 @@ export const miniButton =
   'inline-flex w-fit shrink-0 items-center justify-center rounded-full border border-line bg-surface ' +
   'px-2.5 py-1 text-xs font-bold text-brand transition active:scale-95 disabled:opacity-50';
 
+/**
+ * The candle from the app's own mark, standing for us hosting.
+ *
+ * It appears wherever the answer is that the table is ours — the holiday, the
+ * button that says so, the years in the history — and nowhere else, so it is
+ * worth one glance down a screen to find them. Deliberately a shape and not
+ * only a colour: a circle's colour can be the same warm gold, and a flame can
+ * never be mistaken for a circle's dot.
+ */
+export function HostCandle({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
+      {/* The whole candle, not the flame alone. On the candle in the mark the
+          flame is read by what it sits on; lifted off it, a teardrop on its own
+          is a drop of something. */}
+      <path d="M12 2 C14.8 6 15.6 8.4 12 10.8 C8.4 8.4 9.2 6 12 2 Z" />
+      <rect x="9.1" y="11" width="5.8" height="9" rx="1.5" />
+      <rect x="6.3" y="20" width="11.4" height="2.2" rx="1.1" />
+    </svg>
+  );
+}
+
+/**
+ * The card, tinted for the one answer that is about our own table. Written as a
+ * style rather than another class: `card` already sets a background and a
+ * border, and a utility appended after it wins or loses on the order the
+ * stylesheet happens to be generated in, which here meant it silently lost.
+ */
+export const hostTint = {
+  backgroundColor: 'var(--color-host-wash)',
+  borderColor: 'color-mix(in srgb, var(--color-host) 45%, transparent)',
+} as const;
+
+/** Said aloud, since the flame beside it is drawn and carries no words. */
+export const HOSTING = 'אנחנו מארחים';
+
+/**
+ * The strip down the edge of a row we hosted. The circles mark a row by whose
+ * table it was; this marks the rows that were ours, in the one place where that
+ * is the answer and there is no other family to colour it by.
+ */
+export const hostStrip = 'w-1 shrink-0 self-stretch rounded-full bg-host';
+
+/**
+ * The button that says the table is ours. The shape of `secondaryButton`, in
+ * the host colour rather than the brand's — so on the one screen where all
+ * three answers sit together, this is the one that looks like the thing it
+ * leads to.
+ */
+export const hostButton =
+  'flex w-full items-center justify-center gap-2 rounded-2xl border border-host/60 bg-host-wash px-4 py-4 ' +
+  'text-center text-lg font-bold text-host transition active:scale-[0.98] disabled:opacity-50';
+
 /** A small call to action that sits inside a row, rather than filling it. */
 export const chipButton =
   'shrink-0 rounded-full border border-brand bg-brand px-4 py-1.5 text-sm font-bold whitespace-nowrap text-ground';

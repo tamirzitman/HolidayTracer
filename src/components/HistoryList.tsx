@@ -11,6 +11,7 @@ import {
   BackButton,
   Busy,
   ErrorNote,
+  HostCandle,
   card,
   chipButton,
   field,
@@ -66,11 +67,15 @@ export function HistoryList({
       <ul className={`${card} divide-y divide-line p-0`}>
         {entries.map((entry) => {
           const open = editing === entry.key;
-          // Whose circles this row is coloured by: the family we were at. Hosting
-          // and a holiday we spent at home belong to no circle in particular.
+          // Whose circles this row is coloured by: the family we were at.
           const hostTags = (entry.kind === 'guest' && tags[entry.hostId]) || [];
-          const stripe =
-            hostTags.length === 0
+          // The years we hosted have no other family to colour them by, so they
+          // were the only answered rows here with nothing down the edge at all
+          // — the ones most worth finding, left blank.
+          const weHosted = entry.kind === 'hosting';
+          const stripe = weHosted
+            ? 'var(--color-host)'
+            : hostTags.length === 0
               ? 'transparent'
               : hostTags.length === 1
                 ? colorOf(hostTags[0].color)
@@ -78,7 +83,9 @@ export function HistoryList({
           return (
             <li
               key={entry.key}
-              className={`flex gap-3 px-5 py-4 ${entry.kind ? '' : 'bg-brand-wash/40'}`}
+              className={`flex gap-3 px-5 py-4 ${
+                weHosted ? 'bg-host-wash/60' : entry.kind ? '' : 'bg-brand-wash/40'
+              }`}
             >
               {/* The same strip down the edge as on the holiday screen, so the
                   year can be scanned for one circle without reading the names. */}
@@ -92,8 +99,12 @@ export function HistoryList({
                   <div className="flex grow flex-col gap-1">
                     <span className="font-display text-lg font-bold text-ink">{entry.name}</span>
                     {entry.kind ? (
-                      <span className="inline-flex w-fit items-center gap-1.5 text-brand">
-                        <span aria-hidden="true">✓</span>
+                      <span
+                        className={`inline-flex w-fit items-center gap-1.5 ${
+                          weHosted ? 'text-host' : 'text-brand'
+                        }`}
+                      >
+                        {weHosted ? <HostCandle /> : <span aria-hidden="true">✓</span>}
                         <span className="font-semibold">
                           {entry.kind === 'hosting'
                             ? 'אירחנו'

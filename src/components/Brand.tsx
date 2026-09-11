@@ -1,8 +1,9 @@
+import { BRAND, brandGround } from '@/lib/brand';
 import { Mark } from './Mark';
 
-/** The artwork's palette. Fixed, not themed — see the note on Brand below. */
-const GOLD = '#e6c78c';
-const GOLD_BRIGHT = '#f3dcae';
+/** Fixed, not themed — see the note on Brand below. */
+const GOLD = BRAND.gold;
+const GOLD_BRIGHT = BRAND.goldBright;
 
 /**
  * The holiday things, scattered and repeating, the way they run along the top
@@ -74,7 +75,7 @@ export function Brand() {
   return (
     <div
       className="relative isolate overflow-hidden rounded-3xl px-6 py-11 text-center"
-      style={{ background: `radial-gradient(120% 90% at 50% 30%, #4d1f2c, #1d0b10)` }}
+      style={{ background: brandGround() }}
     >
       {/* Along the top and bottom edges, fading inwards, so the middle stays
           clear for the thing that has to be read. */}

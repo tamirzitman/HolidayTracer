@@ -22,6 +22,20 @@
   /* For the two or three controls that take something away. Nothing else in
      the app is red, so red means only this. */
   --color-danger: #b3261e;
+
+  /*
+   * Us hosting. The one thing on these screens that is about our own table
+   * rather than somebody else's, wherever it is said: the year in the history,
+   * the answer on the holiday, the button that gives that answer.
+   *
+   * It is warm on purpose and it is close to the amber a circle can be — the
+   * palette already owns the warm range, and there is no warm hue left that is
+   * not one of them. So the colour is never what tells them apart: this always
+   * comes with the candle from the app's own mark, and a circle is always a
+   * plain filled dot. Different shapes, which nobody has to learn.
+   */
+  --color-host: #9c6b13;
+  --color-host-wash: #fbf1dd;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -36,6 +50,8 @@
     --color-glow: rgba(227, 155, 176, 0.16);
     --color-whatsapp: #4ad07d;
     --color-danger: #f2837b;
+    --color-host: #ecc57e;
+    --color-host-wash: #2f2413;
   }
 }
 

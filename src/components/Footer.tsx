@@ -21,8 +21,6 @@ function screenName(pathname: string): string {
  * and can be wrong. A rule and a gap separate it from the app, because a version
  * number that reads as content is a version number people try to tap.
  *
- * The address is written out rather than hidden behind a word: somebody who
- * would rather write from their own mail app needs to be able to read it.
  */
 export function Footer({ signedIn }: { signedIn: boolean }) {
   const pathname = usePathname();
@@ -54,12 +52,12 @@ export function Footer({ signedIn }: { signedIn: boolean }) {
             finds the footer on every screen instead of the screen it meant. */}
         <p className="text-xs font-semibold text-muted">גרסה {version}</p>
 
+        {/* The button is the address — it opens a mail app with it already
+            filled in, so printing it underneath was the same thing said twice,
+            and the spelt-out one is the half nobody can act on with a tap. */}
         <a href={mailto} className={mutedButton}>
           משהו לא עובד? כתבו לי
         </a>
-        <p className="text-xs text-muted" dir="ltr">
-          tamirzitman@gmail.com
-        </p>
 
         <p className="max-w-xs text-xs leading-relaxed text-muted">
           האפליקציה נבנתה בעזרת בינה מלאכותית — ייתכנו טעויות. אם משהו נראה לא

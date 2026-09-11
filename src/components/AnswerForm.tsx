@@ -26,6 +26,9 @@ import {
   card,
   chipButton,
   field,
+  HostCandle,
+  hostButton,
+  hostTint,
   miniButton,
   primaryButton,
   quietButton,
@@ -324,9 +327,18 @@ export function AnswerForm({
             the card where it looks intended rather than as a hole beneath it. */}
         <div className="flex flex-col">
           {answered ? (
-            <div className={`${card} ${cardFloor} celebrate-card flex flex-col items-center justify-center gap-3 text-center`}>
+            <div
+              // The one answer that is about our own table. The same gold and
+              // the same candle mark it in the history and on the button that
+              // gives it, so the three read as one thing.
+              style={shown.kind === 'hosting' ? hostTint : undefined}
+              className={`${card} ${cardFloor} celebrate-card flex flex-col items-center justify-center gap-3 text-center`}
+            >
               {shown.kind === 'hosting' ? (
-                <p className="font-display text-3xl font-bold text-brand">אנחנו מארחים</p>
+                <>
+                  <HostCandle className="h-10 w-10 text-host" />
+                  <p className="font-display text-3xl font-bold text-host">אנחנו מארחים</p>
+                </>
               ) : shown.kind === 'away' ? (
                 <p className="font-display text-3xl font-bold text-brand">לא מגיעים</p>
               ) : (
@@ -409,13 +421,17 @@ export function AnswerForm({
 
               {!choosingHost ? (
                 <>
+                  {/* Not the plain second option any more: it is the one
+                      answer with a mark of its own, and the button that gives
+                      it wears the mark. */}
                   <button
                     type="submit"
                     name="kind"
                     value="hosting"
                     disabled={pending}
-                    className={secondaryButton}
+                    className={hostButton}
                   >
+                    <HostCandle className="h-5 w-5" />
                     אנחנו מארחים
                   </button>
                   {/* With nobody on the list there is nothing to be a guest at,

@@ -444,9 +444,25 @@ check('and it is the ＋, a thumb under the last answer',
 check('answering is worth something, and says so before you do it',
   /כשתענו, תוכלו לראות כאן/.test(await dad.innerText('main')));
 
+// ── us hosting looks the same wherever it is said ───────────────────────────
+// A circle's colour follows a family across every screen. Hosting had no such
+// mark at all, which left the one answer that is about our own table looking
+// like any other. The candle from the app's mark now carries it — a shape, not
+// only a colour, because a circle can be the same warm gold and never a candle.
+const candle = 'svg path[d^="M12 2 C14.8"]';
+check('the button that says the table is ours wears the mark',
+  await dad.isVisible(`main button:has-text("אנחנו מארחים") ${candle}`));
+
 await dad.click('text=אנחנו מארחים');
 await dad.waitForSelector('text=איפה כולם');
 check('answering reveals where everyone is', await dad.isVisible('text=איפה כולם'));
+check('and the answer itself carries the same mark',
+  await dad.isVisible(`.celebrate-card ${candle}`));
+check('on a card tinted for it, not the plain one every other answer gets',
+  await dad.$eval('.celebrate-card', (el) =>
+    getComputedStyle(el).backgroundColor !== getComputedStyle(document.body).backgroundColor &&
+    el.style.backgroundColor !== '',
+  ));
 check('and the circle lists the other families', await dad.isVisible('text=דנה ויוסי'));
 
 // ── answering for a family that will not open the app ───────────────────────
@@ -1196,6 +1212,19 @@ await pastRow.getByRole('button', { name: 'אירחנו', exact: true }).click()
 await dad.waitForTimeout(1500);
 check('editing a past holiday appends rather than overwrites',
   rows('Answers').length === beforeEdit + 1);
+
+// The same mark again, on the third screen that says it. A year we hosted has
+// no other family to colour it by, so before this it was the only answered row
+// here with nothing down its edge at all.
+await dad.reload();
+await dad.waitForSelector('text=איפה היינו');
+const hosted = dad.locator('li', { hasText: 'אירחנו' }).first();
+check('a year we hosted is marked the same way the holiday screen marks it',
+  await hosted.locator('svg path[d^="M12 2 C14.8"]').isVisible());
+check('and carries it down the edge, where a circle would put its colour',
+  await hosted.locator('span[aria-hidden="true"]').first().evaluate(
+    (el) => getComputedStyle(el).background.includes('rgb'),
+  ));
 check('and the row closes itself after saving', !(await dad.isVisible('text=שמירה')));
 
 await dad.goto(`${BASE}/history`);

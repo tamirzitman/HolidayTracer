@@ -2,8 +2,8 @@
   
   <defs>
     <radialGradient id="ground" cx="50%" cy="42%" r="78%">
-      <stop offset="0%" stop-color="#4d1f2c"/>
-      <stop offset="100%" stop-color="#1d0b10"/>
+      <stop offset="0%" stop-color="#7c2740"/>
+      <stop offset="100%" stop-color="#59192d"/>
     </radialGradient>
   </defs>
   <rect width="512" height="512" fill="url(#ground)"/>
