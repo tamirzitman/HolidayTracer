@@ -58,6 +58,31 @@ const rows = (tab) => (sheet()[tab] ?? []).slice(1);
 const colsOf = (tab) => (sheet()[tab]?.[0] ?? []).map((h) => String(h).trim().toLowerCase());
 
 /**
+ * The nearest seeded holiday still to come, by key.
+ *
+ * Worked out from the fixtures rather than written down, because a key written
+ * down stops being true the morning that holiday becomes yesterday — which is
+ * how this suite has now broken twice, both times on a date nobody changed.
+ * Seeded rather than any holiday: a family's own occasion can fall nearer, and
+ * a test that means "a holiday everybody shares" would then measure one of
+ * those instead.
+ */
+const upcomingSeededKey = () => {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+  const cols = colsOf('Holidays');
+  const shared = new Set(
+    rows('Holidays')
+      .filter((r) => !r[cols.indexOf('owner_household_id')])
+      .map((r) => r[cols.indexOf('holiday_id')]),
+  );
+  const next = rows('Dates')
+    .map((r) => ({ id: r[0], year: r[1], date: r[2] }))
+    .filter((d) => shared.has(d.id) && d.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  return next ? `${next.id}_${next.year}` : '';
+};
+
+/**
  * Every family on the circles screen, with the circle group it sits under.
  *
  * That screen is grouped the way the holiday screen is — a named heading per
@@ -994,7 +1019,18 @@ check('the guest is warned their host is not hosting',
   await newcomer.isVisible('text=שימו לב — הם ענו שהם מתארחים'));
 
 const newcomerHousehold = rows('Households').find((r) => r[1] === 'דנה ויוסי לוי')[0];
-const KEY = `erev_rosh_hashana_2026|${newcomerHousehold}|hh_parents`;
+// The holiday dad just answered about, read back from the row he wrote. Naming
+// it here instead tied this check to the calendar: it passed every day until
+// that holiday became yesterday and the screen opened on the next one.
+const answerCols = colsOf('Answers');
+const dadsAnswer = rows('Answers')
+  .filter(
+    (r) =>
+      r[answerCols.indexOf('by_phone')] === '+972501234567' &&
+      !r[answerCols.indexOf('for_household_id')],
+  )
+  .at(-1);
+const KEY = `${dadsAnswer[answerCols.indexOf('holiday_key')]}|${newcomerHousehold}|hh_parents`;
 check(`the contradiction is written to the sheet (${rows('Conflicts').length} rows)`,
   conflictState().get(KEY) === 'open');
 
@@ -1183,8 +1219,11 @@ check('and connected to us, so we can answer for them',
 
 // ── stepping between holidays still works ────────────────────────────────────
 // Rosh Hashana is three meals on three consecutive days, and the arrow walks
-// them in order: the eve, the day after it, then the second eve.
-await dad.goto(BASE);
+// them in order: the eve, the day after it, then the second eve. Named by key
+// rather than opening on plain BASE, which is whichever holiday is nearest
+// today — so the walk starts where the walk is about, and it starts in the past
+// and steps forward out of it, which is the other thing worth proving.
+await dad.goto(`${BASE}/?h=erev_rosh_hashana_2026`);
 const firstHoliday = (await dad.innerText('.font-display')).trim();
 await dad.click('[aria-label="החג הבא"]');
 await dad.waitForURL(/\?h=rosh_hashana_2026/);
@@ -1669,8 +1708,9 @@ const onOccasion = await dad.$$eval('section:has-text("איפה כולם") li p.
   els.map((e) => e.textContent.trim()),
 );
 // A seeded holiday by key: the occasion is only days away, so plain BASE would
-// land on the occasion again and measure the same screen twice.
-await dad.goto(`${BASE}/?h=erev_rosh_hashana_2026`);
+// land on the occasion again and measure the same screen twice. It has to be
+// one still to come — a past holiday is a record, with nothing to answer.
+await dad.goto(`${BASE}/?h=${upcomingSeededKey()}`);
 await dad.waitForSelector('nav');
 if (!(await dad.isVisible('text=איפה כולם'))) await dad.click('text=אנחנו מארחים');
 await dad.waitForSelector('text=איפה כולם');
