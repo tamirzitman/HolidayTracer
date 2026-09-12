@@ -1268,6 +1268,9 @@ check('the end of the strip says where the rest of the history is',
   /עד כאן אפשר להחליק/.test(await dad.innerText('main')));
 
 // The link goes to that holiday's own row, not to the top of the tab.
+// Whichever holiday the strip ends on — naming one here would be true only
+// until a year's worth of dates had moved past it.
+const oldest = (await dad.innerText('.font-display')).trim();
 const backTo = await dad.getAttribute('main a[href^="/history#"]', 'href');
 check(`a past holiday links to its own row in the history (${backTo})`,
   Boolean(backTo) && backTo.startsWith('/history#'));
@@ -1276,7 +1279,8 @@ await dad.waitForSelector('text=איפה היינו');
 await dad.waitForTimeout(600);
 const landed = dad.locator(`li#${backTo.split('#')[1]}`);
 check('and that row is there to land on', (await landed.count()) === 1);
-check('and it is the same holiday', (await landed.innerText()).includes('ערב פסח'));
+check(`and it is the holiday we came from (${oldest})`,
+  (await landed.innerText()).includes(oldest));
 
 // ── the mark beside a holiday comes from the sheet ───────────────────────────
 // Editing a cell is the whole configuration: no deploy, no code change.
@@ -1643,8 +1647,12 @@ check('and says which holiday this is',
 // Only the holiday and its answer travel; who you are and the pager hold still.
 const travels = await dad.$eval('main [class*="flex-col gap-6"]', (el) =>
   el.innerText.split('\n').filter(Boolean).slice(0, 2).join(' | '));
+// Whichever holiday the screen opened on. What is being checked is that the
+// holiday travels with the panel, not which holiday it happens to be — and
+// naming one made this go red the morning that holiday became yesterday.
+const onScreen = (await dad.innerText('.font-display')).trim();
 check(`the panel that moves holds the holiday itself (${travels})`,
-  travels.includes('ערב ראש השנה'));
+  travels.includes(onScreen));
 
 // ── occasions belong to one family ───────────────────────────────────────────
 // The soonest day no seeded holiday already occupies. A fixed "three days from
