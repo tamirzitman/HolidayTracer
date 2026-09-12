@@ -11,7 +11,7 @@ import {
   findPerson,
   getHouseholds,
   getLatestAnswer,
-  getUpcomingHolidays,
+  holidayStrip,
   guestsComingTo,
   hostsEachCouldPick,
   membersByHousehold,
@@ -61,8 +61,10 @@ export default async function Page({
     );
   }
 
-  const upcoming = await getUpcomingHolidays(person.householdId);
-  if (upcoming.length === 0) {
+  // A year back and the round ahead, so a holiday that has just passed is still
+  // reachable by swiping rather than gone the morning after.
+  const { holidays: strip, present } = await holidayStrip(person.householdId);
+  if (strip.length === 0) {
     return (
       <div className={`${card} flex flex-col items-center gap-3 text-center`}>
         <Title>אין חג קרוב</Title>
@@ -82,10 +84,14 @@ export default async function Page({
   }
 
   // Which holiday is on screen comes from the URL, so the arrows are plain links
-  // and a half-finished answer can't be lost to a stray tap.
+  // and a half-finished answer can't be lost to a stray tap. With nothing asked
+  // for it opens on the first holiday still to come — never on a past one,
+  // however far back the last swipe went.
   const requested = (await searchParams).h;
-  const at = Math.max(0, upcoming.findIndex((h) => h.key === requested));
-  const holiday = upcoming[at];
+  const asked = strip.findIndex((h) => h.key === requested);
+  const at = asked === -1 ? present : asked;
+  const holiday = strip[at];
+  const isPast = at < present;
 
   const [households, circle, current, guests, conflict, members] =
     await Promise.all([
@@ -189,9 +195,10 @@ export default async function Page({
       tags={tagged}
       circles={circles}
       hostDisagrees={Boolean(conflict)}
-      earlierKey={at > 0 ? upcoming[at - 1].key : undefined}
-      laterKey={at < upcoming.length - 1 ? upcoming[at + 1].key : undefined}
-      position={{ index: at, total: upcoming.length }}
+      isPast={isPast}
+      earlierKey={at > 0 ? strip[at - 1].key : undefined}
+      laterKey={at < strip.length - 1 ? strip[at + 1].key : undefined}
+      position={{ index: at, total: strip.length }}
       nextStep={step}
       uncircled={uncircled.map((h) => ({ id: h.id, name: h.name }))}
     />

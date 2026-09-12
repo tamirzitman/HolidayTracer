@@ -25,11 +25,13 @@ import {
   Title,
   card,
   chipButton,
+  ClockIcon,
   field,
   HostCandle,
   hostButton,
   hostTint,
   miniButton,
+  pastTint,
   primaryButton,
   quietButton,
   secondaryButton,
@@ -84,6 +86,12 @@ type Props = {
   uncircled: { id: string; name: string }[];
   /** The one thing worth doing next, or nothing when there is nothing. */
   nextStep: Step;
+  /**
+   * This holiday has already been. The screen becomes a record of it rather
+   * than a question: nothing to answer, nothing to correct — correcting is what
+   * the history tab is for, and the way there is on the card.
+   */
+  isPast: boolean;
   /** Set when our host answered that they are not hosting. */
   hostDisagrees: boolean;
   /** Neighbouring holidays inside the month-ahead window, if there are any. */
@@ -102,8 +110,12 @@ type Towards = 'later' | 'earlier';
 const CAME_FROM = 'holidaytracer:came-from';
 
 function whenLabel(daysAway: number): string {
-  if (daysAway <= 0) return 'היום';
+  if (daysAway === 0) return 'היום';
   if (daysAway === 1) return 'מחר';
+  // Past holidays are on this screen now, so the label has to be able to look
+  // backwards: "בעוד 0 ימים" was what a holiday last spring used to say.
+  if (daysAway === -1) return 'אתמול';
+  if (daysAway < 0) return `לפני ${Math.abs(daysAway)} ימים`;
   return `בעוד ${daysAway} ימים`;
 }
 
@@ -126,6 +138,7 @@ export function AnswerForm({
   circles,
   uncircled,
   nextStep,
+  isPast,
   hostDisagrees,
   earlierKey,
   laterKey,
@@ -315,7 +328,9 @@ export function AnswerForm({
           <DatePill>
             <span>{formatDayAndDate(holiday.date)}</span>
             <span aria-hidden="true" className="text-line">|</span>
-            <span className="font-semibold text-ink">{whenLabel(daysAway)}</span>
+            <span className={`font-semibold ${isPast ? 'text-muted' : 'text-ink'}`}>
+              {whenLabel(daysAway)}
+            </span>
           </DatePill>
         </header>
 
@@ -326,7 +341,15 @@ export function AnswerForm({
             the finger. Both cards keep the same floor, so the space sits inside
             the card where it looks intended rather than as a hole beneath it. */}
         <div className="flex flex-col">
-          {answered ? (
+          {isPast ? (
+            <PastHoliday
+              holidayKey={holiday.key}
+              answer={shown}
+              hostName={host?.name ?? ''}
+              answeredBy={answeredBy}
+              atTheEnd={!earlierKey}
+            />
+          ) : answered ? (
             <div
               // The one answer that is about our own table. The same gold and
               // the same candle mark it in the history and on the button that
@@ -494,7 +517,7 @@ export function AnswerForm({
           be missing: while reading the options and finding nobody to pick. The
           form cannot live inside the card — the card is a form itself — so it
           opens here, a thumb's width below the last option. */}
-      {!answered && (
+      {!answered && !isPast && (
         <AddFamilyRow
           circles={circles}
           onAdded={(householdId) => {
@@ -538,7 +561,7 @@ export function AnswerForm({
           list of families, and what actually appears is only whoever has
           answered so far, which on the day a holiday opens is nobody. So it
           says what is really behind it: who has already answered. */}
-      {!answered && !choosingHost && circleSize > 0 && (
+      {!answered && !isPast && !choosingHost && circleSize > 0 && (
         <p className="text-center text-sm text-muted">
           {circleSize === 1
             ? 'כשתענו, תוכלו לראות כאן אם המשפחה השנייה שלכם כבר ענתה על החג הזה.'
@@ -548,7 +571,7 @@ export function AnswerForm({
 
       {/* Answered, with nobody to show for it: the same ＋, since the list this
           would otherwise hang off is not on screen. */}
-      {answered && circleStatus.length === 0 && (
+      {answered && !isPast && circleStatus.length === 0 && (
         <AddFamilyRow circles={circles} onAdded={() => router.refresh()} />
       )}
 
@@ -560,6 +583,7 @@ export function AnswerForm({
           when={formatDayAndDate(holiday.date)}
           holidayKey={holiday.key}
           hostsFor={hostsFor}
+          readOnly={isPast}
           tags={tags}
         />
       )}
@@ -693,6 +717,7 @@ function Circle({
   when,
   holidayKey,
   hostsFor,
+  readOnly,
   tags,
 }: {
   families: {
@@ -710,21 +735,27 @@ function Circle({
   holidayKey: string;
   /** Per family, whom *they* might be at — see the note on the prop above. */
   hostsFor: Record<string, { id: string; name: string }[]>;
+  /** A holiday that has been: what everyone said stands, and cannot be edited. */
+  readOnly: boolean;
   tags: Record<string, { id: string; name: string; color: string }[]>;
 }) {
+  // Past tense for a holiday that has been. "עוד לא ענו" about last Pesach
+  // reads as a question still open, when what it means is that nobody ever
+  // answered it and the moment has gone.
   const said = (kind: string, hostName: string) => {
-    if (kind === 'hosting') return 'מארחים';
-    if (kind === 'guest') return `אצל ${hostName}`;
-    if (kind === 'away') return 'לא מגיעים';
-    return 'עוד לא ענו';
+    if (kind === 'hosting') return readOnly ? 'אירחו' : 'מארחים';
+    if (kind === 'guest') return readOnly ? `היו אצל ${hostName}` : `אצל ${hostName}`;
+    if (kind === 'away') return readOnly ? 'לא הגיעו' : 'לא מגיעים';
+    return readOnly ? 'לא ענו' : 'עוד לא ענו';
   };
 
   return (
     <section className={`${card} flex flex-col gap-1 p-0`}>
       <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-1">
-        <h2 className={sectionHeading}>איפה כולם</h2>
+        <h2 className={sectionHeading}>{readOnly ? 'איפה היו כולם' : 'איפה כולם'}</h2>
       </div>
-      <Reminders circles={circles} holidayName={holidayName} when={when} />
+      {/* Nothing to remind anybody about once the holiday has been. */}
+      {!readOnly && <Reminders circles={circles} holidayName={holidayName} when={when} />}
       <ul className="flex flex-col">
         {families.map((family, i) => {
           const myTags = tags[family.id] ?? [];
@@ -793,7 +824,7 @@ function Circle({
                       by anyone here — the grandfather who will never open the
                       app. An answer they gave themselves is theirs, and is not
                       offered. */}
-                  {(family.kind === 'none' || family.byProxy) && (
+                  {!readOnly && (family.kind === 'none' || family.byProxy) && (
                     <AnswerForThem
                       family={family}
                       holidayKey={holidayKey}
@@ -922,6 +953,85 @@ function Celebration({ kind }: { kind: AnswerKindLike }) {
 }
 
 type AnswerKindLike = 'hosting' | 'guest' | 'away' | undefined;
+
+/**
+ * A holiday that has already been.
+ *
+ * The screen stops asking and starts recording: what we said, who said it, and
+ * the way to the row in the history where it can still be put right. Read-only
+ * on purpose — correcting the past is one job, and it lives in one place, so
+ * the two screens do not both half-do it.
+ *
+ * The way out is the point of coming here. Somebody swiping back is looking for
+ * "where were we last Pesach", and having found it, the next thing they want is
+ * the rest of the year — which is the history tab, and the link says so at the
+ * far end of the strip where the swiping runs out.
+ */
+function PastHoliday({
+  holidayKey,
+  answer,
+  hostName,
+  answeredBy,
+  atTheEnd,
+}: {
+  holidayKey: string;
+  answer: Answer | undefined;
+  hostName: string;
+  answeredBy: string;
+  /** The oldest holiday the strip reaches. The rest is in the history tab. */
+  atTheEnd: boolean;
+}) {
+  const said = (): string => {
+    if (!answer) return '';
+    if (answer.kind === 'hosting') return 'אירחנו';
+    if (answer.kind === 'away') return 'לא היינו';
+    return `היינו אצל ${hostName}`;
+  };
+
+  return (
+    <div
+      style={pastTint}
+      className={`${card} ${cardFloor} flex flex-col items-center justify-center gap-3 text-center`}
+    >
+      {/* Said outright rather than left to be worked out from the date: the
+          card otherwise looks exactly like the one asking about next week. */}
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs font-bold text-muted">
+        <ClockIcon />
+        חג שעבר
+      </span>
+
+      {answer ? (
+        <>
+          {answer.kind === 'hosting' ? (
+            <span className="flex items-center gap-2 text-host">
+              <HostCandle className="h-7 w-7" />
+              <span className="font-display text-3xl font-bold">אירחנו</span>
+            </span>
+          ) : (
+            <p className="font-display text-3xl leading-snug font-bold text-balance text-ink">
+              {said()}
+            </p>
+          )}
+          {answeredBy && <p className="text-sm text-muted">ענו: {answeredBy}</p>}
+        </>
+      ) : (
+        <p className="font-display text-2xl leading-snug font-bold text-balance text-muted">
+          לא ענינו על החג הזה
+        </p>
+      )}
+
+      <Link href={`/history#${encodeURIComponent(holidayKey)}`} className={`${quietButton} self-center`}>
+        {answer ? 'לתקן בהיסטוריה' : 'למלא בהיסטוריה'}
+      </Link>
+
+      {atTheEnd && (
+        <p className="mt-1 max-w-xs border-t border-line pt-3 text-xs leading-relaxed text-muted">
+          עד כאן אפשר להחליק — שנה אחורה. כל מה שהיה לפני כן נמצא בטאב ההיסטוריה.
+        </p>
+      )}
+    </div>
+  );
+}
 
 /** Who said they are coming to us — the whole reward for answering "we're hosting". */
 function Guests({

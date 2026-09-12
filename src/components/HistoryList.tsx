@@ -83,7 +83,11 @@ export function HistoryList({
           return (
             <li
               key={entry.key}
-              className={`flex gap-3 px-5 py-4 ${
+              // The anchor a past holiday's card on the question screen links
+              // to. Landing on this tab and then hunting the year for the row
+              // you just came from is the errand that link exists to remove.
+              id={entry.key}
+              className={`flex scroll-mt-20 gap-3 px-5 py-4 target:ring-2 target:ring-brand/40 target:ring-inset ${
                 weHosted ? 'bg-host-wash/60' : entry.kind ? '' : 'bg-brand-wash/40'
               }`}
             >

@@ -415,6 +415,39 @@ export async function getUpcomingHolidays(householdId?: string): Promise<Holiday
   return repeatsAt === -1 ? included : included.slice(0, repeatsAt);
 }
 
+/**
+ * The holidays the question screen can be swiped through, and which one it
+ * opens on.
+ *
+ * A year back, then the round ahead. The screen used to hold only what was
+ * still to come, so a holiday that had just passed was gone from it the morning
+ * after — and the only way back to "where were we last Pesach" was the history
+ * tab, which is a list rather than the screen that actually shows where
+ * everybody was.
+ *
+ * A year and no further on purpose: the strip is swiped, and a strip of every
+ * holiday ever in the sheet is not something a thumb can cross. The far end
+ * says so and points at the history tab, which holds the rest.
+ *
+ * `present` is the index of the first holiday still to come — always where the
+ * screen opens, however far back somebody swiped last time.
+ */
+export async function holidayStrip(
+  householdId?: string,
+): Promise<{ holidays: Holiday[]; present: number }> {
+  const today = todayInIsrael();
+  const a_year_ago = new Date(`${today}T00:00:00Z`);
+  a_year_ago.setUTCFullYear(a_year_ago.getUTCFullYear() - 1);
+  const from = a_year_ago.toISOString().slice(0, 10);
+
+  const past = (await loadSheet()).holidays
+    .filter((h) => h.include && h.date < today && h.date >= from && visibleTo(h, householdId))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const ahead = await getUpcomingHolidays(householdId);
+  return { holidays: [...past, ...ahead], present: past.length };
+}
+
 /** The log is append-only, so a household's answer is its last row for that holiday. */
 export async function getLatestAnswer(
   holidayKey: string,

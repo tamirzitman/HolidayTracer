@@ -65,6 +65,17 @@ export function HostCandle({ className = 'h-4 w-4' }: { className?: string }) {
  * border, and a utility appended after it wins or loses on the order the
  * stylesheet happens to be generated in, which here meant it silently lost.
  */
+/**
+ * A holiday that has already been. Quieter than a live card on purpose — the
+ * screen is a record at that point, not a question, and swiping into last
+ * spring should look different the moment it arrives rather than only read
+ * differently once the date is checked.
+ */
+export const pastTint = {
+  backgroundColor: 'var(--color-ground)',
+  borderStyle: 'dashed',
+} as const;
+
 export const hostTint = {
   backgroundColor: 'var(--color-host-wash)',
   borderColor: 'color-mix(in srgb, var(--color-host) 45%, transparent)',
@@ -237,6 +248,16 @@ export function IconButton({
     >
       {busy ? <Spinner className={big ? 'h-5 w-5' : 'h-4 w-4'} /> : children}
     </button>
+  );
+}
+
+/** A clock, for a holiday that has already been. */
+export function ClockIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

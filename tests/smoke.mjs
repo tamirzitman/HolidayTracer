@@ -1200,6 +1200,45 @@ const thirdHoliday = (await dad.innerText('.font-display')).trim();
 check(`and the second eve is the day after that (${thirdHoliday})`,
   thirdHoliday.includes('ערב ראש השנה ב'));
 
+// ── swiping back into holidays that have already been ───────────────────────
+// The screen used to hold only what was still to come, so a holiday was gone
+// from it the morning after. A year back is reachable now; the rest is the
+// history tab's, and the far end of the strip says so.
+await dad.goto(BASE);
+check('the screen still opens on a holiday still to come, never on a past one',
+  !(await dad.isVisible('text=חג שעבר')));
+
+let backwards = 0;
+while ((await dad.locator('[aria-label="החג הקודם"]').count()) > 0 && backwards < 20) {
+  await dad.click('[aria-label="החג הקודם"]');
+  await dad.waitForTimeout(400);
+  backwards += 1;
+}
+check(`the arrow walks back into holidays that have been (${backwards} of them)`, backwards > 0);
+check('and each one says so rather than leaving it to the date',
+  await dad.isVisible('text=חג שעבר'));
+// Read-only: correcting the past is one job and it lives in one place.
+check('a past holiday cannot be answered or re-answered here',
+  !(await dad.isVisible('text=שינוי תשובה')) && !(await dad.isVisible('main button:has-text("אנחנו מארחים")')));
+// Nor reminded about — there is nothing left to remind anybody of.
+check('and offers no reminder to send about it', (await dad.$$('#reminders')).length === 0);
+check('the list of where everybody was speaks in the past tense',
+  (await dad.innerText('main')).includes('איפה היו כולם'));
+// The far end of a year's worth of swiping, and the way to the rest of it.
+check('the end of the strip says where the rest of the history is',
+  /עד כאן אפשר להחליק/.test(await dad.innerText('main')));
+
+// The link goes to that holiday's own row, not to the top of the tab.
+const backTo = await dad.getAttribute('main a[href^="/history#"]', 'href');
+check(`a past holiday links to its own row in the history (${backTo})`,
+  Boolean(backTo) && backTo.startsWith('/history#'));
+await dad.goto(`${BASE}${backTo}`);
+await dad.waitForSelector('text=איפה היינו');
+await dad.waitForTimeout(600);
+const landed = dad.locator(`li#${backTo.split('#')[1]}`);
+check('and that row is there to land on', (await landed.count()) === 1);
+check('and it is the same holiday', (await landed.innerText()).includes('ערב פסח'));
+
 // ── the mark beside a holiday comes from the sheet ───────────────────────────
 // Editing a cell is the whole configuration: no deploy, no code change.
 await dad.goto(`${BASE}?h=rosh_hashana_2026`);
