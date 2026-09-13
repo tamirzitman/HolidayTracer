@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { BottomNav } from '@/components/BottomNav';
 import { Footer } from '@/components/Footer';
 import { HouseholdMenu } from '@/components/HouseholdMenu';
+import { InstallPrompt } from '@/components/InstallPrompt';
 import { findPerson, getHousehold, unansweredUpcoming } from '@/lib/data';
 import { getSessionPhone } from '@/lib/session';
 import { usingLocalSheet } from '@/lib/sheet';
@@ -125,6 +126,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             />
           </div>
         )}
+        {/* Near the top, where an offer can actually be seen. Below the fold it
+            would sit under a screen's worth of content and nobody would meet
+            it. It shows itself only when there is something to offer, and once
+            put off it stays put off. */}
+        {signedIn && <InstallPrompt />}
         <main
           className={`mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 ${
             signedIn ? 'pt-4 pb-[calc(8rem+env(safe-area-inset-bottom))]' : 'pt-10 pb-10'

@@ -18,6 +18,7 @@ import type { Answer, Holiday, Household } from '@/lib/types';
 import { formatDayAndDate } from '@/lib/dates';
 import { holidayEmoji } from '@/lib/holiday-emoji';
 import {
+  AddRowLink,
   BackButton,
   Busy,
   DatePill,
@@ -529,6 +530,12 @@ export function AnswerForm({
           }}
         />
       )}
+
+      {/* A date of our own — a birthday, a memorial, a dinner the family holds
+          every year — is added from the screen that asks about dates, not from
+          behind our own name in the menu at the top, where nobody looked for it.
+          The same ＋ as the one above it, because it is the same kind of act. */}
+      {!isPast && <AddRowLink href="/occasions">הוספת מועד או חג</AddRowLink>}
 
       {/* Under the panel, where a pager belongs: without it the year looks like
           one holiday and nothing says the page moves at all. */}

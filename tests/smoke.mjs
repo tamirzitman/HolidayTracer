@@ -494,6 +494,42 @@ check('adding is reachable before answering, not only after',
   await dad.isVisible('text=הוספת משפחה'));
 check('and it is the ＋, a thumb under the last answer',
   await dad.isVisible('main button:has-text("הוספת משפחה") svg'));
+
+// ── a date of our own is added from the screen that asks about dates ────────
+// It lived behind our own name in the menu at the top, which is where nobody
+// looks for "add the birthday we all come to". The same ＋ as the one above it.
+check('a date of our own can be added from the holiday screen',
+  await dad.isVisible('main a[href="/occasions"]'));
+check('and it says what it adds',
+  (await dad.innerText('main a[href="/occasions"]')).includes('מועד'));
+check('wearing the same ＋ as adding a family',
+  await dad.isVisible('main a[href="/occasions"] svg'));
+
+// ── the tab bar reads right to left: what was, what is next, who with ───────
+const tabs = await dad.$$eval('nav a', (els) =>
+  els
+    .map((e) => ({ label: e.innerText.trim(), x: e.getBoundingClientRect().x }))
+    .sort((a, b) => b.x - a.x)
+    .map((t) => t.label),
+);
+check(`the holiday sits in the middle of the tab bar (${tabs.join(' | ')})`,
+  tabs[0] === 'היסטוריה' && tabs[1] === 'החג' && tabs[2] === 'המעגלים');
+
+// ── the offer to put it on the home screen ──────────────────────────────────
+// A family app opened a handful of times a year is exactly the kind nobody can
+// find again. Chrome will not hand over its install event here — no service
+// worker — so what shows is the by-hand wording, which is the path most people
+// on this app are on anyway.
+await dad.waitForTimeout(1600);
+check('the app offers itself to the home screen',
+  await dad.isVisible('text=להוסיף את האפליקציה למסך הבית'));
+await dad.click('text=לא עכשיו');
+check('and putting it off takes it away', !(await dad.isVisible('text=להוסיף את האפליקציה למסך הבית')));
+await dad.reload();
+await dad.waitForSelector('nav');
+await dad.waitForTimeout(1600);
+check('and it stays away — a suggestion that comes back is a nag',
+  !(await dad.isVisible('text=להוסיף את האפליקציה למסך הבית')));
 // But what answering buys is said before it is asked for — and only to somebody
 // with a circle to reveal, since it is a promise the next screen has to keep.
 check('answering is worth something, and says so before you do it',

@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export const card =
   'rounded-3xl border border-line bg-surface p-7 shadow-[0_18px_48px_-24px_rgba(0,0,0,0.45)]';
 
@@ -104,6 +106,27 @@ export const hostButton =
 /** The line under a field that says what belongs in it. */
 export function FieldHint({ children }: { children: React.ReactNode }) {
   return <span className="text-xs leading-relaxed text-muted">{children}</span>;
+}
+
+/**
+ * The same ＋ the families and circles screens use, as a link.
+ *
+ * One mark means one thing across the app — a filled ＋ beside two words is
+ * "add one of these" wherever it appears — so a row that adds a date of your
+ * own should not have to be a different shape to say the same thing.
+ */
+export function AddRowLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="mx-auto inline-flex items-center gap-2 text-sm font-bold text-brand transition active:scale-95"
+    >
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand text-ground">
+        <PlusIcon className="h-5 w-5" />
+      </span>
+      {children}
+    </Link>
+  );
 }
 
 /** A small call to action that sits inside a row, rather than filling it. */

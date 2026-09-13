@@ -3,7 +3,18 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+/**
+ * In source order, which on a right-to-left page is right to left on screen:
+ * what has been, what is next, and the people it is with. The holiday sits in
+ * the middle because it is the one the app opens on and the one a thumb reaches
+ * without aiming — the other two are errands either side of it.
+ */
 const ITEMS = [
+  {
+    href: '/history',
+    label: 'היסטוריה',
+    path: 'M12 7v5l3 2M12 21a9 9 0 1 0-9-9',
+  },
   {
     href: '/',
     label: 'החג',
@@ -13,11 +24,6 @@ const ITEMS = [
     href: '/families',
     label: 'המעגלים',
     path: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM17.5 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3 19c0-2.8 2.7-5 6-5s6 2.2 6 5M16 14c2.8 0 5 1.8 5 4',
-  },
-  {
-    href: '/history',
-    label: 'היסטוריה',
-    path: 'M12 7v5l3 2M12 21a9 9 0 1 0-9-9',
   },
 ];
 
