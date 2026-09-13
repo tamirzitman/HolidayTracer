@@ -531,12 +531,6 @@ export function AnswerForm({
         />
       )}
 
-      {/* A date of our own — a birthday, a memorial, a dinner the family holds
-          every year — is added from the screen that asks about dates, not from
-          behind our own name in the menu at the top, where nobody looked for it.
-          The same ＋ as the one above it, because it is the same kind of act. */}
-      {!isPast && <AddRowLink href="/occasions">הוספת מועד או חג</AddRowLink>}
-
       {/* Under the panel, where a pager belongs: without it the year looks like
           one holiday and nothing says the page moves at all. */}
       {position.total > 1 && (
@@ -596,6 +590,19 @@ export function AnswerForm({
       )}
 
       <NextStep step={nextStep} uncircled={uncircled} circles={circles} />
+
+      {/* At the end and behind a rule, well away from adding a family. The two
+          are not the same errand and they were reading as a pair of options to
+          choose between: one is "somebody is missing from this question", the
+          other is "the calendar is missing a day we keep". */}
+      {!isPast && (
+        <div className="flex flex-col items-center gap-2 border-t border-line pt-5">
+          <AddRowLink href="/occasions">הוספת מועד או חג</AddRowLink>
+          <p className="max-w-xs text-center text-xs leading-relaxed text-muted">
+            יום הולדת, אזכרה, ארוחה שחוזרת כל שנה — או חג שלא מופיע כאן.
+          </p>
+        </div>
+      )}
 
     </div>
   );

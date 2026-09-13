@@ -1004,19 +1004,65 @@ export async function whoAdded(circleId: string, householdId: string): Promise<s
   return row?.action === 'add' ? row.addedBy : undefined;
 }
 
-/** Out of the circle. Their own row, so their name and colour go with them. */
+/**
+ * Whether these two could already see each other before `at`.
+ *
+ * Replayed the way the app reads connections — newest row wins — but stopping
+ * short of a moment, so it answers "were they connected *before* this happened"
+ * rather than "are they connected now".
+ */
+function connectedBefore(sheet: Sheet, a: string, b: string, at: string): boolean {
+  let linked = false;
+  for (const c of sheet.connections) {
+    if (c.at >= at) continue;
+    if (c.householdId === a && c.connectedTo === b) linked = c.action === 'add';
+  }
+  return linked;
+}
+
+/**
+ * Out of the circle, and out of the list it put them on.
+ *
+ * Joining a circle connects a family to everyone in it, so leaving has to undo
+ * that or the removal is only half done — which is exactly how a family ticked
+ * by accident and unticked twelve seconds later stayed on twelve other
+ * families' lists for ever, with nothing on any screen admitting it.
+ *
+ * Only what this circle put there. A pair that could already see each other
+ * before they joined had a reason of their own — somebody typed them in, or an
+ * invitation introduced them — and that reason has not gone away. Nor has a
+ * pair that still shares another circle. Everything else loses the one thing
+ * that was holding it up.
+ */
 export async function removeFromCircle(circleId: string, householdId: string): Promise<void> {
-  const row = circleState((await loadSheet()).circles).get(`${circleId}\u0000${householdId}`);
+  const sheet = await loadSheet();
+  const row = circleState(sheet.circles).get(`${circleId}\u0000${householdId}`);
   if (!row || row.action !== 'add') return;
-  await appendRow(TABS.circles, HEADERS.circles, [
-    circleId,
-    householdId,
-    'remove',
-    row.name,
-    row.color,
-    row.addedBy,
-    new Date().toISOString(),
+
+  const state = circleState(sheet.circles);
+  const stillIn = (id: string, circle: string) =>
+    state.get(`${circle}\u0000${id}`)?.action === 'add';
+
+  // Every circle this household would still be in once it is out of this one.
+  const otherCircles = [...state.values()]
+    .filter((r) => r.householdId === householdId && r.action === 'add' && r.circleId !== circleId)
+    .map((r) => r.circleId);
+
+  const at = new Date().toISOString();
+  const cut: string[][] = [];
+  for (const other of circleMembersIn(sheet, circleId)) {
+    if (other === householdId) continue;
+    // They knew each other before this circle introduced them.
+    if (connectedBefore(sheet, householdId, other, row.at)) continue;
+    // Another circle still holds them together.
+    if (otherCircles.some((c) => stillIn(other, c))) continue;
+    cut.push([householdId, other, 'remove', at], [other, householdId, 'remove', at]);
+  }
+
+  await appendRows(TABS.circles, HEADERS.circles, [
+    [circleId, householdId, 'remove', row.name, row.color, row.addedBy, at],
   ]);
+  await appendRows(TABS.connections, HEADERS.connections, cut);
 }
 
 /** Our own name and colour for a circle. Nobody else's view of it changes. */

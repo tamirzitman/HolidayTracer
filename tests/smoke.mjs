@@ -504,6 +504,17 @@ check('and it says what it adds',
   (await dad.innerText('main a[href="/occasions"]')).includes('מועד'));
 check('wearing the same ＋ as adding a family',
   await dad.isVisible('main a[href="/occasions"] svg'));
+// Well away from adding a family: the two were reading as a pair of options to
+// choose between, and they are not the same errand at all.
+const apart = await dad.evaluate(() => {
+  const occasion = document.querySelector('main a[href="/occasions"]');
+  const family = [...document.querySelectorAll('main button')].find((b) =>
+    b.textContent.includes('הוספת משפחה'),
+  );
+  if (!occasion || !family) return -1;
+  return Math.abs(occasion.getBoundingClientRect().y - family.getBoundingClientRect().y);
+});
+check(`and a screen apart from it (${Math.round(apart)}px)`, apart > 200);
 
 // ── the tab bar reads right to left: what was, what is next, who with ───────
 const tabs = await dad.$$eval('nav a', (els) =>
@@ -821,13 +832,44 @@ check('a family can be added from inside the circle',
 const cousinsId = rows('Households').find((r) => r[1] === 'בני דודים מהצפון')[0];
 check('and it lands in that circle, not only on the list',
   rows('Circles').some((r) => r[1] === cousinsId && r[2] === 'add'));
-// Ticked, because adding it here already said it belongs. The editor used to
-// read its membership once and never again, so a family added below sat
-// unticked and looked as though it had gone nowhere.
-check('and shows as in the circle without being ticked by hand',
-  await dad.locator('#circles label', { hasText: 'בני דודים מהצפון' })
-    .locator('input[type=checkbox]')
-    .isChecked());
+// Up among the members, because adding it here already said it belongs. The
+// editor used to read its membership once and never again, so a family added
+// below sat outside and looked as though it had gone nowhere.
+check('and shows as in the circle without being chosen again by hand',
+  await dad.isVisible('#circles button[aria-label="להוציא את בני דודים מהצפון מהמעגל"]'));
+// Who is in is said outright, rather than assembled by reading thirty rows and
+// remembering which of them were ticked.
+check('the panel says who is in before it says who could be',
+  /במעגל · \d+/.test(await dad.innerText('#circles')) &&
+    (await dad.innerText('#circles')).includes('להוסיף למעגל'));
+// And a family already in is not among the ones offered to add.
+check('and a family already in is not offered again',
+  (await dad.locator('#circles fieldset button', { hasText: 'בני דודים מהצפון' }).count()) === 0);
+
+// ── unticking by mistake is undone by unticking again ───────────────────────
+// Joining a circle puts a family on every member's list. Leaving used to undo
+// none of that: a family ticked by accident and unticked twelve seconds later
+// stayed on a dozen other families' lists for ever, with nothing on any screen
+// admitting it. What the circle put there goes; what was there before stays.
+const latestLink = (a, b) =>
+  rows('Connections').filter((r) => r[0] === a && r[1] === b).at(-1)?.[2];
+const circleId = rows('Circles').find((r) => r[3] === 'צד אבא')[0];
+const alsoIn = rows('Circles')
+  .filter((r) => r[0] === circleId && r[2] === 'add')
+  .map((r) => r[1])
+  .filter((id) => id !== cousinsId && id !== 'hh_parents');
+check(`joining put them on every member's list (${alsoIn.length} of them)`,
+  alsoIn.length > 0 && alsoIn.every((id) => latestLink(cousinsId, id) === 'add'));
+
+await dad.click('#circles button[aria-label="להוציא את בני דודים מהצפון מהמעגל"]');
+await dad.waitForTimeout(2500);
+check('taking them out of the circle takes them off those lists too',
+  alsoIn.every((id) => latestLink(cousinsId, id) === 'remove' && latestLink(id, cousinsId) === 'remove'));
+// We added them ourselves a moment before the circle did, so that reason still
+// stands and is not ours to lose.
+check('but they stay on the list of whoever added them in the first place',
+  latestLink('hh_parents', cousinsId) === 'add' && latestLink(cousinsId, 'hh_parents') === 'add');
+
 await dad.click('#circles button:has-text("צד אבא")');
 
 // Being put in a circle is joining it. The families in it arrive on the
@@ -1700,13 +1742,33 @@ while (taken.has(free.toISOString().slice(0, 10))) {
   free = new Date(free.getTime() + 86_400_000);
 }
 const SOON = free.toISOString().slice(0, 10);
-// Reached through the household menu, from wherever you happen to be.
+// Reached from the screen that asks about dates, which is where somebody
+// thinking "the calendar is missing a day we keep" already is. It used to be
+// behind our own name in the menu at the top, where nobody looked for it.
+await dad.goto(BASE);
+await dad.waitForSelector('nav');
+await dad.click('main a[href="/occasions"]');
+await dad.waitForURL('**/occasions');
+check('the occasions screen is one tap from the holiday',
+  await dad.isVisible('text=הוספת מועד'));
+// And a way back to it, rather than only a tab bar that lands somewhere else.
+check('with a way back to the holiday it is a detour from',
+  await dad.isVisible('text=חזרה לחג'));
+await dad.click('text=חזרה לחג');
+await dad.waitForURL((url) => !url.pathname.includes('occasions'));
+// The holiday screen, whatever it is showing — asking the question, or the
+// answer already given. Naming the question was wrong: by this point dad has
+// answered, and the card shows what he said instead.
+check(`that goes to the holiday (${new URL(dad.url()).pathname})`,
+  new URL(dad.url()).pathname === '/' && (await dad.isVisible('nav')));
+await dad.goto(`${BASE}/occasions`);
+await dad.waitForSelector('text=הוספת מועד');
+// Nothing hides it behind the household's name any more.
 await dad.click('button[aria-haspopup=menu]');
 await dad.waitForSelector('[role=menu]');
-await dad.click('[role=menu] >> text=המועדים שלנו');
-await dad.waitForURL('**/occasions');
-check('the occasions screen is two taps from anywhere',
-  await dad.isVisible('text=הוספת מועד'));
+check('and it is no longer buried in the menu under our own name',
+  !(await dad.isVisible('[role=menu] >> text=המועדים שלנו')));
+await dad.keyboard.press('Escape');
 await dad.fill('input[name=name]', 'יום הולדת לסבתא');
 await dad.fill('input[name=date]', SOON);
 const preTicked = await dad.$$eval('input[name=share]', (els) => els.map((e) => e.checked));

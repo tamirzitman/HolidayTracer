@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useActionState, useEffect, useState } from 'react';
 import {
   createOccasion,
@@ -43,12 +45,18 @@ type Occasion = {
  * you say otherwise, and saying otherwise is a tick.
  */
 export function OccasionsManager({
+  circles,
+  tags,
   occasions,
   circle,
   today,
 }: {
   occasions: Occasion[];
   circle: Family[];
+  /** Our circles, so a date can be shared with a whole side of the family. */
+  circles: { id: string; name: string; color: string }[];
+  /** Which circles each family is in. */
+  tags: Record<string, { id: string; name: string; color: string }[]>;
   today: string;
 }) {
   const [state, addAction, adding] = useActionState<ActionResult, FormData>(createOccasion, {});
@@ -69,6 +77,19 @@ export function OccasionsManager({
 
   return (
     <div className="flex flex-col gap-5">
+      {/* The way back, first thing. This screen is reached from the holiday and
+          is a detour from it — without this the only way out was the tab bar,
+          which lands somewhere else entirely. */}
+      <Link
+        href="/"
+        className="inline-flex w-fit items-center gap-1.5 text-sm font-bold text-brand transition active:scale-95"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+          <path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        חזרה לחג
+      </Link>
+
       <header className="flex flex-col items-center gap-2 text-center">
         <span className="text-4xl" aria-hidden="true">🗓️</span>
         <Title>המועדים שלנו</Title>
@@ -82,6 +103,8 @@ export function OccasionsManager({
               key={occasion.key}
               occasion={occasion}
               circle={circle}
+              circles={circles}
+              tags={tags}
               audience={audience(occasion)}
               removeAction={removeAction}
             />
@@ -107,6 +130,8 @@ export function OccasionsManager({
           families={circle}
           chosen={share}
           onChange={setShare}
+          circles={circles}
+          tags={tags}
           legend="מי רואה את המועד הזה?"
         />
 
@@ -123,11 +148,15 @@ export function OccasionsManager({
 function Row({
   occasion,
   circle,
+  circles,
+  tags,
   audience,
   removeAction,
 }: {
   occasion: Occasion;
   circle: Family[];
+  circles: { id: string; name: string; color: string }[];
+  tags: Record<string, { id: string; name: string; color: string }[]>;
   audience: string;
   removeAction: (formData: FormData) => void;
 }) {
@@ -234,6 +263,8 @@ function Row({
             families={circle}
             chosen={chosen}
             onChange={setChosen}
+            circles={circles}
+            tags={tags}
             legend="מי רואה את המועד הזה?"
           />
           <ErrorNote>{state.error}</ErrorNote>

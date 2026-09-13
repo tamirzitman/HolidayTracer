@@ -253,7 +253,7 @@ function NewCircle({
       </div>
       <label className="flex flex-col gap-2">
         <span className="text-sm font-semibold text-muted">איך תקראו למעגל?</span>
-        <input name="name" type="text" required placeholder="צד אבא" className={field} />
+        <input name="name" type="text" required placeholder="משפחות כץ ולוי" className={field} />
         <FieldHint>{CIRCLE_HINT}</FieldHint>
       </label>
 
@@ -350,6 +350,16 @@ function CircleEditor({
     setMembers(fromSheet ? fromSheet.split(',') : []);
   }, [fromSheet]);
 
+  // Who is in, and who is left to choose from — the second shrinking as the
+  // first grows, which is the whole point of showing them apart.
+  const [look, setLook] = useState('');
+  const [pickingColor, setPickingColor] = useState(false);
+  const inside = families.filter((f) => members.includes(f.id));
+  const outside = families.filter((f) => !members.includes(f.id));
+  const shown = look.trim()
+    ? outside.filter((f) => f.name.includes(look.trim()))
+    : outside;
+
   async function toggle(householdId: string, inCircle: boolean) {
     const before = members;
     setMembers(inCircle ? [...members, householdId] : members.filter((m) => m !== householdId));
@@ -375,26 +385,71 @@ function CircleEditor({
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl bg-brand-wash p-3">
-      <fieldset className="flex flex-col gap-1">
-        <legend className="mb-1 text-xs font-semibold text-muted">מי במעגל</legend>
-        {families.map((family) => {
-          const inCircle = members.includes(family.id);
-          return (
-            <label
-              key={family.id}
-              className="flex items-center gap-3 rounded-xl bg-surface px-3 py-2"
-            >
-              <input
-                type="checkbox"
-                checked={inCircle}
+      {/* Who is in, and separately who could be.
+          One list of every family with ticks against some of them made the
+          answer to "who is in this circle" something you had to assemble by
+          reading thirty rows and remembering which were ticked — and the ones
+          already in were the bulk of it, in the way of the few that were not.
+          The members are said outright; the list to choose from is only what is
+          left, and it gets shorter as it is used. */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-semibold text-muted">
+          {inside.length === 0 ? 'עוד אף משפחה במעגל' : `במעגל · ${inside.length}`}
+        </span>
+        {inside.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {inside.map((family) => (
+              <button
+                key={family.id}
+                type="button"
                 disabled={busy === family.id}
-                onChange={() => toggle(family.id, !inCircle)}
-                className="h-5 w-5 shrink-0 accent-brand"
-              />
-              <span className="min-w-0 break-words text-ink">{family.name}</span>
-            </label>
-          );
-        })}
+                onClick={() => toggle(family.id, false)}
+                aria-label={`להוציא את ${family.name} מהמעגל`}
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand/40 bg-surface px-3 py-1 text-xs font-bold text-brand transition active:scale-95 disabled:opacity-50"
+              >
+                <Busy busy={busy === family.id}>{family.name}</Busy>
+                <CrossIcon />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <fieldset className="flex flex-col gap-1">
+        <legend className="mb-1 text-xs font-semibold text-muted">
+          {outside.length === 0 ? 'כל המשפחות שלכם כאן' : 'להוסיף למעגל'}
+        </legend>
+        {/* Only worth a search box when the list is long enough to scroll past
+            what you are looking for. */}
+        {outside.length > 7 && (
+          <input
+            type="search"
+            value={look}
+            onChange={(e) => setLook(e.target.value)}
+            placeholder="חיפוש משפחה"
+            aria-label="חיפוש משפחה להוספה למעגל"
+            className="mb-1 w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted"
+          />
+        )}
+        {shown.map((family) => (
+          <button
+            key={family.id}
+            type="button"
+            disabled={busy === family.id}
+            onClick={() => toggle(family.id, true)}
+            className="flex items-center gap-3 rounded-xl bg-surface px-3 py-2 text-start transition active:scale-[0.99] disabled:opacity-50"
+          >
+            <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-brand text-brand">
+              <PlusIcon className="h-3 w-3" />
+            </span>
+            <span className="min-w-0 break-words text-ink">
+              <Busy busy={busy === family.id}>{family.name}</Busy>
+            </span>
+          </button>
+        ))}
+        {outside.length > 0 && shown.length === 0 && (
+          <p className="px-3 py-2 text-sm text-muted">אין משפחה בשם הזה ברשימה שלכם.</p>
+        )}
         {/* A family nobody has added yet. Ticking a list of families we already
             have is no use when the one we mean is not in it, and going away to
             add them loses the circle we were in the middle of filling. */}
@@ -405,40 +460,71 @@ function CircleEditor({
         />
       </fieldset>
 
+      {/* Name and colour are one change with one button, the way making a circle
+          is. They used to save themselves — the name when the field lost focus,
+          the colour the instant a swatch was tapped — so there was nothing to
+          press and no moment that said it had been kept, while the screen
+          beside it had a plain «יצירת המעגל». Two ways of saving the same kind
+          of thing, on one screen. */}
       <label className="flex flex-col gap-1">
         <span className="text-xs font-semibold text-muted">איך אנחנו קוראים לו</span>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onBlur={() => name.trim() && name !== circle.name && label(name, color)}
           className={field}
         />
       </label>
 
+      {/* Folded away. Eight swatches and a caption took a third of the panel
+          for something chosen once and rarely looked at again, while the thing
+          people actually came to change — who is in — was below it. One dot
+          that opens them. */}
       <div className="flex flex-col gap-1">
-        <span className="text-xs font-semibold text-muted">הצבע שלו אצלנו</span>
-        <div className="flex flex-wrap gap-2">
-          {CIRCLE_COLORS.map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              aria-label={option.label}
-              title={option.label}
-              aria-pressed={color === option.key}
-              onClick={() => {
-                setColor(option.key);
-                label(name || circle.name, option.key);
-              }}
-              className={`h-7 w-7 rounded-full ring-1 ring-black/10 transition active:scale-95 ${
-                color === option.key ? 'outline-2 outline-offset-2 outline-brand' : ''
-              }`}
-              style={{ backgroundColor: option.hex }}
-            />
-          ))}
-        </div>
-        <span className="text-xs text-muted">{colorName(color)}</span>
+        <button
+          type="button"
+          onClick={() => setPickingColor((was) => !was)}
+          aria-expanded={pickingColor}
+          className="inline-flex w-fit items-center gap-2 text-xs font-semibold text-muted transition active:scale-95"
+        >
+          <span
+            className="h-4 w-4 shrink-0 rounded-full ring-1 ring-black/10"
+            style={{ backgroundColor: colorOf(color) }}
+            aria-hidden="true"
+          />
+          הצבע שלו אצלנו · {colorName(color)}
+          <ChevronIcon open={pickingColor} />
+        </button>
+        {pickingColor && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {CIRCLE_COLORS.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                aria-label={option.label}
+                title={option.label}
+                aria-pressed={color === option.key}
+                onClick={() => setColor(option.key)}
+                className={`h-7 w-7 rounded-full ring-1 ring-black/10 transition active:scale-95 ${
+                  color === option.key ? 'outline-2 outline-offset-2 outline-brand' : ''
+                }`}
+                style={{ backgroundColor: option.hex }}
+              />
+            ))}
+          </div>
+        )}
       </div>
+
+      {(name.trim() !== circle.name || color !== circle.color) && (
+        <button
+          type="button"
+          disabled={!name.trim() || busy === 'label'}
+          onClick={() => label(name.trim() || circle.name, color)}
+          className={chipButton}
+        >
+          <Busy busy={busy === 'label'}>שמירת השם והצבע</Busy>
+        </button>
+      )}
 
       <ErrorNote>{error}</ErrorNote>
 

@@ -20,4 +20,4 @@ export const HOUSEHOLD_HINT =
 
 /** Under the box that names a circle — the other half of the same contrast. */
 export const CIRCLE_HINT =
-  'קבוצה של כמה משקי בית, למשל «צד אבא» או «המשפחה של גל».';
+  'קבוצה של כמה משקי בית שמוזמנים יחד, למשל «משפחות כץ ולוי» או «השכנים מהבניין».';

@@ -56,9 +56,9 @@ export function Uncircled({
             have: nothing is sent to anybody on its own. The reminder is a
             message you write, when you decide to. */}
         <p className="text-xs leading-relaxed text-muted">
-          מעגל הוא קבוצת משפחות שמוזמנות יחד בדרך כלל — «הצד של אבא», «החברים
-          מהשכונה». כולן רואות זו את זו, נכנסות בקישור הזמנה אחד, ואפשר לשלוח
-          לכולן הודעה אחת לפני חג.
+          מעגל הוא קבוצת משפחות שמוזמנות יחד בדרך כלל — «משפחות כץ ולוי»,
+          «השכנים מהבניין». כולן רואות זו את זו, נכנסות בקישור הזמנה אחד,
+          ואפשר לשלוח לכולן הודעה אחת לפני חג.
         </p>
       </div>
 
