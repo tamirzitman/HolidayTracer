@@ -67,6 +67,7 @@ export default async function FamiliesPage({
         tags={tagged}
         standing={Object.fromEntries(standing)}
         ownName={own?.name ?? 'הבית שלנו'}
+        ownId={person.householdId}
         startWith={circle.some((h) => h.id === startWith) ? startWith : ''}
       />
       <NextStep

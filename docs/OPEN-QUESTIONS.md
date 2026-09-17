@@ -39,7 +39,12 @@ a person, or show a phone number to contact? **Currently assumed: generic wordin
 - **Which holidays count?** → Not a code decision. Every candidate date is seeded into the
   `Holidays` tab and you flip `include` on the ones that matter for a family meal.
 - **Shabbat too?** → Same answer: add rows if you want them. Nothing in the app changes.
-- **Duplicate families?** → Impossible now. The app cannot create a household; only you add rows.
+- **Duplicate families?** → Not impossible after all, and common. That answer held only while
+  households came from the sheet by hand; the app has created them for a long time now — a family
+  is typed in by name from somebody's phone, and then one of them signs up and is typed in again.
+  So two rows for one family are folded into one instead: everything the spare carries moves to the
+  survivor and its row is switched off (`mergeHouseholds`, and the row's own
+  <span dir="rtl">"זו אותה משפחה כמו…"</span>). Its id is never handed out again.
 - **One tab per year, or one forever?** → One `Answers` tab forever, with a `hebrew_year` column
   to sort and filter by.
 - **Flag contradictions?** → Yes, both ways: a quiet line in the app, and a `Conflicts` tab in the

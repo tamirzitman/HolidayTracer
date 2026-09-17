@@ -7,6 +7,7 @@ import { useHandoff } from '@/lib/handoff';
 import {
   deleteFamily,
   dropFamily,
+  mergeFamilies,
   renameFamily,
   nameOurHousehold,
   newInviteLink,
@@ -28,6 +29,7 @@ import {
   ErrorNote,
   FieldHint,
   IconButton,
+  MergeIcon,
   PencilIcon,
   PlusIcon,
   Title,
@@ -44,6 +46,7 @@ export function FamiliesManager({
   families,
   ownMembers,
   ownName,
+  ownId,
   circles,
   tags,
   standing,
@@ -55,6 +58,8 @@ export function FamiliesManager({
   /** This family's standing join link, for the families nobody has joined yet. */
   /** What our own household is called. */
   ownName: string;
+  /** Our own household's id, so a duplicate can be folded into our own house. */
+  ownId: string;
   /** The circles we are in, as we named and coloured them. */
   circles: CircleView[];
   /** Which of our circles each family is in, for the dots on their row. */
@@ -212,6 +217,7 @@ export function FamiliesManager({
                   <FamilyRow
                     family={family}
                     standing={standing[family.id] ?? { addedByUs: false, joined: true, answeredFor: true }}
+                    others={mergeInto(family.id, families, { id: ownId, name: ownName, members: ownMembers })}
                     onDone={() => {
                       setOpenFamily(null);
                       router.refresh();
@@ -355,6 +361,24 @@ function OwnHouse({ name, members }: { name: string; members: Member[] }) {
 }
 
 /**
+ * Everybody a duplicate row could turn out to be: the rest of the list and our
+ * own house, with the families somebody has already signed into first.
+ *
+ * A household with people in it is nearly always the real one — somebody
+ * arrived and was typed in a second time — so it is the likeliest answer to
+ * "which of these two is the family", and worth the top of the list.
+ */
+function mergeInto(
+  id: string,
+  families: Family[],
+  own: Family,
+): Family[] {
+  return [...families.filter((f) => f.id !== id), own].sort(
+    (a, b) => Number(b.members.length > 0) - Number(a.members.length > 0),
+  );
+}
+
+/**
  * What can still be done about a family on our list.
  *
  * Three states, and which one a family is in is not a matter of taste: a name
@@ -364,19 +388,28 @@ function OwnHouse({ name, members }: { name: string; members: Member[] }) {
 function FamilyRow({
   family,
   standing,
+  others,
   onDone,
 }: {
   family: Family;
   standing: { addedByUs: boolean; joined: boolean; answeredFor: boolean };
+  /** Who this family could be folded into, if it turns out to be a duplicate. */
+  others: Family[];
   onDone: () => void;
 }) {
   const [name, setName] = useState(family.name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState(false);
+  const [merging, setMerging] = useState(false);
 
   const canRename = standing.addedByUs && !standing.joined;
   const canDelete = canRename && !standing.answeredFor;
+  // Nobody has signed in as them, so this row is still only a name somebody
+  // typed — and the thing a name typed twice needs is to become one. Answers
+  // about them are no obstacle: a merge carries them, which is the whole
+  // difference between this and deleting.
+  const canMerge = !standing.joined && others.length > 0;
 
   async function run(work: () => Promise<ActionResult>) {
     setBusy(true);
@@ -419,6 +452,26 @@ function FamilyRow({
             : 'הוסיפו אותם מרשימה של מישהו אחר, אז השם לא שלנו לשנות.'}
         </p>
       )}
+
+      {canMerge &&
+        (merging ? (
+          <MergePanel
+            family={family}
+            others={others}
+            busy={busy}
+            onMerge={(intoId) => run(() => mergeFamilies(family.id, intoId))}
+            onCancel={() => setMerging(false)}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setMerging(true)}
+            className="inline-flex items-center gap-2 self-start text-sm font-semibold text-brand"
+          >
+            <MergeIcon />
+            זו אותה משפחה כמו…
+          </button>
+        ))}
 
       <ErrorNote>{error}</ErrorNote>
 
@@ -506,6 +559,119 @@ function RowInvite({ householdId, members }: { householdId: string; members: Mem
         <Busy busy={busy}>הזמנה למשפחה</Busy>
       </button>
       <ErrorNote>{error}</ErrorNote>
+    </div>
+  );
+}
+
+/**
+ * Folding a duplicate family into the real one.
+ *
+ * The commonest mess on this screen: the same family typed in twice, once by
+ * name and once when somebody in it signed up — or two people who live together
+ * added as two households. Deleting the spare is refused the moment anything
+ * has been said about it, which is exactly when a duplicate is most confusing,
+ * and dropping it only hides it from us while everybody else goes on seeing
+ * two. So it is absorbed instead: everything it carries moves, and the spare
+ * row closes for everyone.
+ *
+ * One at a time on purpose. Three households can be folded into one by doing it
+ * twice, and a screen of tick boxes for something this hard to take back is the
+ * shape of mistake this app has already made once.
+ */
+function MergePanel({
+  family,
+  others,
+  busy,
+  onMerge,
+  onCancel,
+}: {
+  family: Family;
+  /** Everybody this family could be, ours included. */
+  others: { id: string; name: string; members: Member[] }[];
+  busy: boolean;
+  onMerge: (intoId: string) => void;
+  onCancel: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [picked, setPicked] = useState('');
+
+  // A long list needs a way through it; a short one is quicker to read than to
+  // type into. The same seven as the circle screen, for the same reason.
+  const searchable = others.length > 7;
+  const shown = query.trim()
+    ? others.filter((o) => o.name.includes(query.trim()))
+    : others;
+  const chosen = others.find((o) => o.id === picked);
+
+  if (chosen) {
+    return (
+      <div className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-3">
+        <p className="text-sm text-ink">
+          לצרף את «{family.name}» לתוך «{chosen.name}»?
+        </p>
+        <p className="text-xs text-muted">
+          כל מה שיש להם — המעגלים, התשובות ומי שהם הכירו — יעבור ל«{chosen.name}», והשורה הכפולה
+          תיסגר אצל כולם. לא אצלנו בלבד.
+        </p>
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onMerge(chosen.id)}
+            className={chipButton}
+          >
+            <Busy busy={busy}>כן, לאחד</Busy>
+          </button>
+          <button type="button" onClick={() => setPicked('')} className="text-sm text-muted">
+            בחירה אחרת
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-3">
+      <p className="text-sm font-semibold text-ink">
+        לאיזה משק בית לצרף את «{family.name}»?
+      </p>
+      <p className="text-xs text-muted">
+        לשתי שורות של אותה משפחה. הן הופכות לאחת, ושום דבר לא נמחק.
+      </p>
+      {searchable && (
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="חיפוש משפחה"
+          aria-label="חיפוש משפחה לאיחוד"
+          className={`${field} py-2 text-base`}
+        />
+      )}
+      <ul data-merge-into className="flex max-h-64 flex-col gap-1 overflow-y-auto">
+        {shown.map((other) => (
+          <li key={other.id}>
+            <button
+              type="button"
+              onClick={() => setPicked(other.id)}
+              className="flex w-full flex-col rounded-xl border border-line px-3 py-2 text-start transition active:scale-95"
+            >
+              <span className="font-semibold text-ink">{other.name}</span>
+              <span className="text-xs text-muted">
+                {other.members.length === 0
+                  ? 'עוד לא נרשמו לאפליקציה'
+                  : other.members.map((m) => m.name).join(', ')}
+              </span>
+            </button>
+          </li>
+        ))}
+        {shown.length === 0 && (
+          <li className="px-1 py-2 text-sm text-muted">אין משפחה כזו ברשימה.</li>
+        )}
+      </ul>
+      <button type="button" onClick={onCancel} className="self-start text-sm text-muted">
+        ביטול
+      </button>
     </div>
   );
 }

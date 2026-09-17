@@ -36,6 +36,7 @@ import {
   standingOf,
   deactivateHousehold,
   membersByHousehold,
+  mergeHouseholds,
   spendInvite,
 } from '@/lib/data';
 import { familyName } from '@/lib/names';
@@ -580,6 +581,61 @@ export async function dropFamily(householdId: string): Promise<ActionResult> {
   await disconnectFrom(me.householdId, householdId);
   revalidatePath('/families');
   revalidatePath('/');
+  return { savedAt: new Date().toISOString() };
+}
+
+/**
+ * Two rows for one family, made one.
+ *
+ * The commonest mess in the sheet by far, and the one nothing could fix: a
+ * family typed in by name, and then somebody in it signs up and is typed in
+ * again; or two people who live together added as two households. Deleting the
+ * spare is refused the moment anything has been said about it — which is
+ * exactly when the duplicate is most confusing — and dropping it only hides it
+ * from us while everybody else goes on seeing two.
+ *
+ * So the spare is absorbed instead: its people, its circles, the families it
+ * introduced, what it answered and the links aimed at it all become the
+ * survivor's, and only then is its row switched off. Nothing is deleted and no
+ * id is ever handed out again.
+ *
+ * Who may: anyone who can see both. The one line that cannot be crossed is a
+ * household somebody has signed into — that is a person's own account, and
+ * where they live is theirs to say, not ours.
+ */
+export async function mergeFamilies(
+  fromId: string,
+  intoId: string,
+): Promise<ActionResult> {
+  const me = await currentHousehold();
+  if ('error' in me) return me;
+  if (fromId === intoId) return { error: 'צריך לבחור משפחה אחרת' };
+
+  const from = await getHousehold(fromId);
+  const into = await getHousehold(intoId);
+  if (!from || !into) return { error: 'אחת מהמשפחות כבר לא ברשימה' };
+
+  // Both have to be ours to see. A merge reaches every household in the sheet
+  // otherwise, which is not a correction anybody is entitled to make.
+  const mine = new Set((await circleOf(me.householdId)).map((h) => h.id));
+  mine.add(me.householdId);
+  if (!mine.has(fromId) || !mine.has(intoId)) {
+    return { error: 'אפשר לאחד רק משפחות שברשימה שלכם' };
+  }
+  if (fromId === me.householdId) return { error: 'את הבית שלכם אי אפשר לאחד לתוך אחר' };
+
+  const standing = await standingOf(fromId, me.householdId);
+  if (standing.joined) {
+    return { error: 'מישהו מהמשפחה הזו כבר נרשם, אז אי אפשר לצרף אותה לאחרת' };
+  }
+
+  await mergeHouseholds(intoId, [fromId]);
+  // An answer that moved may have settled a contradiction or made one: two rows
+  // that are now one family cannot disagree with each other any more.
+  await recordConflicts();
+  revalidatePath('/families');
+  revalidatePath('/');
+  revalidatePath('/history');
   return { savedAt: new Date().toISOString() };
 }
 

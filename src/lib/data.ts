@@ -1402,6 +1402,322 @@ export async function deactivateHousehold(householdId: string): Promise<void> {
 }
 
 /**
+ * What a merge would move, so it can be said out loud before it happens and
+ * reported after it has.
+ */
+export type MergeEffect = {
+  /** What the households folded in were called, in the order given. */
+  from: string[];
+  /** People whose household is now the surviving one. */
+  people: number;
+  /** Families the survivor can now see, that it could not before. */
+  connections: number;
+  /** Circles the survivor was not in and now is. */
+  circles: number;
+  /** Answers re-pointed at the survivor: theirs, and guests' at them. */
+  answers: number;
+  /** Links aimed at a merged-away household, now aimed at the survivor. */
+  invites: number;
+  /** Their own dates, now the survivor's. */
+  occasions: number;
+  /**
+   * Answers left where they were. The survivor had already said something
+   * later about that holiday, and what it said last is what it means.
+   */
+  kept: number;
+};
+
+/**
+ * Two rows that turned out to be one family, made one.
+ *
+ * It happens constantly: a family is typed in by name from somebody's phone,
+ * and then somebody in it signs up and is typed in again — or two people who
+ * live together are added as two households, when a household here has always
+ * meant the people who eat together. Deleting the extra row is not the answer,
+ * because it carries things: circles it is in, families it introduced,
+ * holidays it has already answered about. Everything it carries moves, and
+ * only then is it switched off.
+ *
+ * Append-only like everything else, and one write per tab: nothing is edited
+ * and nothing is deleted, so the rows that named the old household are still
+ * there to read afterwards.
+ *
+ * Two rules keep it from losing anything anybody said:
+ *
+ *  - An answer moves only if it is still somebody's *latest* word on that
+ *    holiday. An older one re-pointed and appended would land at the end of the
+ *    tab and win, which would be a merge quietly changing a family's answer.
+ *  - Where both households answered the same holiday, the later one stands.
+ *    Two rows are one family; the last thing that family said is what it means.
+ */
+export async function mergeHouseholds(
+  intoId: string,
+  fromIds: string[],
+): Promise<MergeEffect> {
+  const plan = planMerge(await loadSheet(), intoId, fromIds, new Date().toISOString());
+
+  // One write per tab, and the household switched off last: until that row is
+  // written the merge can simply be run again, and every step above skips what
+  // it has already done.
+  await appendRows(TABS.people, HEADERS.people, plan.people);
+  await appendRows(TABS.connections, HEADERS.connections, plan.connections);
+  await appendRows(TABS.circles, HEADERS.circles, plan.circles);
+  await appendRows(TABS.answers, HEADERS.answers, plan.answers);
+  await appendRows(TABS.invites, HEADERS.invites, plan.invites);
+  await appendRows(TABS.holidays, HEADERS.holidays, plan.holidays);
+  await appendRows(TABS.households, HEADERS.households, plan.households);
+  return plan.effect;
+}
+
+/** Every row a merge would append, by tab, worked out without writing any of them. */
+export type MergePlan = {
+  effect: MergeEffect;
+  people: string[][];
+  connections: string[][];
+  circles: string[][];
+  answers: string[][];
+  invites: string[][];
+  holidays: string[][];
+  households: string[][];
+};
+
+/**
+ * The whole of the merge, decided from one snapshot and written down rather
+ * than done.
+ *
+ * Separate from the writing so that it can be read before it happens: `npm run
+ * merge-households` prints exactly these rows and appends nothing unless it is
+ * told to, which is the only honest way to offer this against a sheet real
+ * families are using.
+ */
+export function planMerge(
+  sheet: Sheet,
+  intoId: string,
+  fromIds: string[],
+  at: string,
+): MergePlan {
+  const into = sheet.households.find((h) => h.id === intoId);
+  const sources = [...new Set(fromIds)]
+    .filter((id) => id !== intoId)
+    .map((id) => sheet.households.find((h) => h.id === id))
+    .filter((h): h is Household => h !== undefined);
+
+  const effect: MergeEffect = {
+    from: sources.map((h) => h.name),
+    people: 0,
+    connections: 0,
+    circles: 0,
+    answers: 0,
+    invites: 0,
+    occasions: 0,
+    kept: 0,
+  };
+  const empty: MergePlan = {
+    effect,
+    people: [],
+    connections: [],
+    circles: [],
+    answers: [],
+    invites: [],
+    holidays: [],
+    households: [],
+  };
+  if (!into || sources.length === 0) return empty;
+
+  const gone = new Set(sources.map((h) => h.id));
+
+  // The people in them. Their answers follow without being touched: whose
+  // answer a row is comes from the number that gave it, through this tab.
+  const peopleRows = sheet.people
+    .filter((p) => gone.has(p.householdId))
+    .map((p) => [p.phone, p.name, intoId]);
+
+  // Everyone they could see, and everyone who could see them.
+  //
+  // A direction anybody has taken back is left exactly as it is. Taking a
+  // family off your own list is a decision, one-way and deliberate, and a merge
+  // that quietly put them back would be the app overruling it — which is how
+  // רמי ורינת, who had dropped one family that morning, would have had them
+  // returned by folding in a second row.
+  const linked = new Set<string>();
+  const dropped = new Set<string>();
+  for (const c of sheet.connections) {
+    const key = `${c.householdId}\u0000${c.connectedTo}`;
+    if (c.action === 'add') {
+      linked.add(key);
+      dropped.delete(key);
+    } else {
+      linked.delete(key);
+      dropped.add(key);
+    }
+  }
+  const neighbours = new Set<string>();
+  for (const key of linked) {
+    const [a, b] = key.split('\u0000');
+    const other = gone.has(a) ? b : gone.has(b) ? a : '';
+    if (!other || gone.has(other) || other === intoId) continue;
+    neighbours.add(other);
+  }
+
+  // The circles they were in. Circles are the only way families find each
+  // other, so a circle the old row was in and the survivor was not is the one
+  // thing a merge must not drop. The name and the colour come off the row being
+  // folded in — they are what that household called the circle, and the
+  // survivor inherits them the way anybody brought into a circle does.
+  const state = circleState(sheet.circles);
+  const rows = [...state.values()];
+  const circleRows: string[][] = [];
+  const theirCircles = [
+    ...new Set(
+      rows.filter((r) => gone.has(r.householdId) && r.action === 'add').map((r) => r.circleId),
+    ),
+  ];
+  for (const circleId of theirCircles) {
+    if (state.get(`${circleId}\u0000${intoId}`)?.action === 'add') continue;
+    const theirs = rows.find(
+      (r) => r.circleId === circleId && gone.has(r.householdId) && r.action === 'add',
+    );
+    if (!theirs) continue;
+    circleRows.push([circleId, intoId, 'add', theirs.name, theirs.color, theirs.addedBy, at]);
+    effect.circles += 1;
+    for (const member of circleMembersIn(sheet, circleId)) {
+      if (!gone.has(member) && member !== intoId) neighbours.add(member);
+    }
+  }
+  // And out of them, so no circle counts a household it can no longer show.
+  for (const row of rows) {
+    if (!gone.has(row.householdId) || row.action !== 'add') continue;
+    circleRows.push([row.circleId, row.householdId, 'remove', row.name, row.color, row.addedBy, at]);
+  }
+
+  const connectionRows: string[][] = [];
+  for (const other of neighbours) {
+    for (const [from, to] of [
+      [intoId, other],
+      [other, intoId],
+    ]) {
+      const key = `${from}\u0000${to}`;
+      if (linked.has(key) || dropped.has(key)) continue;
+      connectionRows.push([from, to, 'add', at]);
+      if (from === intoId) effect.connections += 1;
+    }
+  }
+
+  // What was said. The last row for a holiday and a household is that
+  // household's answer, so only the last rows are worth moving — and a row
+  // appended now becomes the last one, which is why the survivor's own later
+  // word is left standing.
+  const order = new Map<string, number>();
+  const live = new Map<string, Answer>();
+  sheet.answers.forEach((answer, i) => {
+    const key = `${answer.holidayKey}\u0000${answer.householdId}`;
+    live.set(key, answer);
+    order.set(key, i);
+  });
+  const answerRows: string[][] = [];
+  const claimed = new Set<string>();
+  for (const [key, answer] of live) {
+    const theirs = gone.has(answer.householdId);
+    const atTheirs = gone.has(answer.hostHouseholdId);
+    if (!theirs && !atTheirs) continue;
+
+    if (theirs) {
+      // An answer their own people gave needs no row: those people are moving,
+      // and the answer re-reads as the survivor's where it already sits, in the
+      // order it was written. Only one recorded *for* them names the household
+      // outright and has to be said again.
+      if (!answer.forHouseholdId) continue;
+      const ours = `${answer.holidayKey}\u0000${intoId}`;
+      if (claimed.has(ours) || (order.has(ours) && order.get(ours)! > order.get(key)!)) {
+        effect.kept += 1;
+        continue;
+      }
+      claimed.add(ours);
+    }
+    const host = atTheirs ? intoId : answer.hostHouseholdId;
+    const household = theirs ? intoId : answer.householdId;
+    // Nobody is their own guest. A row that now says so was two households
+    // saying they were eating together, which is what a merge has just agreed.
+    if (answer.kind === 'guest' && host === household) {
+      effect.kept += 1;
+      continue;
+    }
+    answerRows.push([
+      answer.timestamp,
+      answer.holidayKey,
+      answer.kind,
+      host,
+      answer.byPhone,
+      theirs ? intoId : answer.forHouseholdId,
+    ]);
+  }
+  effect.answers = answerRows.length;
+
+  // The links they made, and the links aimed at them. A link naming a household
+  // that is no longer readable is a dead link: the join screen cannot say who
+  // invited you, or which family you are.
+  const liveInvites = new Map<string, Invite>();
+  for (const invite of sheet.invites) liveInvites.set(invite.token, invite);
+  const inviteRows: string[][] = [];
+  for (const invite of liveInvites.values()) {
+    if (!gone.has(invite.createdBy) && !gone.has(invite.forHouseholdId)) continue;
+    const createdBy = gone.has(invite.createdBy) ? intoId : invite.createdBy;
+    const forHouseholdId = gone.has(invite.forHouseholdId) ? intoId : invite.forHouseholdId;
+    inviteRows.push([
+      invite.token,
+      createdBy,
+      // A link that said "you are this family" and now names the family that
+      // sent it is saying something else: come and be one of us. That is the
+      // household kind, and the difference is not cosmetic — a family link
+      // offers the household's name for correction, so left as it was it would
+      // hand whoever opened it the survivor's name to overwrite.
+      forHouseholdId && forHouseholdId === createdBy ? 'household' : invite.kind,
+      invite.createdAt,
+      invite.forPhone,
+      invite.usedAt,
+      forHouseholdId,
+      invite.forCircleId,
+    ]);
+  }
+  effect.invites = inviteRows.length;
+
+  // Their own dates. A family's occasion belongs to a household by id and is
+  // shared with households by id, so both have to follow or a gathering loses
+  // its owner and half the people it was for.
+  const occasions = new Map<string, Holiday>();
+  for (const holiday of sheet.holidays) occasions.set(occasionId(holiday.key), holiday);
+  const holidayRows: string[][] = [];
+  for (const [id, holiday] of occasions) {
+    const owned = gone.has(holiday.ownerHouseholdId);
+    const shared = holiday.sharedWith.map((h) => (gone.has(h) ? intoId : h));
+    if (!owned && shared.join('\u0000') === holiday.sharedWith.join('\u0000')) continue;
+    const owner = owned ? intoId : holiday.ownerHouseholdId;
+    holidayRows.push([
+      id,
+      holiday.nameHe,
+      holiday.type,
+      holiday.emoji,
+      holiday.include ? 'TRUE' : 'FALSE',
+      owner,
+      joinIds([...new Set(shared)].filter((h) => h !== owner)),
+    ]);
+  }
+  effect.occasions = holidayRows.length;
+  effect.people = peopleRows.length;
+
+  return {
+    effect,
+    people: peopleRows,
+    connections: connectionRows,
+    circles: circleRows,
+    answers: answerRows,
+    invites: inviteRows,
+    holidays: holidayRows,
+    households: sources.map((h) => [h.id, h.name, 'FALSE', h.createdBy, h.createdAt]),
+  };
+}
+
+/**
  * A new household, and the number of whoever is opening it.
  *
  * Almost every family here is typed in by somebody else — from a circle being

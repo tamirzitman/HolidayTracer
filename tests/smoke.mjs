@@ -425,6 +425,55 @@ check('and the tab only grew — switched off, never erased',
   rows('Households').length === beforeTypo + 3 &&
     rows('Households').at(-1)[2] === 'FALSE');
 
+// ── the same family, typed in twice ─────────────────────────────────────────
+// The commonest mess in the sheet: a family added by name that turns out to be
+// one already on the list. Deleting it is refused the moment anything has been
+// said about it, so it is folded in instead — and the row closes for everybody,
+// not only for us.
+await stranger.click('[aria-label="הוספת משפחה"]');
+await stranger.waitForSelector('input[name=familyName]');
+await stranger.fill('input[name=familyName]', 'משפחת כפילות');
+await stranger.click('form:has(input[name=familyName]) button[type=submit]');
+await stranger.waitForTimeout(2000);
+const beforeMerge = rows('Households').length;
+
+await stranger.goto(`${BASE}/families`);
+await stranger.waitForSelector('text=משפחת כפילות');
+const twice = stranger.locator('#families li').filter({ hasText: 'משפחת כפילות' }).last();
+await twice.getByRole('button', { expanded: false }).first().click();
+check('a family nobody has signed into can turn out to be one we already have',
+  await stranger.isVisible('text=זו אותה משפחה כמו'));
+await stranger.click('text=זו אותה משפחה כמו');
+check('and merging asks which family that is',
+  await stranger.isVisible('text=לאיזה משק בית לצרף'));
+// A family somebody has signed into is the likelier of the two to be the real
+// one, so it is offered first.
+const candidates = await stranger.$$eval('[data-merge-into] button', (els) =>
+  els.map((e) => e.innerText.split('\n')[0].trim()),
+);
+check(`the families to fold it into are offered (${candidates.join(', ')})`,
+  candidates.includes('דנה ויוסי') && !candidates.includes('משפחת כפילות'));
+await stranger
+  .locator('[data-merge-into] button')
+  .filter({ hasText: 'דנה ויוסי' })
+  .first()
+  .click();
+check('merging asks before it does it', await stranger.isVisible('text=כן, לאחד'));
+await stranger.click('text=כן, לאחד');
+await stranger.waitForTimeout(2500);
+await stranger.reload();
+await stranger.waitForSelector('text=המעגלים שלי');
+check('the duplicate row is gone from the list',
+  !(await stranger.isVisible('text=משפחת כפילות')));
+check('switched off like everything else here, never erased',
+  rows('Households').length === beforeMerge + 1 &&
+    rows('Households').at(-1)[2] === 'FALSE');
+// The one line a merge cannot cross: where a signed-in person lives is theirs.
+const joinedRow = stranger.locator('#families li').filter({ hasText: 'דנה ויוסי' }).last();
+await joinedRow.getByRole('button', { expanded: false }).first().click();
+check('a family somebody has signed into is never folded into another',
+  !(await stranger.isVisible('text=זו אותה משפחה כמו')));
+
 // ── correcting our own family's name ────────────────────────────────────────
 // The name is often not ours to begin with — somebody added us from a name in
 // their phone — so this is a correction, and it lives on the row that shows the

@@ -298,6 +298,26 @@ export function PencilIcon() {
   );
 }
 
+/**
+ * Two rows becoming one: two strokes that meet and go on as a single one.
+ *
+ * Deliberately not a plus and not a chain — nothing is being added and nothing
+ * is being linked. Two things that were separate turn out to be one thing.
+ */
+export function MergeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+      <path
+        d="M6 3v3.3a5 5 0 0 0 1.7 3.8L12 13.6m6-10.6v3.3a5 5 0 0 1-1.7 3.8L12 13.6m0 0V21"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function CrossIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">

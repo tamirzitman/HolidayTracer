@@ -28,6 +28,8 @@ change that shipped without one.
 npm run version-check   # the number still describes the code
 npm run typecheck
 npm run perf-circle     # joining a circle still costs the same at any size
+npm run check-leaving   # leaving a circle still undoes what joining it did
+npm run check-merging   # merging two households still carries all of both
 npm run build           # then restart the test server before the suite
 npm run test:smoke      # ~250 browser checks, ~14 min, needs the build above
 ```
@@ -55,6 +57,12 @@ server is running swaps chunks underneath it — kill it, build, start it again.
   one. `appendRows` takes them all at once. Putting a family into a circle of 24
   was 122 round trips this way; it is 4. `npm run perf-circle` fails if that
   starts scaling again.
+- **Two rows for one family are merged, never deleted.** `mergeHouseholds`
+  carries the people, circles, connections, answers, links and own dates across
+  and then switches the old row off. An answer moves only if it is still that
+  household's *latest* word, because a row appended now lands at the end of the
+  tab and wins — re-pointing an older one would quietly change what a family
+  said. Where both rows answered the same holiday, the later one stands.
 - **There are real families using this.** Nothing here is a scratch project:
   changes go out to people mid-holiday, and the sheet holds their phone numbers
   and where they are eating.
