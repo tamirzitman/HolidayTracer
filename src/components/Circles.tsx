@@ -28,7 +28,10 @@ import {
   PlusIcon,
   card,
   chipButton,
+  dangerButton,
   field,
+  mutedButton,
+  optionChip,
   sectionHeading,
 } from './ui';
 
@@ -485,7 +488,9 @@ function CircleEditor({
           type="button"
           onClick={() => setPickingColor((was) => !was)}
           aria-expanded={pickingColor}
-          className="inline-flex w-fit items-center gap-2 text-xs font-semibold text-muted transition active:scale-95"
+          // It opens the colours, so it is shaped like something that opens:
+          // as grey text with a dot it read as a caption under the name.
+          className={`${optionChip} w-fit`}
         >
           <span
             className="h-4 w-4 shrink-0 rounded-full ring-1 ring-black/10"
@@ -544,11 +549,11 @@ function CircleEditor({
                 type="button"
                 disabled={leavingBusy}
                 onClick={onLeave}
-                className="rounded-full border border-danger px-4 py-1.5 text-sm font-bold text-danger transition active:scale-95 disabled:opacity-50"
+                className={dangerButton}
               >
                 <Busy busy={leavingBusy}>כן, לצאת מהמעגל</Busy>
               </button>
-              <button type="button" onClick={onCancelLeave} className="text-sm text-muted">
+              <button type="button" onClick={onCancelLeave} className={mutedButton}>
                 ביטול
               </button>
             </div>

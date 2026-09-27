@@ -35,8 +35,10 @@ import {
   pastTint,
   primaryButton,
   quietButton,
+  optionChip,
   secondaryButton,
   sectionHeading,
+  Tag,
 } from './ui';
 
 type Props = {
@@ -385,7 +387,7 @@ export function AnswerForm({
                     )}
                   </p>
                   {hostDisagrees && (
-                    <p className="mt-1 rounded-xl border border-line bg-ground px-3 py-2 text-sm text-muted">
+                    <p className="mt-1 rounded-xl bg-ink/5 px-3 py-2 text-sm text-muted">
                       <span aria-hidden="true">⚠️ </span>
                       שימו לב — הם ענו שהם מתארחים
                     </p>
@@ -705,7 +707,7 @@ function Reminders({
             type="button"
             disabled={busy}
             onClick={() => send(circle)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs font-bold text-ink transition active:scale-95 disabled:opacity-50"
+            className={optionChip}
           >
             <span
               className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/10"
@@ -1016,10 +1018,10 @@ function PastHoliday({
     >
       {/* Said outright rather than left to be worked out from the date: the
           card otherwise looks exactly like the one asking about next week. */}
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs font-bold text-muted">
+      <Tag>
         <ClockIcon />
         חג שעבר
-      </span>
+      </Tag>
 
       {answer ? (
         <>

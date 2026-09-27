@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BRAND, brandGround } from '@/lib/brand';
 import { Mark } from './Mark';
+import { chipButton } from './ui';
 
 /** Chrome hands this over when it is willing to install the app itself. */
 type InstallEvent = Event & {
@@ -120,7 +121,7 @@ export function InstallPrompt() {
               <button
                 type="button"
                 onClick={install}
-                className="shrink-0 rounded-full border border-brand bg-brand px-4 py-1.5 text-sm font-bold whitespace-nowrap text-ground transition active:scale-95"
+                className={chipButton}
               >
                 הוספה
               </button>

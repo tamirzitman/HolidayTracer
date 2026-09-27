@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { setCircleMember } from '@/app/actions';
 import { colorOf } from '@/lib/circle-colors';
-import { Busy, ErrorNote, PlusIcon, card, sectionHeading } from './ui';
+import { Busy, ErrorNote, PlusIcon, card, optionChip, sectionHeading } from './ui';
 
 /**
  * The families on our list that are in no circle at all.
@@ -81,7 +81,7 @@ export function Uncircled({
                   type="button"
                   disabled={busy !== ''}
                   onClick={() => put(circle.id, family)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs font-bold text-ink transition active:scale-95 disabled:opacity-50"
+                  className={optionChip}
                 >
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/10"

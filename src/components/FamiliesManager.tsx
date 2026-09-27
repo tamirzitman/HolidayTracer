@@ -35,7 +35,9 @@ import {
   Title,
   card,
   chipButton,
+  dangerButton,
   field,
+  mutedButton,
   quietButton,
   sectionHeading,
 } from './ui';
@@ -489,11 +491,11 @@ function FamilyRow({
               onClick={() =>
                 run(() => (canDelete ? deleteFamily(family.id) : dropFamily(family.id)))
               }
-              className="rounded-full border border-danger px-4 py-1.5 text-sm font-bold text-danger transition active:scale-95 disabled:opacity-50"
+              className={dangerButton}
             >
               <Busy busy={busy}>{canDelete ? 'כן, למחוק' : 'כן, להסיר'}</Busy>
             </button>
-            <button type="button" onClick={() => setConfirming(false)} className="text-sm text-muted">
+            <button type="button" onClick={() => setConfirming(false)} className={mutedButton}>
               ביטול
             </button>
           </div>
@@ -622,7 +624,7 @@ function MergePanel({
           >
             <Busy busy={busy}>כן, לאחד</Busy>
           </button>
-          <button type="button" onClick={() => setPicked('')} className="text-sm text-muted">
+          <button type="button" onClick={() => setPicked('')} className={mutedButton}>
             בחירה אחרת
           </button>
         </div>

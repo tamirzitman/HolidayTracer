@@ -51,6 +51,31 @@ git push origin HEAD:playground
 It is a fast-forward when your branch started from where `playground` is; if
 it is not, ask rather than force-pushing over whatever is being tried there.
 
+## One look, one language
+
+People use this on a phone, in the middle of a holiday, without being taught.
+There is no hover to find out what is pressable, so the shape has to say it —
+and the same thing has to look and read the same on every screen.
+
+- **Pressable is a pill with a border or a fill**, in brand (or danger, or
+  WhatsApp) colour. Use the constants in `src/components/ui.tsx` —
+  `primaryButton`, `secondaryButton`, `hostButton`, `quietButton`,
+  `mutedButton`, `miniButton`, `chipButton`, `dangerButton`, `optionChip` —
+  never a class string written out again in a component. A new kind of button
+  gets a constant there first.
+- **Information is never a pill and never has a border.** A status on a row is
+  a `Tag` (square-ish corners, a soft wash); a date is `DatePill`; anything else
+  is text, with a mark in front of it if it needs one.
+- **Back, and closing something that opened in place, is `BackButton`** — the
+  arrow — never a word. Something that opens in place carries a `ChevronIcon`.
+- **The same words for the same act.** Past holidays are spoken of in the past
+  tense (אירחו, היו אצל, לא הגיעו); upcoming ones in the present. Answering for
+  another family is always "…בשבילם". Before naming a new button, look for the
+  word the app already uses for that act and use it.
+
+When a change adds something to a screen, check it against this list; when it
+finds something that already breaks it, fix it in the same change or say so.
+
 ## Things that bite
 
 - **The sheet is append-only.** Every tab only grows; the newest row for a key

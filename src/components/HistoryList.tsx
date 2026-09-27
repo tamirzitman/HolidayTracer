@@ -12,7 +12,9 @@ import {
   BackButton,
   Busy,
   ErrorNote,
+  ChevronIcon,
   HostCandle,
+  Tag,
   card,
   chipButton,
   field,
@@ -139,9 +141,7 @@ export function HistoryList({
                         <CircleDots tags={hostTags} />
                       </span>
                     ) : (
-                      <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-brand/30 bg-surface px-2.5 py-0.5 text-sm font-bold text-brand">
-                        חסר
-                      </span>
+                      <Tag tone="brand">חסר</Tag>
                     )}
                     <span className="text-sm text-muted">
                       {formatDayAndDate(entry.date)}
@@ -298,14 +298,27 @@ function Others({
   const answered = entry.others.filter((o) => o.kind !== 'none').length;
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className={`${miniButton} self-start`}
-      >
-        {open ? 'סגירה' : `איפה היו כולם · ${answered}/${entry.others.length}`}
-      </button>
+      {/* Closed, a button that says what opens and how much of it is filled
+          in. Open, the same arrow that steps back everywhere else — a word for
+          closing here and an arrow there read as two different things. */}
+      {open ? (
+        <div className="flex items-center gap-2">
+          <BackButton onClick={onToggle} />
+          <p className="text-xs text-muted">
+            איפה היו כולם · {answered}/{entry.others.length}
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={false}
+          className={`${miniButton} self-start`}
+        >
+          איפה היו כולם · {answered}/{entry.others.length}
+          <ChevronIcon className="h-3.5 w-3.5 text-brand" />
+        </button>
+      )}
       {open && (
         <ul className="flex flex-col divide-y divide-line rounded-2xl border border-line">
           {entry.others.map((family) => (

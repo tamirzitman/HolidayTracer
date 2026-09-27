@@ -1,5 +1,24 @@
 import Link from 'next/link';
 
+/*
+ * What can be pressed, and what is only being said.
+ *
+ * On a phone there is no hover to find out, so the shape has to say it:
+ *
+ * - Pressable is a pill (`rounded-full`) with a border or a fill, in the brand
+ *   colour (or danger, or WhatsApp's) — one of the button constants below,
+ *   never a class string written out again in a component.
+ * - Information is never a pill and never has a border: a `Tag`, a soft wash
+ *   with square-ish corners, or plain text with a mark before it.
+ * - Going back or closing something that opened in place is `BackButton`,
+ *   the arrow, and never a word — "סגירה", "ביטול", "חזרה" as text read as three
+ *   different things.
+ *
+ * A bordered pill that did nothing when tapped ("חסר" in the history) and a
+ * button that looked like a label ("איפה היו כולם") were the same mistake from
+ * both ends.
+ */
+
 export const card =
   'rounded-3xl border border-line bg-surface p-7 shadow-[0_18px_48px_-24px_rgba(0,0,0,0.45)]';
 
@@ -34,10 +53,49 @@ export const mutedButton =
   'inline-flex w-fit items-center justify-center gap-1.5 rounded-full border border-line bg-surface ' +
   'px-4 py-2 text-sm font-semibold text-muted transition active:scale-95 disabled:opacity-50';
 
-/** The smallest of the three, for a control that sits inside a row of text. */
+/**
+ * The smallest of the three, for a control that sits inside a row of text.
+ * The border is the brand's, not the grey of a divider: at this size the
+ * border is most of what says it can be pressed.
+ */
 export const miniButton =
-  'inline-flex w-fit shrink-0 items-center justify-center rounded-full border border-line bg-surface ' +
+  'inline-flex w-fit shrink-0 items-center justify-center gap-1 rounded-full border border-brand/40 bg-surface ' +
   'px-2.5 py-1 text-xs font-bold text-brand transition active:scale-95 disabled:opacity-50';
+
+/** Confirming something that cannot be taken back: leaving, deleting. */
+export const dangerButton =
+  'inline-flex w-fit items-center justify-center rounded-full border border-danger px-4 py-1.5 ' +
+  'text-sm font-bold text-danger transition active:scale-95 disabled:opacity-50';
+
+/**
+ * One of several things to pick between, each carrying its own colour dot —
+ * which circle to remind, which circle to put a family in.
+ */
+export const optionChip =
+  'inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-xs font-bold ' +
+  'text-ink transition active:scale-95 disabled:opacity-50';
+
+/**
+ * A fact about a row — "חסר", "חג שעבר" — and not something to press. Corners,
+ * not a pill, and no border: see the note at the top of this file.
+ */
+export function Tag({
+  children,
+  tone = 'muted',
+}: {
+  children: React.ReactNode;
+  tone?: 'muted' | 'brand';
+}) {
+  return (
+    <span
+      className={`inline-flex w-fit items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-bold ${
+        tone === 'brand' ? 'bg-brand-wash text-brand' : 'bg-ink/5 text-muted'
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
 
 /**
  * The candle from the app's own mark, standing for us hosting.
@@ -131,12 +189,16 @@ export function AddRowLink({ href, children }: { href: string; children: React.R
 
 /** A small call to action that sits inside a row, rather than filling it. */
 export const chipButton =
-  'shrink-0 rounded-full border border-brand bg-brand px-4 py-1.5 text-sm font-bold whitespace-nowrap text-ground';
+  'shrink-0 rounded-full border border-brand bg-brand px-4 py-1.5 text-sm font-bold whitespace-nowrap text-ground ' +
+  'transition active:scale-95 disabled:opacity-50';
 
-/** The date and countdown, as one quiet pill rather than loose grey text. */
+/**
+ * The date and countdown, together rather than loose grey text. Information,
+ * so shaped like a `Tag` and not like the buttons around it.
+ */
 export function DatePill({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3.5 py-1.5 text-sm text-muted">
+    <span className="inline-flex items-center gap-2 rounded-lg bg-ink/5 px-3.5 py-1.5 text-sm text-muted">
       {children}
     </span>
   );
@@ -384,11 +446,11 @@ export function PlusIcon({ className = 'h-4 w-4' }: { className?: string }) {
  * thing is open, which is the whole of how a row says it has more under it —
  * a row that only reveals its meaning once tapped has told nobody anything.
  */
-export function ChevronIcon({ open = false, className = 'h-4 w-4' }: { open?: boolean; className?: string }) {
+export function ChevronIcon({ open = false, className = 'h-4 w-4 text-muted' }: { open?: boolean; className?: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      className={`${className} shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`}
+      className={`${className} shrink-0 transition ${open ? 'rotate-180' : ''}`}
       fill="none"
       aria-hidden="true"
     >
