@@ -64,7 +64,22 @@ export default async function Page({
   // A year back and the round ahead, so a holiday that has just passed is still
   // reachable by swiping rather than gone the morning after.
   const { holidays: strip, present } = await holidayStrip(person.householdId);
-  if (strip.length === 0) {
+
+  // Which holiday is on screen comes from the URL, so the arrows are plain links
+  // and a half-finished answer can't be lost to a stray tap. With nothing asked
+  // for it opens on the first holiday still to come — never on a past one,
+  // however far back the last swipe went.
+  const requested = (await searchParams).h;
+  const asked = strip.findIndex((h) => h.key === requested);
+  const at = asked === -1 ? present : asked;
+  const holiday = strip[at];
+  const isPast = at < present;
+
+  // Nothing to come is not the same as nothing at all: when the seeded dates
+  // run out, the year behind is still full, and opening on "the first holiday
+  // still to come" read one past the end of it and took the screen down for
+  // every family at once.
+  if (!holiday) {
     return (
       <div className={`${card} flex flex-col items-center gap-3 text-center`}>
         <Title>אין חג קרוב</Title>
@@ -82,16 +97,6 @@ export default async function Page({
       </div>
     );
   }
-
-  // Which holiday is on screen comes from the URL, so the arrows are plain links
-  // and a half-finished answer can't be lost to a stray tap. With nothing asked
-  // for it opens on the first holiday still to come — never on a past one,
-  // however far back the last swipe went.
-  const requested = (await searchParams).h;
-  const asked = strip.findIndex((h) => h.key === requested);
-  const at = asked === -1 ? present : asked;
-  const holiday = strip[at];
-  const isPast = at < present;
 
   const [households, circle, current, guests, conflict, members] =
     await Promise.all([
