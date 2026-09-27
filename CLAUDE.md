@@ -38,6 +38,19 @@ The smoke suite runs against a production build on port 3111 with local fixture
 data (`npm run fixtures`), never against a real sheet. Rebuilding while that
 server is running swaps chunks underneath it — kill it, build, start it again.
 
+## Trying it on the playground
+
+The playground deployment — a scratch sheet, with the red סביבת ניסיון strip —
+builds from the **`playground`** branch. To let somebody try a change before it
+goes to the families, push it there as well as to your own branch:
+
+```
+git push origin HEAD:playground
+```
+
+It is a fast-forward when your branch started from where `playground` is; if
+it is not, ask rather than force-pushing over whatever is being tried there.
+
 ## Things that bite
 
 - **The sheet is append-only.** Every tab only grows; the newest row for a key
