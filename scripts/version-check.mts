@@ -29,7 +29,15 @@ const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { versio
 // another leaves the word "version" appearing exactly once either way, so every
 // bump was invisible to it and this always compared against the commit that
 // first added the field. -G matches the changed lines themselves.
-const bumped = git('log', '-1', '--format=%H', '-G^\\s*"version":', '--', 'package.json');
+//
+// --diff-merges=first-parent, because a version raised while merging production
+// in is raised in the merge commit itself, and plain `git log` never looks inside
+// a merge — so it walked past that bump to the one before it and reported every
+// file the merge brought in as changed without one.
+const bumped = git(
+  'log', '-1', '--format=%H', '--diff-merges=first-parent', '--no-patch',
+  '-G^\\s*"version":', '--', 'package.json',
+);
 if (!bumped) {
   console.log(`version ${version} — no commit has ever changed it, so nothing to compare against.`);
   process.exit(0);
