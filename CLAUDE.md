@@ -38,18 +38,30 @@ The smoke suite runs against a production build on port 3111 with local fixture
 data (`npm run fixtures`), never against a real sheet. Rebuilding while that
 server is running swaps chunks underneath it — kill it, build, start it again.
 
-## Trying it on the playground
+## Where a change goes, and when
 
-The playground deployment — a scratch sheet, with the red סביבת ניסיון strip —
-builds from the **`playground`** branch. To let somebody try a change before it
-goes to the families, push it there as well as to your own branch:
+Two deployments, two branches:
 
-```
-git push origin HEAD:playground
-```
+| branch | deployment | sheet |
+|---|---|---|
+| `playground` | holidaytracer-test — red סביבת ניסיון strip | a scratch sheet |
+| `claude/holiday-vacancy-tracker-plan-axvtmx` | production — the families | the real one |
 
-It is a fast-forward when your branch started from where `playground` is; if
-it is not, ask rather than force-pushing over whatever is being tried there.
+The order, every time:
+
+1. **Bring production in first.** Other sessions push to the production branch
+   too, so merge it into your branch before anything else — otherwise the
+   playground runs your change *without* fixes the families already have, and
+   the version on screen goes backwards.
+2. **Straight to the playground**, as soon as it builds and typechecks — before
+   the long smoke suite. It is there to be tried by hand right away:
+   `git push origin HEAD:playground`
+3. **Then the full list under "Before pushing"**, smoke suite included.
+4. **Only when all of it passes, to production:**
+   `git push origin HEAD:claude/holiday-vacancy-tracker-plan-axvtmx`
+
+Both pushes should be fast-forwards once step 1 is done. If either is not, stop
+and ask — never force-push over what somebody is trying or what the families use.
 
 ## One look, one language
 

@@ -89,16 +89,31 @@ function googleStore(spreadsheetId: string): SheetStore {
           out[tabs[i]] = asStrings(range.values ?? undefined);
         });
         return out;
-      } catch {
+      } catch (error) {
         // One range Google cannot parse fails the whole batch, and a tab that
         // does not exist is exactly that — so a spreadsheet missing a tab the
         // code has learned about since would go dark rather than come up with
-        // that one tab empty. Ask for them one at a time instead.
-        await Promise.all(
-          tabs.map(async (tab) => {
-            out[tab] = await this.read(tab).catch(() => []);
-          }),
-        );
+        // that one tab empty. Ask again for only the tabs that are there.
+        //
+        // Only a missing tab reads as empty. Anything else — a quota, a
+        // timeout, Google having a bad minute — has to fail, never come back
+        // as a blank spreadsheet: an empty Households tab makes the next
+        // family created household 1, walking a stranger into somebody's
+        // family, and the blank sheet would be memoized for everybody.
+        const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.title' });
+        const present = new Set((meta.data.sheets ?? []).map((s) => s.properties?.title));
+        const there = tabs.filter((tab) => present.has(tab));
+        if (there.length === tabs.length) throw error;
+        for (const tab of tabs) out[tab] = [];
+        if (there.length === 0) return out;
+        const res = await sheets.spreadsheets.values.batchGet({
+          spreadsheetId,
+          ranges: there.map((tab) => `${tab}!A:Z`),
+          valueRenderOption: 'UNFORMATTED_VALUE',
+        });
+        (res.data.valueRanges ?? []).forEach((range, i) => {
+          out[there[i]] = asStrings(range.values ?? undefined);
+        });
         return out;
       }
     },
