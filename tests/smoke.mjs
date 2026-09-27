@@ -1512,6 +1512,35 @@ const corrected = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.te
 check(`the counts follow the correction (${stats.join('/')} → ${corrected.join('/')})`,
   Number(corrected[0]) === Number(stats[0]) + 1);
 
+// ── filling in somebody else's year ──────────────────────────────────────────
+// The family that never opens the app has a history too, and the only people
+// who can fill it in are the ones who were there — the same as answering for
+// them on the holiday screen, pointed at a date that has passed.
+const pesachHere = dad.locator('li', { hasText: 'ערב פסח' }).first();
+check('a past holiday offers where everyone else was',
+  await pesachHere.getByRole('button', { name: /איפה היו כולם/ }).isVisible());
+await pesachHere.getByRole('button', { name: /איפה היו כולם/ }).click();
+const sisterThen = pesachHere.locator('li', { hasText: 'אחות ובעלה' });
+check('a family with nothing said for that holiday can be filled in for',
+  await sisterThen.getByText('למלא בשבילם').isVisible());
+await sisterThen.getByText('למלא בשבילם').click();
+await sisterThen.getByRole('button', { name: 'היו אצל…' }).click();
+await sisterThen.locator('select[name=hostHouseholdId]').selectOption({ label: 'אבא ואמא' });
+const beforeTheirs = rows('Answers').length;
+await sisterThen.getByRole('button', { name: 'שמירה' }).click();
+await dad.waitForTimeout(1800);
+const theirPast = rows('Answers').at(-1);
+check(`and it is written for them, on that holiday, credited to who said it (${theirPast.join(' ')})`,
+  rows('Answers').length === beforeTheirs + 1 &&
+    theirPast[1] === 'erev_pesach_2026' && theirPast[2] === 'guest' &&
+    theirPast[3] === 'hh_parents' && theirPast[4] === '+972501234567' &&
+    theirPast[5] === 'hh_sister');
+check('the row shows it, said in the past and said for them',
+  /היו אצל אבא ואמא/.test(await sisterThen.innerText()) && /בשבילם/.test(await sisterThen.innerText()));
+check('and it can still be corrected', await sisterThen.getByText('לתקן בשבילם').isVisible());
+const ourCountsStill = await dad.$$eval('.tabular-nums', (els) => els.map((e) => e.textContent.trim()));
+check('and our own counts do not move for it', ourCountsStill.join('/') === corrected.join('/'));
+
 // ── a link sent to one person is that person's alone ─────────────────────────
 const personal = await linkFromRow(dad, 'אח ואשתו');
 check(`a link can be aimed at one family (${inv(personal, 'for_household_id')})`,

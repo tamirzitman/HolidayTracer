@@ -983,8 +983,13 @@ export async function answerFor(_prev: ActionResult, formData: FormData): Promis
   if (!forId || forId === person.householdId) return { error: 'זו המשפחה שלכם — ענו בעצמכם' };
   if (!(await isConnected(person.householdId, forId))) return { error: 'המשפחה הזו לא במעגל שלכם' };
 
+  // A holiday still to come, or one that has been: filling in where they were
+  // last Pesach is the same gap as filling in where they will be next week,
+  // and the history tab offers it for them the way it does for us.
   const holidayKey = String(formData.get('holidayKey') ?? '').trim();
-  const holiday = (await getUpcomingHolidays(forId)).find((h) => h.key === holidayKey);
+  const holiday =
+    (await getUpcomingHolidays(forId)).find((h) => h.key === holidayKey) ??
+    (await getPastHoliday(holidayKey, forId));
   if (!holiday) return { error: 'החג הזה לא פתוח לתשובות בשבילם' };
 
   const latest = await getLatestAnswer(holiday.key, forId);

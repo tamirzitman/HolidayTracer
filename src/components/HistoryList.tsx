@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { editHistory, type ActionResult } from '@/app/actions';
 import { AddFamilyInline } from './AddFamilyInline';
+import { AnswerForThem } from './AnswerForm';
 import { CircleDots, CircleLegend } from './Circles';
 import { colorOf } from '@/lib/circle-colors';
 import { formatDayAndDate } from '@/lib/dates';
@@ -15,6 +16,7 @@ import {
   card,
   chipButton,
   field,
+  miniButton,
   primaryButton,
   quietButton,
   secondaryButton,
@@ -29,6 +31,18 @@ type Entry = {
   hostName: string;
   /** Which person in the family gave this answer. */
   byName: string;
+  /** What each family in our circle said about this holiday, in circle order. */
+  others: Other[];
+};
+
+type Other = {
+  id: string;
+  name: string;
+  kind: string;
+  hostName: string;
+  byName: string;
+  /** Said for them by somebody in the circle — so it can still be corrected. */
+  byProxy: boolean;
 };
 
 
@@ -36,11 +50,14 @@ type Entry = {
 export function HistoryList({
   entries,
   families,
+  hostsFor,
   circles,
   tags,
 }: {
   entries: Entry[];
   families: { id: string; name: string }[];
+  /** Per family, whom *they* could have been at — their list, not ours. */
+  hostsFor: Record<string, { id: string; name: string }[]>;
   /** Our circles, for the legend that says what the colours on the rows mean. */
   circles: { id: string; name: string; color: string }[];
   /** Which circles each family is in — the same dots as everywhere else. */
@@ -49,6 +66,9 @@ export function HistoryList({
 }) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(editHistory, {});
   const [editing, setEditing] = useState<string | null>(null);
+  // Which row has everybody else's answers open. Apart from `editing`, so
+  // filling in our own row does not fold away the families under it.
+  const [showing, setShowing] = useState<string | null>(null);
   const [asGuest, setAsGuest] = useState(false);
   const hostSelect = useRef<HTMLSelectElement>(null);
   const router = useRouter();
@@ -225,11 +245,104 @@ export function HistoryList({
                     />
                   </div>
                 )}
+
+                {/* The rest of the circle for this holiday, behind one line so
+                    a year of rows stays a year of rows. The grandfather who
+                    never opens the app has a history too, and the only people
+                    who can fill it in are the ones who were at the table. */}
+                {entry.others.length > 0 && (
+                  <Others
+                    entry={entry}
+                    open={showing === entry.key}
+                    onToggle={() => setShowing(showing === entry.key ? null : entry.key)}
+                    hostsFor={hostsFor}
+                    tags={tags}
+                  />
+                )}
               </div>
             </li>
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+/** Past tense, as on a past holiday's card: the moment to answer has gone. */
+function said(kind: string, hostName: string): string {
+  if (kind === 'hosting') return 'אירחו';
+  if (kind === 'guest') return `היו אצל ${hostName}`;
+  if (kind === 'away') return 'לא הגיעו';
+  return 'לא ענו';
+}
+
+/**
+ * Where everyone else was, for one past holiday — the circle list from the
+ * holiday screen, with the same rule about whose answer is whose: a gap, or
+ * something said for them, can be filled in by anyone here; what a family said
+ * for itself stands.
+ */
+function Others({
+  entry,
+  open,
+  onToggle,
+  hostsFor,
+  tags,
+}: {
+  entry: Entry;
+  open: boolean;
+  onToggle: () => void;
+  hostsFor: Record<string, { id: string; name: string }[]>;
+  tags: Record<string, { id: string; name: string; color: string }[]>;
+}) {
+  const answered = entry.others.filter((o) => o.kind !== 'none').length;
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className={`${miniButton} self-start`}
+      >
+        {open ? 'סגירה' : `איפה היו כולם · ${answered}/${entry.others.length}`}
+      </button>
+      {open && (
+        <ul className="flex flex-col divide-y divide-line rounded-2xl border border-line">
+          {entry.others.map((family) => (
+            <li key={family.id} className="flex flex-col gap-2 px-3 py-2.5">
+              <div className="flex items-baseline justify-between gap-x-3">
+                <div className="min-w-0 grow">
+                  <p className="flex items-center gap-1.5 font-semibold text-ink">
+                    <span className="truncate">{family.name}</span>
+                    <CircleDots tags={tags[family.id] ?? []} />
+                  </p>
+                  {family.byName && (
+                    <p className="text-xs text-muted">
+                      ענו: {family.byName}
+                      {family.byProxy && ' · בשבילם'}
+                    </p>
+                  )}
+                </div>
+                <span
+                  className={`w-2/5 shrink-0 text-start text-sm ${
+                    family.kind === 'none' ? 'text-muted' : 'font-semibold text-brand'
+                  }`}
+                >
+                  {said(family.kind, family.hostName)}
+                </span>
+              </div>
+              {(family.kind === 'none' || family.byProxy) && (
+                <AnswerForThem
+                  family={family}
+                  holidayKey={entry.key}
+                  hosts={hostsFor[family.id] ?? []}
+                  past
+                />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

@@ -4,12 +4,14 @@ import { byCircle } from '@/lib/circle-order';
 import { Title } from '@/components/ui';
 import { NextStep } from '@/components/NextStep';
 import {
+  circleHistory,
   circleOf,
   circleTags,
   circlesFor,
   findPerson,
   getHouseholds,
   historyFor,
+  hostsEachCouldPick,
   unansweredUpcoming,
 } from '@/lib/data';
 import { nextStep } from '@/lib/next-step';
@@ -24,13 +26,14 @@ export default async function HistoryPage() {
   const person = await findPerson(phone);
   if (!person) redirect('/');
 
-  const [past, households, circle, unanswered, tags, circles] = await Promise.all([
+  const [past, households, circle, unanswered, tags, circles, others] = await Promise.all([
     historyFor(person.householdId),
     getHouseholds(),
     circleOf(person.householdId),
     unansweredUpcoming(person.householdId),
     circleTags(person.householdId),
     circlesFor(person.householdId),
+    circleHistory(person.householdId),
   ]);
   // Never a prompt to fill the history in: a year of past holidays is not
   // something anybody sits down and completes, and asking on every visit would
@@ -43,6 +46,16 @@ export default async function HistoryPage() {
     on: 'history',
   });
   const nameOf = (id: string) => households.find((h) => h.id === id)?.name ?? id;
+  const tagged = Object.fromEntries(tags);
+
+  // Where each family in the circle could have been: the overlap of their list
+  // and ours, us included — the same candidates the holiday screen offers when
+  // answering for them, so the server never refuses what the picker showed.
+  const us = { id: person.householdId, name: nameOf(person.householdId) };
+  const hostsFor = await hostsEachCouldPick(
+    circle.map((h) => h.id),
+    [us, ...circle.map((h) => ({ id: h.id, name: h.name }))],
+  );
 
   const answered = past.filter((entry) => entry.answer !== undefined);
   const count = (kind: string) => answered.filter((entry) => entry.answer!.kind === kind).length;
@@ -74,13 +87,25 @@ export default async function HistoryPage() {
               hostId: answer?.hostHouseholdId ?? '',
               hostName: answer?.hostHouseholdId ? nameOf(answer.hostHouseholdId) : '',
               byName,
+              others: byCircle(
+                (others.get(holiday.key) ?? []).map((c) => ({
+                  id: c.household.id,
+                  name: c.household.name,
+                  kind: c.kind,
+                  hostName: c.hostName,
+                  byName: c.byName,
+                  byProxy: c.byProxy,
+                })),
+                tagged,
+              ),
             }))}
             families={byCircle(
               circle.map((h) => ({ id: h.id, name: h.name })),
-              Object.fromEntries(tags),
+              tagged,
             )}
+            hostsFor={hostsFor}
             circles={circles}
-            tags={Object.fromEntries(tags)}
+            tags={tagged}
           />
         </>
       )}

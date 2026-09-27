@@ -869,15 +869,21 @@ function Circle({
   );
 }
 
-/** Three answers on somebody else's behalf, behind one quiet line. */
-function AnswerForThem({
+/**
+ * Three answers on somebody else's behalf, behind one quiet line. The history
+ * tab uses it too, in the past tense, for where they were rather than where
+ * they will be.
+ */
+export function AnswerForThem({
   family,
   holidayKey,
   hosts,
+  past = false,
 }: {
   family: { id: string; name: string; kind: string };
   holidayKey: string;
   hosts: { id: string; name: string }[];
+  past?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(answerFor, {});
   const [open, setOpen] = useState(false);
@@ -894,7 +900,7 @@ function AnswerForThem({
         onClick={() => setOpen(true)}
         className={`${miniButton} self-start`}
       >
-        {family.kind === 'none' ? 'לענות בשבילם' : 'לתקן בשבילם'}
+        {family.kind === 'none' ? (past ? 'למלא בשבילם' : 'לענות בשבילם') : 'לתקן בשבילם'}
       </button>
     );
   }
@@ -908,14 +914,16 @@ function AnswerForThem({
             of them — an arrow that closed the whole thing and a «חזרה» that
             went back one — read as the same word twice. */}
         <BackButton onClick={() => (asGuest ? setAsGuest(false) : setOpen(false))} />
-        <p className="text-xs text-muted">איפה {family.name} בחג הזה?</p>
+        <p className="text-xs text-muted">
+          {past ? `איפה היו ${family.name} בחג הזה?` : `איפה ${family.name} בחג הזה?`}
+        </p>
       </div>
       {asGuest ? (
         <>
           <input type="hidden" name="kind" value="guest" />
           <select name="hostHouseholdId" required defaultValue="" className={field}>
             <option value="" disabled>
-              אצל מי?
+              {past ? 'אצל מי היו?' : 'אצל מי?'}
             </option>
             {hosts.map((h) => (
               <option key={h.id} value={h.id}>
@@ -930,15 +938,14 @@ function AnswerForThem({
       ) : (
         <div className="flex flex-wrap gap-2">
           <button type="submit" name="kind" value="hosting" disabled={pending} className={chipButton}>
-            מארחים
+            {past ? 'אירחו' : 'מארחים'}
           </button>
           <button type="button" onClick={() => setAsGuest(true)} className={chipButton}>
-            אצל…
+            {past ? 'היו אצל…' : 'אצל…'}
           </button>
           <button type="submit" name="kind" value="away" disabled={pending} className={chipButton}>
-            לא מגיעים
+            {past ? 'לא הגיעו' : 'לא מגיעים'}
           </button>
-
         </div>
       )}
       <ErrorNote>{state.error}</ErrorNote>

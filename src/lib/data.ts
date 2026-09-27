@@ -569,6 +569,56 @@ export async function historyFor(
     });
 }
 
+/**
+ * What every family in the circle said about each past holiday — the same rows
+ * as the circle list on the holiday screen, for the whole history at once, so
+ * a gap in somebody else's year can be filled in the way a gap in ours is.
+ *
+ * One pass over the log rather than `circleAnswers` per holiday: the history
+ * reaches back years, and the circle is the same for every row of it.
+ */
+export async function circleHistory(
+  householdId: string,
+): Promise<Map<string, CircleAnswer[]>> {
+  const sheet = await loadSheet();
+  const today = todayInIsrael();
+  const circle = await circleOf(householdId);
+  const inCircle = new Set(circle.map((h) => h.id));
+  const nameOf = (id: string) => sheet.households.find((h) => h.id === id)?.name ?? id;
+
+  const latest = new Map<string, Map<string, Answer>>();
+  for (const a of sheet.answers) {
+    if (!inCircle.has(a.householdId)) continue;
+    let byHousehold = latest.get(a.holidayKey);
+    if (!byHousehold) latest.set(a.holidayKey, (byHousehold = new Map()));
+    byHousehold.set(a.householdId, a);
+  }
+
+  const result = new Map<string, CircleAnswer[]>();
+  for (const holiday of sheet.holidays) {
+    if (!holiday.include || holiday.date >= today || !visibleTo(holiday, householdId)) continue;
+    const said = latest.get(holiday.key);
+    result.set(
+      holiday.key,
+      // Only families the date reached, for the same reason as on the holiday
+      // screen: a family never asked is not a family that never answered.
+      circle
+        .filter((h) => visibleTo(holiday, h.id))
+        .map((household) => {
+          const answer = said?.get(household.id);
+          return {
+            household,
+            kind: answer?.kind ?? 'none',
+            hostName: answer?.hostHouseholdId ? nameOf(answer.hostHouseholdId) : '',
+            byName: answer ? personName(sheet, answer.byPhone) : '',
+            byProxy: Boolean(answer?.forHouseholdId),
+          };
+        }),
+    );
+  }
+  return result;
+}
+
 /** A holiday that has already passed, for correcting the record after the fact. */
 export async function getPastHoliday(
   key: string,
